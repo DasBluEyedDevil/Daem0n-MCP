@@ -42,3 +42,6 @@ storage/temp/
 # Logs
 *.log
 logs/
+
+# Avoid re-adding
+/nul

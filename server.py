@@ -31,11 +31,48 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Determine project-specific storage path
+def get_storage_path():
+    """
+    Determine storage path with project isolation.
+
+    Priority:
+    1. STORAGE_PATH environment variable (explicit override)
+    2. PROJECT_ROOT/.devilmcp/storage (if PROJECT_ROOT is set)
+    3. <cwd>/.devilmcp/storage (current working directory)
+    4. ./storage (fallback for centralized storage)
+    """
+    from pathlib import Path
+
+    # Check for explicit storage path override
+    if os.getenv('STORAGE_PATH'):
+        return os.getenv('STORAGE_PATH')
+
+    # Get project root
+    project_root = os.getenv('PROJECT_ROOT', os.getcwd())
+    project_path = Path(project_root).resolve()
+    server_path = Path(__file__).parent.resolve()
+
+    # If we're running from the DevilMCP server directory itself, use centralized storage
+    if project_path == server_path:
+        storage = server_path / "storage" / "centralized"
+        logger.info("Using centralized storage (running from DevilMCP directory)")
+    else:
+        # Use project-specific storage
+        storage = project_path / ".devilmcp" / "storage"
+        logger.info(f"Project detected: {project_path.name}")
+        logger.info(f"Using project-specific storage: {storage}")
+
+    # Create directory if it doesn't exist
+    storage.mkdir(parents=True, exist_ok=True)
+
+    return str(storage)
+
 # Initialize FastMCP server
 port = int(os.getenv('PORT', 8080))
-storage_path = os.getenv('STORAGE_PATH', './storage')
+storage_path = get_storage_path()
 
-mcp = FastMCP("DevilMCP", logger=logger, port=port)
+mcp = FastMCP("DevilMCP")
 
 # Initialize modules
 context_mgr = ContextManager(storage_path)
@@ -704,21 +741,20 @@ if __name__ == "__main__":
     logger.info(f"Storage path: {storage_path}")
 
     print("""
-    ╔═══════════════════════════════════════════════════════════════╗
-    ║                         DevilMCP Server                       ║
-    ║                                                               ║
-    ║  An extremely powerful MCP server for AI agents that:        ║
-    ║  • Maintains full project context                            ║
-    ║  • Tracks decisions and their outcomes                       ║
-    ║  • Analyzes change impacts and cascade risks                 ║
-    ║  • Manages thought processes and reasoning                   ║
-    ║  • Prevents short-sighted development decisions              ║
-    ║                                                               ║
-    ╚═══════════════════════════════════════════════════════════════╝
+    =================================================================
+                             DevilMCP Server
+    =================================================================
+      An extremely powerful MCP server for AI agents that:
+      * Maintains full project context
+      * Tracks decisions and their outcomes
+      * Analyzes change impacts and cascade risks
+      * Manages thought processes and reasoning
+      * Prevents short-sighted development decisions
+    =================================================================
     """)
 
     try:
-        mcp.run(transport="sse")
+        mcp.run(transport="stdio")
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")
     except Exception as e:
