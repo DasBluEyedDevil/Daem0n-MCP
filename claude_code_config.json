@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "devilmcp": {
+      "command": "python",
+      "args": [
+        "C:\\Users\\dasbl\\AndroidStudioProjects\\DevilMCP\\server.py"
+      ],
+      "env": {
+        "PORT": "8080",
+        "LOG_LEVEL": "INFO",
+        "STORAGE_PATH": "./storage",
+        "MAX_CONTEXT_DEPTH": "10"
+      }
+    }
+  }
+}
