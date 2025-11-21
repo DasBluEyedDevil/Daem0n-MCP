@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 from sqlalchemy import select, delete, text
 from sqlalchemy.exc import IntegrityError
 
-from database import DatabaseManager
-from models import ProjectFile, FileDependency, ExternalDependency
+from .database import DatabaseManager
+from .models import ProjectFile, FileDependency, ExternalDependency
 
 # Try importing gitpython
 try:

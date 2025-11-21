@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.pool import StaticPool
 from contextlib import asynccontextmanager
 from pathlib import Path
-from models import Base, Tool
+from .models import Base, Tool
 from sqlalchemy import select
 import toml
 import logging

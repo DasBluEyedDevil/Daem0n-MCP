@@ -6,10 +6,10 @@ Manages AI thought processes, reasoning chains, and cognitive context.
 import logging
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timezone
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, update, desc, func
 
-from database import DatabaseManager
-from models import Thought, ThoughtSession, Insight
+from .database import DatabaseManager
+from .models import Thought, ThoughtSession, Insight
 
 logger = logging.getLogger(__name__)
 

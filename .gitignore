@@ -45,3 +45,4 @@ logs/
 
 # Avoid re-adding
 /nul
+.devilmcp/

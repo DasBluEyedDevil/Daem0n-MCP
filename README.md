@@ -1,448 +1,112 @@
-# DevilMCP - Extremely Powerful Context Management for AI Agents
+# DevilMCP
 
-DevilMCP is an advanced Model Context Protocol (MCP) server designed to provide AI agents with comprehensive project context, decision tracking, change impact analysis, and cascade failure detection capabilities. It helps AI agents avoid short-sighted development decisions by maintaining full context awareness and understanding the ripple effects of changes.
+DevilMCP is an advanced **Context Management System** for AI agents (like Claude, Cursor, or Windsurf) that acts as a long-term memory and project manager. It solves the problem of AI "amnesia" by tracking decisions, analyzing codebase impact, and detecting potential cascade failures.
 
-## Features
+## 🚀 Key Benefits
 
-### 🧠 Context Management
-- **Project Structure Analysis**: Deep analysis of project architecture, file organization, and composition
-- **Dependency Tracking**: Comprehensive tracking of file dependencies and relationships
-- **Context Search**: Fast search across project context and dependencies
-- **Full Context Retrieval**: Complete project context for maintaining awareness
-
-### 📋 Decision Tracking
-- **Decision Logging**: Record every decision with full rationale and context
-- **Outcome Tracking**: Update decisions with actual outcomes and impacts
-- **Decision Analysis**: Analyze decision impacts and compare expected vs actual results
-- **Decision History**: Query past decisions to learn from history
-
-### 🔄 Change Impact Analysis
-- **Change Logging**: Track all code changes with comprehensive context
-- **Impact Assessment**: Predict the blast radius of proposed changes
-- **Conflict Detection**: Identify potential conflicts with other changes
-- **Historical Analysis**: Learn from past changes and their outcomes
-- **Safety Recommendations**: Get suggestions for safe change implementation
-
-### ⚠️ Cascade Failure Detection
-- **Dependency Graphs**: Build visual maps of component dependencies
-- **Cascade Risk Analysis**: Evaluate the risk of cascading failures
-- **Critical Path Detection**: Identify critical dependency chains
-- **Safe Change Suggestions**: Get recommendations for minimizing cascade risk
-- **Cascade Event Logging**: Learn from past cascade failures
-
-### 💭 Thought Process Management
-- **Thought Sessions**: Track reasoning processes throughout work sessions
-- **Reasoning Chains**: Build and maintain coherent chains of thought
-- **Gap Analysis**: Identify blind spots and missing considerations
-- **Insight Recording**: Capture learnings for future reference
-- **Session Summaries**: Review and learn from past thinking
-
-## Installation
-
-### Prerequisites
-- Python 3.8 or higher
-- pip package manager
-
-### Setup
-
-1. **Clone or download this repository**
-
-```bash
-cd /path/to/DevilMCP
-```
-
-2. **Create a virtual environment (recommended)**
-
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies**
-
-```bash
-pip install -r requirements.txt
-```
-
-4. **Configure environment (optional)**
-
-```bash
-cp .env.example .env
-# Edit .env to customize settings
-```
-
-Environment variables:
-- `PORT`: Server port (default: 8080)
-- `LOG_LEVEL`: Logging level (default: INFO)
-- `STORAGE_PATH`: Path for data storage (default: ./storage)
-- `MAX_CONTEXT_DEPTH`: Maximum depth for context traversal (default: 10)
-
-5. **Run the server**
-
-```bash
-python server.py
-```
-
-The server will start using stdio transport for communication with Claude Code or other MCP clients.
-
-## Usage
-
-### Connecting with Claude Code
-
-DevilMCP is designed to work seamlessly with Claude Code. Add this configuration to your Claude Code config file:
-
-**Location:**
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Linux: `~/.config/Claude/claude_desktop_config.json`
-
-**Configuration:**
-```json
-{
-  "mcpServers": {
-    "devilmcp": {
-      "command": "python",
-      "args": ["/absolute/path/to/DevilMCP/server.py"],
-      "env": {
-        "LOG_LEVEL": "INFO",
-        "MAX_CONTEXT_DEPTH": "10"
-      }
-    }
-  }
-}
-```
-
-Replace `/absolute/path/to/DevilMCP/server.py` with the actual path to your server.py file.
-
-See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed configuration instructions.
-
-### Available Tools
-
-DevilMCP provides 30+ tools organized into categories:
-
-#### Context Management Tools
-
-1. **analyze_project_structure** - Analyze entire project architecture
-2. **track_file_dependencies** - Track file imports and relationships
-3. **get_project_context** - Retrieve comprehensive project context
-4. **search_context** - Search for specific context information
-
-#### Decision Tracking Tools
-
-5. **log_decision** - Record a decision with full context
-6. **update_decision_outcome** - Update with actual outcomes
-7. **query_decisions** - Search past decisions
-8. **analyze_decision_impact** - Analyze decision consequences
-9. **get_decision_statistics** - Get decision-making statistics
-
-#### Change Analysis Tools
-
-10. **log_change** - Record a code change before making it
-11. **update_change_status** - Update change status after implementation
-12. **analyze_change_impact** - Predict change blast radius
-13. **query_changes** - Search change history
-14. **detect_change_conflicts** - Find conflicts with other changes
-
-#### Cascade Detection Tools
-
-15. **build_dependency_graph** - Create dependency graph
-16. **detect_dependencies** - Find upstream/downstream dependencies
-17. **analyze_cascade_risk** - Evaluate cascade failure risk
-18. **log_cascade_event** - Record cascade failures
-19. **suggest_safe_changes** - Get safe implementation suggestions
-
-#### Thought Process Tools
-
-20. **start_thought_session** - Begin a reasoning session
-21. **end_thought_session** - Complete a reasoning session
-22. **log_thought_process** - Record individual thoughts
-23. **retrieve_thought_context** - Recall previous thinking
-24. **analyze_reasoning_gaps** - Identify blind spots
-25. **record_insight** - Capture learnings
-26. **get_session_summary** - Review session results
-
-#### Task Management Tools
-
-27. **create_task** - Create a new task
-28. **update_task_status** - Update the status of a task
-29. **list_tasks** - List tasks filtering by status or workflow
-30. **create_workflow** - Create a new workflow
-31. **add_task_to_workflow** - Add a task to a workflow
-
-#### Utility Tools
-
-32. **get_mcp_statistics** - Get comprehensive usage statistics
-
-## Example Workflows
-
-### Starting a New Task
-
-```python
-# 1. Start a thought session
-start_thought_session(
-    session_id="feature-auth-2024-01",
-    context={"task": "Implement user authentication", "project": "MyApp"}
-)
-
-# 2. Analyze project structure
-project_context = analyze_project_structure("/path/to/project")
-
-# 3. Log your thinking
-log_thought_process(
-    thought="Need to implement JWT-based authentication",
-    category="analysis",
-    reasoning="Current system has no auth; JWT is stateless and scalable",
-    confidence=0.8
-)
-
-# 4. Check for reasoning gaps
-gaps = analyze_reasoning_gaps()
-# Review suggestions and address gaps
-```
-
-### Making a Code Change
-
-```python
-# 1. Analyze file dependencies
-deps = track_file_dependencies("/path/to/file.py", "/path/to/project")
-
-# 2. Analyze change impact
-impact = analyze_change_impact(
-    file_path="/path/to/file.py",
-    change_description="Refactor authentication logic",
-    dependencies=deps
-)
-
-# 3. Analyze cascade risk
-risk = analyze_cascade_risk(
-    target="/path/to/file.py",
-    change_type="refactor",
-    context={"affects": "authentication"}
-)
-
-# 4. Get safe change suggestions
-suggestions = suggest_safe_changes(
-    target="/path/to/file.py",
-    proposed_change="Refactor to use JWT tokens"
-)
-
-# 5. Log the decision
-decision = log_decision(
-    decision="Refactor auth to use JWT tokens",
-    rationale="Improves scalability and security",
-    context={"risk": risk, "impact": impact},
-    alternatives_considered=["Session-based auth", "OAuth2"],
-    expected_impact="Improved performance, easier horizontal scaling",
-    risk_level="medium",
-    tags=["authentication", "refactor"]
-)
-
-# 6. Log the change
-change = log_change(
-    file_path="/path/to/file.py",
-    change_type="refactor",
-    description="Refactor to JWT-based authentication",
-    rationale="Improve scalability and security",
-    affected_components=["auth", "api", "middleware"],
-    risk_assessment=risk,
-    rollback_plan="Keep old auth code as fallback for 2 weeks"
-)
-
-# 7. After implementation, update status
-update_change_status(
-    change_id=change["id"],
-    status="implemented",
-    actual_impact="Performance improved by 15%, no issues detected"
-)
-
-update_decision_outcome(
-    decision_id=decision["id"],
-    outcome="Successfully implemented",
-    actual_impact="Better than expected - 15% perf improvement",
-    lessons_learned="JWT implementation was smoother with proper testing"
-)
-```
-
-### Learning from History
-
-```python
-# Query similar past decisions
-past_decisions = query_decisions(
-    query="authentication",
-    tags=["refactor"],
-    limit=5
-)
-
-# Review cascade failures
-cascade_history = query_cascade_history(
-    severity="high",
-    limit=10
-)
-
-# Get comprehensive statistics
-stats = get_mcp_statistics()
-print(f"Decision tracking rate: {stats['decisions']['outcome_tracking_rate']}")
-print(f"Changes with issues: {stats['changes']['issue_rate']}")
-```
-
-## Best Practices for AI Agents
-
-### 1. Always Start with Context
-Before making any changes, use `analyze_project_structure` and `get_project_context` to understand the full picture.
-
-### 2. Log All Decisions
-Use `log_decision` for EVERY significant decision. This builds institutional knowledge and helps avoid repeating mistakes.
-
-### 3. Analyze Before Changing
-Always use `analyze_change_impact` and `analyze_cascade_risk` BEFORE making changes. This is your early warning system for short-sighted decisions.
-
-### 4. Track Your Thinking
-Use thought process tools throughout your work. `analyze_reasoning_gaps` helps catch blind spots.
-
-### 5. Update Outcomes
-After implementing changes, always use `update_change_status` and `update_decision_outcome` to close the feedback loop.
-
-### 6. Learn from History
-Regularly query past decisions and changes to learn from experience.
-
-### 7. Check for Conflicts
-Use `detect_change_conflicts` before implementing changes to avoid stepping on other work.
-
-## Data Storage
-
-DevilMCP stores its data in the configured `STORAGE_PATH` (default: `./storage`):
-
-- **Core Data (SQLite):** `devilmcp.db` stores all project data including decisions, changes, tools, tasks, workflows, thought sessions, and project context analysis. This ensures ACID compliance and robust querying capabilities.
-
-All data is persisted to disk and loaded/connected on server start.
-
-## Database Migration (Upgrading from v1)
-
-If you have data from an older version of DevilMCP stored in JSON files (`decisions.json`, etc.), you can migrate it to the new SQLite database:
-
-1. Ensure your server is stopped.
-2. Run the migration script:
-   ```bash
-   python scripts/migrate_json_to_sqlite.py
-   ```
-   This will look for JSON files in your storage directory and import them into `devilmcp.db`.
-
-## Configuration
-
-DevilMCP supports optional configuration via a `tools.toml` file in the project root. This allows you to pre-define custom CLI tools that the agent can use. See `tools.toml.example` for a template.
-
-## Architecture
-
-DevilMCP is built with a modular architecture:
-
-```
-server.py           # FastMCP server with tool registration
-├── context_manager.py     # Project context and structure analysis
-├── decision_tracker.py    # Decision logging and analysis
-├── change_analyzer.py     # Change impact assessment
-├── cascade_detector.py    # Cascade failure detection
-└── thought_processor.py   # Thought process management
-```
-
-Each module is independent and can be extended or customized as needed.
-
-## Advanced Features
-
-### Dependency Graphs
-
-With NetworkX installed, DevilMCP can build and analyze complex dependency graphs:
-
-```python
-# Build graph from all tracked dependencies
-deps_dict = {
-    "/path/to/file1.py": track_file_dependencies("/path/to/file1.py"),
-    "/path/to/file2.py": track_file_dependencies("/path/to/file2.py"),
-    # ... more files
-}
-
-graph_stats = build_dependency_graph(deps_dict)
-
-# Analyze specific component
-deps = detect_dependencies(
-    target="/path/to/critical/file.py",
-    depth=5,
-    direction="both"
-)
-```
-
-### Risk-Based Decision Making
-
-DevilMCP tracks risk levels across decisions and changes:
-
-```python
-# Get all high-risk decisions
-high_risk = query_decisions(risk_level="high", limit=20)
-
-# Analyze patterns
-stats = get_decision_statistics()
-print(f"Risk distribution: {stats['risk_distribution']}")
-```
-
-### Session-Based Reasoning
-
-Track entire work sessions with full reasoning chains:
-
-```python
-# Start session
-start_thought_session("bug-fix-123", {"issue": "#123"})
-
-# Log thoughts throughout work
-log_thought_process("Found root cause in parser", "analysis", "...")
-log_thought_process("Considering two fix approaches", "hypothesis", "...")
-log_thought_process("Approach A might break edge cases", "concern", "...")
-
-# Check for gaps
-gaps = analyze_reasoning_gaps()
-
-# End with summary
-end_thought_session(
-    "bug-fix-123",
-    summary="Fixed parser bug with minimal impact",
-    outcomes=["Bug fixed", "Tests passing", "No regressions"]
-)
-
-# Review later
-summary = get_session_summary("bug-fix-123")
-```
-
-## Troubleshooting
-
-### Server won't start
-- Check that all dependencies are installed: `pip install -r requirements.txt`
-- Verify Python version is 3.8 or higher: `python --version`
-- Check that the port is not in use: `netstat -an | grep 8080`
-
-### Storage errors
-- Ensure the storage directory is writable
-- Check disk space
-- Verify file permissions on the storage directory
-
-### Import errors
-- Activate the virtual environment
-- Reinstall dependencies: `pip install -r requirements.txt --force-reinstall`
-
-## Contributing
-
-This MCP server is designed to be extended. To add new capabilities:
-
-1. Create a new module in the project directory
-2. Add tools to `server.py` using the `@mcp.tool()` decorator
-3. Update this README with the new functionality
-
-## License
-
-This project is open source. Use it, extend it, make it your own.
-
-## Credits
-
-Built following the FastMCP architecture pattern from the FreeCodeCamp guide.
-Designed specifically to prevent short-sighted AI development decisions through comprehensive context management and impact analysis.
+*   **Memory:** Remembers architectural decisions so you don't have to repeat yourself.
+*   **Safety:** Predicts "blast radius" of code changes before they happen.
+*   **Task Management:** Tracks what needs to be done directly within the chat.
+*   **Project Isolation:** Automatically maintains separate contexts for each project you work on.
 
 ---
 
-**DevilMCP**: Because AI agents should know what they're doing, why they're doing it, and what might break when they do it.
+## 📦 Installation
+
+DevilMCP is designed for **autonomous setup by your AI assistant**.
+
+1.  **Download the repository:**
+    ```bash
+    git clone https://github.com/yourusername/DevilMCP.git
+    ```
+    or simply download and unzip the archive to a convenient location (e.g., `C:/Tools/DevilMCP`).
+
+2.  **Point your AI to `AI_INSTRUCTIONS.md`:**
+    Once the files are on your system, open your AI assistant (Claude, Cursor, etc.) and provide it with the full path to the `AI_INSTRUCTIONS.md` file located in the root of the DevilMCP directory.
+
+    *Example Prompt:*
+    ```
+    Please read and execute the instructions in "C:/Path/To/DevilMCP/AI_INSTRUCTIONS.md"
+    ```
+    Your AI will then autonomously install DevilMCP and configure its connection.
+
+---
+
+## ⚙️ Configuration
+
+Your AI assistant will handle the configuration automatically once you point it to `AI_INSTRUCTIONS.md`. It will locate its own configuration file and integrate DevilMCP as an MCP server.
+
+**Note on Automatic Project Isolation:** `STORAGE_PATH` is typically left empty in the configuration. This allows DevilMCP to create a hidden `.devilmcp/` folder (containing `devilmcp.db`) in whichever project directory you are currently working in. This ensures each project has its own isolated data.
+
+---
+
+## 🖥️ Usage
+
+DevilMCP provides two ways to interact with it:
+
+### 1. AI Agent Mode (Server)
+When connected to Claude or an IDE, the agent will automatically use these tools:
+
+*   **`get_project_context`**: Analyzes your file structure.
+*   **`log_decision`**: Records architectural choices.
+*   **`create_task`**: Manages your todo list.
+*   **`analyze_change_impact`**: Checks for breaking changes.
+
+### 2. CLI Mode (Manual)
+You can also use DevilMCP directly from your terminal for quick actions without an AI.
+
+```bash
+# Run a CLI command
+python /path/to/DevilMCP/cli.py <command> [args]
+```
+
+**Common Commands:**
+
+*   **Create a Task:**
+    ```bash
+    python cli.py create-task "Refactor API" --priority high
+    ```
+*   **List Tasks:**
+    ```bash
+    python cli.py list-tasks --status todo
+    ```
+*   **Log a Decision:**
+    ```bash
+    python cli.py log-decision "Use PostgreSQL" --rationale "Better JSON support"
+    ```
+
+---
+
+## 🧠 AI Integration Guide
+
+To get the best results, provide the contents of `AI_INSTRUCTIONS.md` (found in this repo) to your AI assistant as a "System Prompt" or "Custom Instruction".
+
+**Core Rules for the AI:**
+1.  **Always Check Context First:** Run `get_project_context()`.
+2.  **Log Every Decision:** Use `log_decision()` for architectural choices.
+3.  **Predict Before Changing:** Run `analyze_change_impact()` before writing code.
+
+---
+
+## 🏗️ Architecture
+
+DevilMCP uses a modular architecture backed by **SQLite** for robust data persistence.
+
+*   **Core Logic:** Located in `devilmcp/` package.
+*   **Data Storage:** `.devilmcp/storage/devilmcp.db` (SQLite) inside your project root.
+*   **Entry Points:** `server.py` (MCP Protocol) and `cli.py` (Human Interface).
+
+### Custom Tools
+You can register your own local CLI tools for the agent to use by creating a `tools.toml` file in your project root. See `tools.toml.example` for details.
+
+---
+
+## 🔄 Database Migration
+If you are upgrading from v1 (JSON storage), run:
+```bash
+python scripts/migrate_json_to_sqlite.py "/path/to/your/project"
+```
+
+---
+
+*DevilMCP: Because AI agents should know what they're doing, why they're doing it, and what might break when they do it.*

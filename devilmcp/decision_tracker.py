@@ -8,8 +8,8 @@ from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy import select, update, desc, func, or_
 
-from database import DatabaseManager
-from models import Decision
+from .database import DatabaseManager
+from .models import Decision
 
 logger = logging.getLogger(__name__)
 

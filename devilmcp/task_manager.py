@@ -2,8 +2,8 @@ import logging
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy import select, update, delete
-from database import DatabaseManager
-from models import Task
+from .database import DatabaseManager
+from .models import Task
 
 logger = logging.getLogger(__name__)
 

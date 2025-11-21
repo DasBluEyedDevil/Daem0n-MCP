@@ -17,15 +17,15 @@ except ImportError:
     print("ERROR: fastmcp not installed. Run: pip install -r requirements.txt", file=sys.stderr)
     exit(1)
 
-from context_manager import ContextManager
-from decision_tracker import DecisionTracker
-from change_analyzer import ChangeAnalyzer
-from cascade_detector import CascadeDetector
-from thought_processor import ThoughtProcessor
-from database import DatabaseManager
-from process_manager import ProcessManager
-from tool_registry import ToolRegistry
-from task_manager import TaskManager
+from devilmcp.context_manager import ContextManager
+from devilmcp.decision_tracker import DecisionTracker
+from devilmcp.change_analyzer import ChangeAnalyzer
+from devilmcp.cascade_detector import CascadeDetector
+from devilmcp.thought_processor import ThoughtProcessor
+from devilmcp.database import DatabaseManager
+from devilmcp.process_manager import ProcessManager
+from devilmcp.tool_registry import ToolRegistry
+from devilmcp.task_manager import TaskManager
 # Removed Orchestrator and TaskRouter imports
 
 # Load environment variables

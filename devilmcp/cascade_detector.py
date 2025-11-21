@@ -9,8 +9,8 @@ from typing import Dict, List, Optional, Set, Tuple
 from datetime import datetime, timezone
 from sqlalchemy import select, desc, func
 
-from database import DatabaseManager
-from models import CascadeEvent
+from .database import DatabaseManager
+from .models import CascadeEvent
 
 try:
     import networkx as nx

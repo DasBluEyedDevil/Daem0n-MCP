@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from enum import Enum
 import toml
 
-from database import DatabaseManager
-from models import Tool
+from .database import DatabaseManager
+from .models import Tool
 from sqlalchemy import select
 from datetime import datetime, timezone # Import for default values if tools.toml is missing created_at
 

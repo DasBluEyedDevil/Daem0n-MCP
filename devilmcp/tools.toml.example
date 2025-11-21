@@ -1,0 +1,21 @@
+[tools.custom-tool]
+display_name = "Custom Tool"
+command = "python"
+args = ["-c", "print('Hello from Custom Tool')"]
+capabilities = ["testing", "utilities"]
+enabled = true
+
+[tools.custom-tool.config]
+prompt_patterns = [">>>"]
+init_timeout = 5000
+command_timeout = 10000
+
+[tools.linter]
+display_name = "Linter"
+command = "flake8"
+args = ["."]
+capabilities = ["code_review", "testing"]
+enabled = false
+
+[tools.linter.config]
+timeout = 30000

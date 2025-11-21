@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime, timezone
 
-from database import DatabaseManager
-from models import Tool, ToolSession 
+from .database import DatabaseManager
+from .models import Tool, ToolSession 
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
