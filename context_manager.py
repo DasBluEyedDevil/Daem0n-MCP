@@ -1,362 +1,266 @@
 """
 Context Manager Module
-Provides comprehensive project context tracking and retrieval capabilities.
+Analyzes project structure and dependencies to build a comprehensive context graph.
 """
 
 import os
-import json
+import re
 import ast
-from pathlib import Path
-from typing import Dict, List, Optional, Set
-from datetime import datetime
+import json
 import logging
+from pathlib import Path
+from typing import Dict, List, Set, Optional
+from datetime import datetime
+
+# Try importing gitpython
+try:
+    import git
+    GIT_AVAILABLE = True
+except ImportError:
+    GIT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 
 class ContextManager:
-    """Manages project context, file relationships, and architectural understanding."""
+    """Manages project context, structure analysis, and dependency tracking."""
 
     def __init__(self, storage_path: str = "./storage"):
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(exist_ok=True)
         self.context_file = self.storage_path / "project_context.json"
-        self.context_data = self._load_context()
+        self.context = self._load_context()
 
     def _load_context(self) -> Dict:
-        """Load existing context data or create new."""
+        """Load existing context data."""
         if self.context_file.exists():
             try:
                 with open(self.context_file, 'r') as f:
                     return json.load(f)
             except Exception as e:
                 logger.error(f"Error loading context: {e}")
-
+        
         return {
-            "projects": {},
-            "file_map": {},
+            "project_root": None,
+            "files": {},
             "dependencies": {},
             "last_updated": None
         }
 
     def _save_context(self):
         """Persist context data to storage."""
-        self.context_data["last_updated"] = datetime.now().isoformat()
         try:
             with open(self.context_file, 'w') as f:
-                json.dump(self.context_data, f, indent=2)
+                json.dump(self.context, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving context: {e}")
 
     def analyze_project_structure(self, project_path: str) -> Dict:
         """
-        Analyze entire project structure and create comprehensive context map.
+        Analyze project structure and build file list.
+        Uses git to respect .gitignore if available.
 
         Args:
-            project_path: Root path of the project to analyze
+            project_path: Path to the project root
 
         Returns:
-            Dictionary containing project structure, file types, and organization
+            Structure analysis with file list and stats
         """
-        project_path = Path(project_path).resolve()
-
-        if not project_path.exists():
-            return {"error": f"Project path does not exist: {project_path}"}
-
+        project_path = os.path.abspath(project_path)
+        self.context["project_root"] = project_path
+        
         structure = {
-            "root": str(project_path),
-            "name": project_path.name,
+            "root": project_path,
+            "files": [],
             "directories": [],
-            "files": {},
-            "file_types": {},
-            "total_files": 0,
-            "total_lines": 0,
-            "languages": set(),
-            "analyzed_at": datetime.now().isoformat()
+            "languages": {},
+            "total_files": 0
         }
 
-        # Ignore common directories
-        ignore_dirs = {'.git', '__pycache__', 'node_modules', 'venv', 'env', '.venv',
-                      'dist', 'build', '.next', '.nuxt', 'target'}
+        file_list = []
 
-        for root, dirs, files in os.walk(project_path):
-            # Filter ignored directories
-            dirs[:] = [d for d in dirs if d not in ignore_dirs]
+        # Try using git first
+        if GIT_AVAILABLE:
+            try:
+                repo = git.Repo(project_path, search_parent_directories=True)
+                # Get tracked files
+                git_files = repo.git.ls_files().split('\n')
+                # Filter out empty strings
+                file_list = [os.path.join(repo.working_dir, f) for f in git_files if f]
+                logger.info(f"Used git to find {len(file_list)} tracked files")
+            except (git.InvalidGitRepositoryError, Exception) as e:
+                logger.warning(f"Git lookup failed ({e}), falling back to os.walk")
+                file_list = self._walk_directory(project_path)
+        else:
+            file_list = self._walk_directory(project_path)
 
-            rel_root = Path(root).relative_to(project_path)
-            structure["directories"].append(str(rel_root))
+        # Process the file list
+        for full_path in file_list:
+            rel_path = os.path.relpath(full_path, project_path)
+            
+            # Skip .git directory internal files if they slipped through
+            if ".git" + os.sep in full_path:
+                continue
 
-            for file in files:
-                file_path = Path(root) / file
-                rel_path = file_path.relative_to(project_path)
+            # Determine language/type
+            ext = os.path.splitext(full_path)[1].lower()
+            if ext:
+                structure["languages"][ext] = structure["languages"].get(ext, 0) + 1
 
-                # Get file extension
-                ext = file_path.suffix
-                if ext:
-                    structure["file_types"][ext] = structure["file_types"].get(ext, 0) + 1
-                    structure["languages"].add(self._detect_language(ext))
+            file_info = {
+                "path": rel_path,
+                "full_path": full_path,
+                "extension": ext,
+                "size": os.path.getsize(full_path) if os.path.exists(full_path) else 0
+            }
+            
+            structure["files"].append(file_info)
+            
+            # Update internal state
+            self.context["files"][rel_path] = file_info
 
-                # Count lines for text files
-                try:
-                    if self._is_text_file(file_path):
-                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            lines = len(f.readlines())
-                            structure["total_lines"] += lines
+            # Add directory
+            dirname = os.path.dirname(rel_path)
+            if dirname and dirname not in structure["directories"]:
+                structure["directories"].append(dirname)
 
-                            structure["files"][str(rel_path)] = {
-                                "type": ext,
-                                "lines": lines,
-                                "size": file_path.stat().st_size,
-                                "language": self._detect_language(ext)
-                            }
-                except Exception as e:
-                    logger.debug(f"Could not read {rel_path}: {e}")
-
-                structure["total_files"] += 1
-
-        structure["languages"] = list(structure["languages"])
-
-        # Store in context
-        self.context_data["projects"][str(project_path)] = structure
+        structure["total_files"] = len(structure["files"])
         self._save_context()
-
+        
         return structure
 
-    def track_file_dependencies(self, file_path: str, project_root: Optional[str] = None) -> Dict:
+    def _walk_directory(self, project_path: str) -> List[str]:
+        """Fallback method to walk directory if git is not available."""
+        file_list = []
+        ignore_dirs = {'.git', '__pycache__', 'node_modules', 'venv', '.env'}
+        
+        for root, dirs, files in os.walk(project_path):
+            # Modify dirs in-place to skip ignored directories
+            dirs[:] = [d for d in dirs if d not in ignore_dirs]
+            
+            for file in files:
+                if file.startswith('.'):  # Skip hidden files
+                    continue
+                file_list.append(os.path.join(root, file))
+        
+        return file_list
+
+    def track_file_dependencies(
+        self, 
+        file_path: str,
+        project_root: Optional[str] = None
+    ) -> Dict:
         """
-        Analyze file dependencies including imports, requires, and relationships.
+        Analyze file dependencies (imports).
 
         Args:
-            file_path: Path to file to analyze
-            project_root: Root of project for relative path resolution
+            file_path: Path to the file
+            project_root: Project root for relative resolution
 
         Returns:
-            Dictionary of dependencies and relationships
+            Dependency information
         """
-        file_path = Path(file_path).resolve()
+        if not os.path.exists(file_path):
+            return {"error": f"File {file_path} not found"}
 
-        if not file_path.exists():
-            return {"error": f"File does not exist: {file_path}"}
-
-        dependencies = {
-            "file": str(file_path),
-            "imports": [],
-            "exports": [],
+        root = project_root or self.context.get("project_root") or os.path.dirname(file_path)
+        rel_path = os.path.relpath(file_path, root)
+        
+        deps = {
+            "file": rel_path,
             "internal_deps": [],
-            "external_deps": [],
-            "analyzed_at": datetime.now().isoformat()
+            "external_deps": []
         }
 
+        ext = os.path.splitext(file_path)[1].lower()
+        
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')
-
-            # Python files
-            if file_path.suffix == '.py':
-                dependencies.update(self._analyze_python_deps(content, file_path, project_root))
-
-            # JavaScript/TypeScript files
-            elif file_path.suffix in ['.js', '.jsx', '.ts', '.tsx', '.mjs']:
-                dependencies.update(self._analyze_js_deps(content, file_path, project_root))
-
-            # Store in context
-            self.context_data["dependencies"][str(file_path)] = dependencies
-            self._save_context()
-
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+            if ext == '.py':
+                deps = self._analyze_python_deps(content, deps)
+            elif ext in ['.js', '.ts', '.jsx', '.tsx']:
+                deps = self._analyze_js_deps(content, deps)
+                
         except Exception as e:
-            dependencies["error"] = str(e)
             logger.error(f"Error analyzing dependencies for {file_path}: {e}")
 
-        return dependencies
+        # Update context
+        self.context["dependencies"][rel_path] = deps
+        self._save_context()
+        
+        return deps
 
-    def _analyze_python_deps(self, content: str, file_path: Path, project_root: Optional[str]) -> Dict:
-        """Analyze Python file dependencies."""
-        deps = {"imports": [], "internal_deps": [], "external_deps": []}
-
+    def _analyze_python_deps(self, content: str, deps: Dict) -> Dict:
+        """Analyze Python imports using AST."""
         try:
             tree = ast.parse(content)
-
+            
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        deps["imports"].append(alias.name)
-                        if self._is_internal_module(alias.name, project_root):
-                            deps["internal_deps"].append(alias.name)
-                        else:
-                            deps["external_deps"].append(alias.name)
-
+                    for name in node.names:
+                        deps["external_deps"].append(name.name.split('.')[0])
+                        
                 elif isinstance(node, ast.ImportFrom):
-                    module = node.module or ""
-                    for alias in node.names:
-                        full_import = f"{module}.{alias.name}" if module else alias.name
-                        deps["imports"].append(full_import)
-
-                        if self._is_internal_module(module, project_root):
-                            deps["internal_deps"].append(full_import)
+                    if node.module:
+                        # Heuristic: relative imports or local modules are internal
+                        if node.level > 0 or os.path.exists(node.module.replace('.', '/') + '.py'):
+                            deps["internal_deps"].append(node.module)
                         else:
-                            deps["external_deps"].append(full_import)
-
-        except Exception as e:
-            logger.debug(f"Error parsing Python AST: {e}")
-
+                            deps["external_deps"].append(node.module.split('.')[0])
+                            
+        except SyntaxError:
+            pass # Skip invalid syntax
+            
         return deps
 
-    def _analyze_js_deps(self, content: str, file_path: Path, project_root: Optional[str]) -> Dict:
-        """Analyze JavaScript/TypeScript file dependencies."""
-        import re
-
-        deps = {"imports": [], "internal_deps": [], "external_deps": []}
-
-        # Match ES6 imports
-        import_pattern = r'import\s+(?:{[^}]+}|\*\s+as\s+\w+|\w+)\s+from\s+[\'"]([^\'"]+)[\'"]'
-        # Match require statements
-        require_pattern = r'require\s*\([\'"]([^\'"]+)[\'"]\)'
-
-        for match in re.finditer(import_pattern, content):
-            module = match.group(1)
-            deps["imports"].append(module)
-
-            if module.startswith('.') or module.startswith('/'):
-                deps["internal_deps"].append(module)
+    def _analyze_js_deps(self, content: str, deps: Dict) -> Dict:
+        """Analyze JS/TS imports using Regex."""
+        # Match: import ... from '...' or require('...')
+        import_pattern = re.compile(r'(?:import\s+.*\s+from\s+|require\(\s*)[\'"]([^\'"]+)[\'"]')
+        
+        matches = import_pattern.findall(content)
+        
+        for match in matches:
+            if match.startswith('.'):
+                deps["internal_deps"].append(match)
             else:
-                deps["external_deps"].append(module)
-
-        for match in re.finditer(require_pattern, content):
-            module = match.group(1)
-            deps["imports"].append(module)
-
-            if module.startswith('.') or module.startswith('/'):
-                deps["internal_deps"].append(module)
-            else:
-                deps["external_deps"].append(module)
-
+                deps["external_deps"].append(match.split('/')[0])
+                
         return deps
 
-    def _is_internal_module(self, module: str, project_root: Optional[str]) -> bool:
-        """Determine if module is internal to the project."""
-        if not module:
-            return False
-
-        # Relative imports are internal
-        if module.startswith('.'):
-            return True
-
-        # Check if module exists in project
-        if project_root:
-            project_path = Path(project_root)
-            module_path = project_path / module.replace('.', '/')
-            return module_path.exists() or (module_path.parent / f"{module_path.name}.py").exists()
-
-        return False
-
-    def _detect_language(self, ext: str) -> str:
-        """Detect programming language from file extension."""
-        lang_map = {
-            '.py': 'Python',
-            '.js': 'JavaScript',
-            '.jsx': 'JavaScript',
-            '.ts': 'TypeScript',
-            '.tsx': 'TypeScript',
-            '.java': 'Java',
-            '.cpp': 'C++',
-            '.c': 'C',
-            '.h': 'C/C++',
-            '.cs': 'C#',
-            '.go': 'Go',
-            '.rs': 'Rust',
-            '.rb': 'Ruby',
-            '.php': 'PHP',
-            '.swift': 'Swift',
-            '.kt': 'Kotlin',
-            '.scala': 'Scala',
-            '.html': 'HTML',
-            '.css': 'CSS',
-            '.scss': 'SCSS',
-            '.vue': 'Vue',
-            '.json': 'JSON',
-            '.yml': 'YAML',
-            '.yaml': 'YAML',
-            '.md': 'Markdown',
-            '.sh': 'Shell',
-            '.sql': 'SQL'
-        }
-        return lang_map.get(ext.lower(), 'Unknown')
-
-    def _is_text_file(self, file_path: Path) -> bool:
-        """Check if file is likely a text file."""
-        text_extensions = {
-            '.py', '.js', '.jsx', '.ts', '.tsx', '.java', '.cpp', '.c', '.h', '.cs',
-            '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.scala', '.html', '.css',
-            '.scss', '.vue', '.json', '.yml', '.yaml', '.md', '.txt', '.sh', '.sql',
-            '.xml', '.toml', '.ini', '.cfg', '.conf'
-        }
-        return file_path.suffix.lower() in text_extensions
-
-    def get_project_context(self, project_path: Optional[str] = None,
-                           include_dependencies: bool = True) -> Dict:
-        """
-        Retrieve comprehensive project context.
-
-        Args:
-            project_path: Optional specific project to get context for
-            include_dependencies: Whether to include dependency information
-
-        Returns:
-            Complete context information for the project(s)
-        """
+    def get_project_context(
+        self, 
+        project_path: Optional[str] = None,
+        include_dependencies: bool = True
+    ) -> Dict:
+        """Retrieve comprehensive project context."""
+        # Refresh structure if path provided
         if project_path:
-            project_path = str(Path(project_path).resolve())
-            context = {
-                "project": self.context_data["projects"].get(project_path, {}),
-                "last_updated": self.context_data["last_updated"]
-            }
-
-            if include_dependencies:
-                # Get all dependencies for files in this project
-                project_deps = {
-                    path: deps for path, deps in self.context_data["dependencies"].items()
-                    if path.startswith(project_path)
-                }
-                context["dependencies"] = project_deps
-
-            return context
-        else:
-            # Return all context
-            return self.context_data
+            self.analyze_project_structure(project_path)
+            
+        return {
+            "project": self.context.get("project_root"),
+            "total_files": len(self.context.get("files", {})),
+            "files": self.context.get("files", {}) if include_dependencies else {},
+            "dependencies": self.context.get("dependencies", {}) if include_dependencies else {},
+            "last_updated": datetime.now().isoformat()
+        }
 
     def search_context(self, query: str, context_type: str = "all") -> List[Dict]:
-        """
-        Search context data for specific information.
-
-        Args:
-            query: Search query string
-            context_type: Type of context to search ('files', 'dependencies', 'all')
-
-        Returns:
-            List of matching context entries
-        """
+        """Search context for specific information."""
         results = []
-        query_lower = query.lower()
-
-        if context_type in ["files", "all"]:
-            for project_path, project_data in self.context_data["projects"].items():
-                for file_path, file_data in project_data.get("files", {}).items():
-                    if query_lower in file_path.lower() or query_lower in file_data.get("language", "").lower():
-                        results.append({
-                            "type": "file",
-                            "project": project_path,
-                            "path": file_path,
-                            "data": file_data
-                        })
-
-        if context_type in ["dependencies", "all"]:
-            for file_path, deps in self.context_data["dependencies"].items():
-                for imp in deps.get("imports", []):
-                    if query_lower in imp.lower():
-                        results.append({
-                            "type": "dependency",
-                            "file": file_path,
-                            "import": imp,
-                            "data": deps
-                        })
-
+        query = query.lower()
+        
+        if context_type in ["all", "files"]:
+            for path, info in self.context.get("files", {}).items():
+                if query in path.lower():
+                    results.append({"type": "file", "path": path, "info": info})
+                    
+        if context_type in ["all", "dependencies"]:
+            for path, deps in self.context.get("dependencies", {}).items():
+                if query in str(deps).lower():
+                    results.append({"type": "dependency", "path": path, "deps": deps})
+                    
         return results

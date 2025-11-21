@@ -7,6 +7,7 @@ track decisions, and understand cascading impacts.
 import os
 import sys
 import logging
+import asyncio
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
@@ -21,6 +22,10 @@ from decision_tracker import DecisionTracker
 from change_analyzer import ChangeAnalyzer
 from cascade_detector import CascadeDetector
 from thought_processor import ThoughtProcessor
+from database import DatabaseManager
+from process_manager import ProcessManager
+from tool_registry import ToolRegistry
+# Removed Orchestrator and TaskRouter imports
 
 # Load environment variables
 load_dotenv()
@@ -75,34 +80,26 @@ storage_path = get_storage_path()
 
 mcp = FastMCP("DevilMCP")
 
-# Initialize modules
+# Initialize core modules
+db_manager = DatabaseManager(storage_path)
+process_manager = ProcessManager(db_manager)
+tool_registry = ToolRegistry(db_manager)
 context_mgr = ContextManager(storage_path)
-decision_tracker = DecisionTracker(storage_path)
-change_analyzer = ChangeAnalyzer(storage_path)
-cascade_detector = CascadeDetector(storage_path)
-thought_processor = ThoughtProcessor(storage_path)
+decision_tracker = DecisionTracker(db_manager)
+cascade_detector = CascadeDetector(db_manager, storage_path)
+change_analyzer = ChangeAnalyzer(db_manager, cascade_detector)
+thought_processor = ThoughtProcessor(db_manager)
 
 logger.info("DevilMCP Server initialized")
 
 # Context management tools
-
 @mcp.tool()
 def analyze_project_structure(project_path: str) -> Dict:
     """
     Analyze entire project structure to build comprehensive context.
-
-    Use this tool when starting work on a project to understand its
-    architecture, file organization, and composition.
-
-    Args:
-        project_path: Absolute path to the project root directory
-
-    Returns:
-        Complete project structure analysis including files, languages, and organization
     """
     logger.info(f"Analyzing project structure: {project_path}")
     return context_mgr.analyze_project_structure(project_path)
-
 
 @mcp.tool()
 def track_file_dependencies(
@@ -111,19 +108,9 @@ def track_file_dependencies(
 ) -> Dict:
     """
     Analyze file dependencies including imports and relationships.
-
-    Use this tool to understand what a file depends on and what depends on it.
-
-    Args:
-        file_path: Path to the file to analyze
-        project_root: Optional project root for relative path resolution
-
-    Returns:
-        Dependency information including imports and relationships
     """
     logger.info(f"Tracking dependencies: {file_path}")
     return context_mgr.track_file_dependencies(file_path, project_root)
-
 
 @mcp.tool()
 def get_project_context(
@@ -132,43 +119,21 @@ def get_project_context(
 ) -> Dict:
     """
     Retrieve comprehensive project context.
-
-    Use this tool to get full context about a project including structure
-    and dependencies. Essential for maintaining context during work.
-
-    Args:
-        project_path: Optional specific project path
-        include_dependencies: Whether to include dependency information
-
-    Returns:
-        Complete project context
     """
     logger.info(f"Getting project context: {project_path or 'all'}")
     return context_mgr.get_project_context(project_path, include_dependencies)
-
 
 @mcp.tool()
 def search_context(query: str, context_type: str = "all") -> List[Dict]:
     """
     Search context data for specific information.
-
-    Use this tool to find files, dependencies, or other context information.
-
-    Args:
-        query: Search query string
-        context_type: Type to search ('files', 'dependencies', 'all')
-
-    Returns:
-        List of matching context entries
     """
     logger.info(f"Searching context: {query}")
     return context_mgr.search_context(query, context_type)
 
-
 # Decision tracking tools
-
 @mcp.tool()
-def log_decision(
+async def log_decision(
     decision: str,
     rationale: str,
     context: Dict,
@@ -179,31 +144,15 @@ def log_decision(
 ) -> Dict:
     """
     Log a decision with full context and rationale.
-
-    CRITICAL: Use this tool for EVERY significant decision you make.
-    This builds decision history and helps avoid repeating mistakes.
-
-    Args:
-        decision: The decision made
-        rationale: Why this decision was made
-        context: Contextual information about the decision
-        alternatives_considered: Alternative approaches considered
-        expected_impact: Expected impact of the decision
-        risk_level: Risk level (low, medium, high, critical)
-        tags: Tags for categorization
-
-    Returns:
-        The logged decision record with ID
     """
     logger.info(f"Logging decision: {decision}")
-    return decision_tracker.log_decision(
+    return await decision_tracker.log_decision(
         decision, rationale, context, alternatives_considered,
         expected_impact, risk_level, tags
     )
 
-
 @mcp.tool()
-def update_decision_outcome(
+async def update_decision_outcome(
     decision_id: int,
     outcome: str,
     actual_impact: str,
@@ -211,27 +160,14 @@ def update_decision_outcome(
 ) -> Optional[Dict]:
     """
     Update a decision with its actual outcome.
-
-    Use this after implementing a decision to record what actually happened.
-    This builds institutional knowledge.
-
-    Args:
-        decision_id: ID of the decision to update
-        outcome: The actual outcome
-        actual_impact: The actual impact observed
-        lessons_learned: Lessons learned
-
-    Returns:
-        Updated decision record
     """
     logger.info(f"Updating decision outcome: {decision_id}")
-    return decision_tracker.update_decision_outcome(
+    return await decision_tracker.update_decision_outcome(
         decision_id, outcome, actual_impact, lessons_learned
     )
 
-
 @mcp.tool()
-def query_decisions(
+async def query_decisions(
     query: Optional[str] = None,
     tags: Optional[List[str]] = None,
     risk_level: Optional[str] = None,
@@ -239,56 +175,28 @@ def query_decisions(
 ) -> List[Dict]:
     """
     Query past decisions.
-
-    Use this to learn from past decisions before making new ones.
-
-    Args:
-        query: Text to search for
-        tags: Filter by tags
-        risk_level: Filter by risk level
-        limit: Maximum results
-
-    Returns:
-        List of matching decisions
     """
     logger.info(f"Querying decisions: {query}")
-    return decision_tracker.query_decisions(query, tags, risk_level, limit)
-
+    return await decision_tracker.query_decisions(query, tags, risk_level, limit)
 
 @mcp.tool()
-def analyze_decision_impact(decision_id: int) -> Dict:
+async def analyze_decision_impact(decision_id: int) -> Dict:
     """
     Analyze the impact of a specific decision.
-
-    Use this to understand how a decision played out and learn from it.
-
-    Args:
-        decision_id: Decision ID to analyze
-
-    Returns:
-        Impact analysis including expected vs actual
     """
     logger.info(f"Analyzing decision impact: {decision_id}")
-    return decision_tracker.analyze_decision_impact(decision_id)
-
+    return await decision_tracker.analyze_decision_impact(decision_id)
 
 @mcp.tool()
-def get_decision_statistics() -> Dict:
+async def get_decision_statistics() -> Dict:
     """
     Get statistics about decisions made.
-
-    Use this to understand decision patterns and quality.
-
-    Returns:
-        Statistics including risk distribution and tracking rate
     """
-    return decision_tracker.get_decision_statistics()
-
+    return await decision_tracker.get_decision_statistics()
 
 # Change analysis tools
-
 @mcp.tool()
-def log_change(
+async def log_change(
     file_path: str,
     change_type: str,
     description: str,
@@ -299,30 +207,15 @@ def log_change(
 ) -> Dict:
     """
     Log a code change with comprehensive context.
-
-    Use this BEFORE making changes to create a paper trail.
-
-    Args:
-        file_path: Path to file being changed
-        change_type: Type (add, modify, delete, refactor)
-        description: Description of the change
-        rationale: Why this change is needed
-        affected_components: List of affected components
-        risk_assessment: Risk assessment
-        rollback_plan: How to rollback if needed
-
-    Returns:
-        The logged change record
     """
     logger.info(f"Logging change: {file_path}")
-    return change_analyzer.log_change(
+    return await change_analyzer.log_change(
         file_path, change_type, description, rationale,
         affected_components, risk_assessment, rollback_plan
     )
 
-
 @mcp.tool()
-def update_change_status(
+async def update_change_status(
     change_id: int,
     status: str,
     actual_impact: Optional[str] = None,
@@ -330,51 +223,28 @@ def update_change_status(
 ) -> Optional[Dict]:
     """
     Update the status of a logged change.
-
-    Use this after implementing changes to track results.
-
-    Args:
-        change_id: Change ID to update
-        status: New status (implemented, tested, rolled_back, failed)
-        actual_impact: Actual impact observed
-        issues: Issues encountered
-
-    Returns:
-        Updated change record
     """
     logger.info(f"Updating change status: {change_id}")
-    return change_analyzer.update_change_status(
+    return await change_analyzer.update_change_status(
         change_id, status, actual_impact, issues
     )
 
-
 @mcp.tool()
-def analyze_change_impact(
+async def analyze_change_impact(
     file_path: str,
     change_description: str,
     dependencies: Optional[Dict] = None
 ) -> Dict:
     """
     Analyze the potential impact of a proposed change.
-
-    CRITICAL: Use this BEFORE making changes to understand the blast radius.
-
-    Args:
-        file_path: Path to file to be changed
-        change_description: Description of proposed change
-        dependencies: Dependency information (from track_file_dependencies)
-
-    Returns:
-        Impact analysis including affected areas and risk factors
     """
     logger.info(f"Analyzing change impact: {file_path}")
-    return change_analyzer.analyze_change_impact(
+    return await change_analyzer.analyze_change_impact(
         file_path, change_description, dependencies
     )
 
-
 @mcp.tool()
-def query_changes(
+async def query_changes(
     file_path: Optional[str] = None,
     change_type: Optional[str] = None,
     status: Optional[str] = None,
@@ -382,57 +252,34 @@ def query_changes(
 ) -> List[Dict]:
     """
     Query change history.
-
-    Use this to understand what changes have been made.
-
-    Args:
-        file_path: Filter by file path
-        change_type: Filter by change type
-        status: Filter by status
-        limit: Maximum results
-
-    Returns:
-        List of matching changes
     """
     logger.info(f"Querying changes: {file_path}")
-    return change_analyzer.query_changes(file_path, change_type, status, limit)
-
+    return await change_analyzer.query_changes(file_path, change_type, status, limit)
 
 @mcp.tool()
-def detect_change_conflicts(proposed_change: Dict) -> List[Dict]:
+async def scan_uncommitted_changes(repo_path: str) -> List[Dict]:
+    """
+    Scan the git repository for uncommitted (staged and unstaged) changes.
+    """
+    logger.info(f"Scanning uncommitted changes in: {repo_path}")
+    return await change_analyzer.scan_uncommitted_changes(repo_path)
+
+@mcp.tool()
+async def detect_change_conflicts(proposed_change: Dict) -> List[Dict]:
     """
     Detect potential conflicts with other changes.
-
-    Use this before implementing changes to avoid conflicts.
-
-    Args:
-        proposed_change: The proposed change to check
-
-    Returns:
-        List of potential conflicts
     """
     logger.info("Detecting change conflicts")
-    return change_analyzer.detect_change_conflicts(proposed_change)
-
+    return await change_analyzer.detect_change_conflicts(proposed_change)
 
 # Cascade failure detection tools
-
 @mcp.tool()
 def build_dependency_graph(dependencies: Dict[str, Dict]) -> Dict:
     """
     Build a dependency graph from project dependencies.
-
-    Use this to create a visual map of how components depend on each other.
-
-    Args:
-        dependencies: Dictionary mapping files to their dependencies
-
-    Returns:
-        Graph statistics and structure
     """
     logger.info("Building dependency graph")
     return cascade_detector.build_dependency_graph(dependencies)
-
 
 @mcp.tool()
 def detect_dependencies(
@@ -442,20 +289,17 @@ def detect_dependencies(
 ) -> Dict:
     """
     Detect all dependencies for a target.
-
-    Use this to understand what depends on something and what it depends on.
-
-    Args:
-        target: Target file or module
-        depth: How many levels deep to traverse
-        direction: 'upstream' (depends on target), 'downstream' (target depends on), 'both'
-
-    Returns:
-        Dependencies at each level
     """
     logger.info(f"Detecting dependencies: {target}")
     return cascade_detector.detect_dependencies(target, depth, direction)
 
+@mcp.tool()
+def generate_dependency_diagram(target: str, depth: int = 3) -> str:
+    """
+    Generate a MermaidJS diagram of dependencies.
+    """
+    logger.info(f"Generating dependency diagram for: {target}")
+    return cascade_detector.generate_dependency_diagram(target, depth)
 
 @mcp.tool()
 def analyze_cascade_risk(
@@ -465,24 +309,12 @@ def analyze_cascade_risk(
 ) -> Dict:
     """
     Analyze the risk of cascading failures from a change.
-
-    CRITICAL: Use this before making changes to understand cascade potential.
-    This is your early warning system for short-sighted decisions.
-
-    Args:
-        target: Target file or component being changed
-        change_type: Type of change (breaking, non-breaking, refactor, etc.)
-        context: Additional context
-
-    Returns:
-        Risk assessment including cascade probability and affected components
     """
     logger.info(f"Analyzing cascade risk: {target}")
     return cascade_detector.analyze_cascade_risk(target, change_type, context)
 
-
 @mcp.tool()
-def log_cascade_event(
+async def log_cascade_event(
     trigger: str,
     affected_components: List[str],
     severity: str,
@@ -491,88 +323,55 @@ def log_cascade_event(
 ) -> Dict:
     """
     Log a cascade failure event for learning.
-
-    Use this when cascade failures occur to build institutional knowledge.
-
-    Args:
-        trigger: What triggered the cascade
-        affected_components: List of affected components
-        severity: Severity (low, medium, high, critical)
-        description: What happened
-        resolution: How it was resolved
-
-    Returns:
-        The logged cascade event
     """
     logger.info(f"Logging cascade event: {trigger}")
-    return cascade_detector.log_cascade_event(
+    return await cascade_detector.log_cascade_event(
         trigger, affected_components, severity, description, resolution
     )
 
+@mcp.tool()
+async def query_cascade_history(
+    trigger: Optional[str] = None,
+    severity: Optional[str] = None,
+    limit: int = 10
+) -> List[Dict]:
+    """
+    Query historical cascade events.
+    """
+    logger.info(f"Querying cascade history: {trigger}")
+    return await cascade_detector.query_cascade_history(trigger, severity, limit)
 
 @mcp.tool()
 def suggest_safe_changes(target: str, proposed_change: str) -> Dict:
     """
     Suggest safe approaches for making a change.
-
-    Use this to get recommendations on how to safely implement changes.
-
-    Args:
-        target: Target component to change
-        proposed_change: Description of proposed change
-
-    Returns:
-        Suggestions for safe implementation
     """
     logger.info(f"Suggesting safe changes: {target}")
     return cascade_detector.suggest_safe_changes(target, proposed_change)
 
-
 # Thought process management tools
-
 @mcp.tool()
-def start_thought_session(session_id: str, context: Dict) -> Dict:
+async def start_thought_session(session_id: str, context: Dict) -> Dict:
     """
     Start a new thought processing session.
-
-    Use this at the beginning of a work session to track your reasoning.
-
-    Args:
-        session_id: Unique identifier for the session
-        context: Initial context
-
-    Returns:
-        Session information
     """
     logger.info(f"Starting thought session: {session_id}")
-    return thought_processor.start_session(session_id, context)
-
+    return await thought_processor.start_session(session_id, context)
 
 @mcp.tool()
-def end_thought_session(
+async def end_thought_session(
     session_id: str,
     summary: Optional[str] = None,
     outcomes: Optional[List[str]] = None
 ) -> Dict:
     """
     End a thought processing session.
-
-    Use this at the end of a work session to summarize.
-
-    Args:
-        session_id: Session to end
-        summary: Summary of the session
-        outcomes: Outcomes achieved
-
-    Returns:
-        Final session state
     """
     logger.info(f"Ending thought session: {session_id}")
-    return thought_processor.end_session(session_id, summary, outcomes)
-
+    return await thought_processor.end_session(session_id, summary, outcomes)
 
 @mcp.tool()
-def log_thought_process(
+async def log_thought_process(
     thought: str,
     category: str,
     reasoning: str,
@@ -582,29 +381,14 @@ def log_thought_process(
 ) -> Dict:
     """
     Log a thought process with reasoning.
-
-    Use this to record your thinking as you work. This helps maintain
-    coherent reasoning and allows review of thought processes.
-
-    Args:
-        thought: The thought or consideration
-        category: Category (analysis, hypothesis, concern, question, validation, etc.)
-        reasoning: The reasoning behind this thought
-        related_to: Related thought IDs or concepts
-        confidence: Confidence level (0.0 to 1.0)
-        session_id: Session this belongs to
-
-    Returns:
-        The logged thought record
     """
     logger.info(f"Logging thought: {category}")
-    return thought_processor.log_thought_process(
+    return await thought_processor.log_thought_process(
         thought, category, reasoning, related_to, confidence, session_id
     )
 
-
 @mcp.tool()
-def retrieve_thought_context(
+async def retrieve_thought_context(
     thought_id: Optional[int] = None,
     category: Optional[str] = None,
     session_id: Optional[str] = None,
@@ -612,44 +396,22 @@ def retrieve_thought_context(
 ) -> List[Dict]:
     """
     Retrieve related thought context.
-
-    Use this to recall previous thinking and maintain continuity.
-
-    Args:
-        thought_id: Specific thought ID
-        category: Filter by category
-        session_id: Filter by session
-        limit: Maximum results
-
-    Returns:
-        List of related thoughts
     """
     logger.info(f"Retrieving thought context: {thought_id}")
-    return thought_processor.retrieve_thought_context(
+    return await thought_processor.retrieve_thought_context(
         thought_id, category, session_id, limit
     )
 
-
 @mcp.tool()
-def analyze_reasoning_gaps(session_id: Optional[str] = None) -> Dict:
+async def analyze_reasoning_gaps(session_id: Optional[str] = None) -> Dict:
     """
     Analyze gaps in reasoning or considerations.
-
-    IMPORTANT: Use this periodically to ensure you're not missing critical
-    considerations. This helps catch blind spots.
-
-    Args:
-        session_id: Session to analyze (defaults to active)
-
-    Returns:
-        Analysis of reasoning gaps and suggestions
     """
     logger.info(f"Analyzing reasoning gaps: {session_id}")
-    return thought_processor.analyze_reasoning_gaps(session_id)
-
+    return await thought_processor.analyze_reasoning_gaps(session_id)
 
 @mcp.tool()
-def record_insight(
+async def record_insight(
     insight: str,
     source: str,
     applicability: str,
@@ -657,61 +419,36 @@ def record_insight(
 ) -> Dict:
     """
     Record an insight gained during processing.
-
-    Use this to capture learnings for future reference.
-
-    Args:
-        insight: The insight discovered
-        source: Where this came from
-        applicability: Where/how this can be applied
-        session_id: Session this came from
-
-    Returns:
-        The recorded insight
     """
     logger.info(f"Recording insight: {insight[:50]}...")
-    return thought_processor.record_insight(
+    return await thought_processor.record_insight(
         insight, source, applicability, session_id
     )
 
-
 @mcp.tool()
-def get_session_summary(session_id: str) -> Dict:
+async def get_session_summary(session_id: str) -> Dict:
     """
     Get comprehensive summary of a session.
-
-    Use this to review what happened in a session.
-
-    Args:
-        session_id: Session to summarize
-
-    Returns:
-        Session summary with statistics and key points
     """
     logger.info(f"Getting session summary: {session_id}")
-    return thought_processor.get_session_summary(session_id)
-
+    return await thought_processor.get_session_summary(session_id)
 
 # Utility tools
-
 @mcp.tool()
-def get_mcp_statistics() -> Dict:
+async def get_mcp_statistics() -> Dict:
     """
     Get comprehensive statistics about MCP usage.
-
-    Use this to understand how the MCP server is being used and
-    the health of your decision/change tracking.
-
-    Returns:
-        Statistics from all modules
     """
     logger.info("Getting MCP statistics")
-
+    decision_stats = await decision_tracker.get_decision_statistics()
+    change_stats = await change_analyzer.get_change_statistics()
+    cascade_stats = await cascade_detector.get_cascade_statistics()
+    thought_stats = await thought_processor.get_thought_statistics()
     return {
-        "decisions": decision_tracker.get_decision_statistics(),
-        "changes": change_analyzer.get_change_statistics(),
-        "cascades": cascade_detector.get_cascade_statistics(),
-        "thoughts": thought_processor.get_thought_statistics(),
+        "decisions": decision_stats,
+        "changes": change_stats,
+        "cascades": cascade_stats,
+        "thoughts": thought_stats,
         "server_info": {
             "name": "DevilMCP",
             "version": "1.0.0",
@@ -719,16 +456,162 @@ def get_mcp_statistics() -> Dict:
         }
     }
 
+# === TOOL MANAGEMENT TOOLS (Robustness) ===
+
+@mcp.tool()
+async def start_tool_session(
+    tool_name: str,
+    context: Optional[Dict] = None
+) -> Dict:
+    """
+    Start a CLI tool session.
+    """
+    logger.info(f"Starting tool session: {tool_name}")
+    tool_config = tool_registry.get_tool(tool_name)
+    if not tool_config:
+        return {"error": f"Tool not found: {tool_name}"}
+
+    proc_info = await process_manager.spawn_process(
+        tool_name=tool_name,
+        command=tool_config.command,
+        args=tool_config.args
+    )
+    return {
+        "tool_name": tool_name,
+        "pid": proc_info.pid,
+        "state": proc_info.state.value,
+        "started_at": proc_info.started_at.isoformat(),
+        "session_id": proc_info.session_id
+    }
+
+@mcp.tool()
+def get_tool_status(tool_name: str) -> Dict:
+    """
+    Get status of a CLI tool process.
+    """
+    status = process_manager.get_process_status(tool_name)
+    if status:
+        return status
+    else:
+        return {"error": f"Tool '{tool_name}' not running."}
+
+@mcp.tool()
+async def terminate_tool_session(tool_name: str) -> Dict:
+    """
+    Terminate a CLI tool session.
+    """
+    logger.info(f"Terminating tool session: {tool_name}")
+    await process_manager.terminate_process(tool_name)
+    return {"status": "terminated", "tool_name": tool_name}
+
+@mcp.tool()
+async def register_custom_tool(
+    name: str,
+    display_name: str,
+    command: str,
+    capabilities: List[str],
+    args: Optional[List[str]] = None,
+    config: Optional[Dict] = None
+) -> Dict:
+    """
+    Register a new custom CLI tool.
+    """
+    logger.info(f"Registering custom tool: {name}")
+    success = await tool_registry.register_tool(
+        name=name,
+        display_name=display_name,
+        command=command,
+        capabilities=capabilities,
+        args=args or [],
+        config=config or {}
+    )
+    return {
+        "status": "success" if success else "failed",
+        "tool_name": name
+    }
+
+@mcp.tool()
+async def update_tool_config(
+    name: str,
+    display_name: Optional[str] = None,
+    command: Optional[str] = None,
+    args: Optional[List[str]] = None,
+    capabilities: Optional[List[str]] = None,
+    enabled: Optional[bool] = None,
+    config: Optional[Dict] = None
+) -> Dict:
+    """
+    Update an existing tool's configuration.
+    """
+    tool_config = await tool_registry.update_tool(
+        name=name,
+        display_name=display_name,
+        command=command,
+        args=args,
+        capabilities=capabilities,
+        enabled=enabled,
+        config=config
+    )
+    if tool_config:
+        return {"status": "success", "tool_name": name, "config": tool_config.config}
+    else:
+        return {"status": "failed", "tool_name": name, "error": "Tool not found or update failed."}
+
+@mcp.tool()
+async def disable_tool(tool_name: str) -> Dict:
+    """Disable a tool."""
+    success = await tool_registry.disable_tool(tool_name)
+    return {"status": "success" if success else "failed", "tool_name": tool_name}
+
+@mcp.tool()
+async def enable_tool(tool_name: str) -> Dict:
+    """Enable a tool."""
+    success = await tool_registry.enable_tool(tool_name)
+    return {"status": "success" if success else "failed", "tool_name": tool_name}
+
+@mcp.tool()
+async def list_available_tools() -> List[Dict]:
+    """
+    List all available CLI tools and their capabilities.
+    """
+    tools = tool_registry.get_all_tools()
+    return [
+        {
+            "name": tool.name,
+            "display_name": tool.display_name,
+            "command": tool.command,
+            "args": [arg for arg in tool.args],
+            "capabilities": [c.value for c in tool.capabilities],
+            "enabled": tool.enabled,
+            "config_summary": {
+                "prompt_patterns": tool.prompt_patterns,
+                "init_timeout": tool.init_timeout,
+                "command_timeout": tool.command_timeout
+            }
+        }
+        for tool in tools
+    ]
 
 # Main entry point
+
+async def init_tools():
+    """Initialize tool registry."""
+    await tool_registry.load_tools()
+    logger.info("Tool registry initialized")
 
 def main():
     """Main entry point for the DevilMCP server."""
     logger.info(f"Starting DevilMCP server on port {port}")
     logger.info(f"Storage path: {storage_path}")
 
-    # Banner removed to prevent interference with stdio transport JSON-RPC messages
-    # All server information is available through logging and get_mcp_statistics() tool
+    # Initialize database and tools
+    try:
+        asyncio.run(db_manager.init_db())
+        asyncio.run(init_tools())
+        logger.info("Database and Tools initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize database or tools: {e}", exc_info=True)
+        raise
 
     try:
         mcp.run(transport="stdio")
@@ -737,7 +620,6 @@ def main():
     except Exception as e:
         logger.error(f"Server error: {e}", exc_info=True)
         raise
-
 
 if __name__ == "__main__":
     main()

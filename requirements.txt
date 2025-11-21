@@ -8,3 +8,6 @@ gitpython>=3.1.40
 pyyaml>=6.0
 sqlalchemy>=2.0.0
 aiosqlite>=0.19.0
+pytest>=7.0.0
+pytest-asyncio>=0.23.0
+toml>=0.10.2
