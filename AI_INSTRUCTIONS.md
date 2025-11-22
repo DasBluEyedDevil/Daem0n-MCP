@@ -49,7 +49,7 @@ You need to add DevilMCP to your own configuration file.
     ```json
     "devilmcp": {
       "command": "python",
-      "args": ["/path/to/DevilMCP/server.py"],
+      "args": ["-m", "devilmcp.server"],
       "env": {
         "PYTHONPATH": "/path/to/DevilMCP"
       }
@@ -66,7 +66,7 @@ You likely cannot edit your own "hard" configuration file autonomously.
 1.  **Start the Server in Background:**
     *   Run the server as a background process to make the tools available *now*.
     ```bash
-    python "/path/to/DevilMCP/server.py" &
+    python -m devilmcp.server &
     ```
     *(Note: This is a temporary session. Ideally, the user should configure the IDE's MCP settings permanently, but this gets you started instantly.)*
 

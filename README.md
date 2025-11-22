@@ -42,38 +42,15 @@ Your AI assistant will handle the configuration automatically once you point it 
 
 ## 🖥️ Usage
 
-DevilMCP provides two ways to interact with it:
+DevilMCP is primarily designed to be used by your AI agent.
 
-### 1. AI Agent Mode (Server)
+### AI Agent Mode (Server)
 When connected to Claude or an IDE, the agent will automatically use these tools:
 
 *   **`get_project_context`**: Analyzes your file structure.
 *   **`log_decision`**: Records architectural choices.
 *   **`create_task`**: Manages your todo list.
 *   **`analyze_change_impact`**: Checks for breaking changes.
-
-### 2. CLI Mode (Manual)
-You can also use DevilMCP directly from your terminal for quick actions without an AI.
-
-```bash
-# Run a CLI command
-python /path/to/DevilMCP/cli.py <command> [args]
-```
-
-**Common Commands:**
-
-*   **Create a Task:**
-    ```bash
-    python cli.py create-task "Refactor API" --priority high
-    ```
-*   **List Tasks:**
-    ```bash
-    python cli.py list-tasks --status todo
-    ```
-*   **Log a Decision:**
-    ```bash
-    python cli.py log-decision "Use PostgreSQL" --rationale "Better JSON support"
-    ```
 
 ---
 
@@ -94,7 +71,7 @@ DevilMCP uses a modular architecture backed by **SQLite** for robust data persis
 
 *   **Core Logic:** Located in `devilmcp/` package.
 *   **Data Storage:** `.devilmcp/storage/devilmcp.db` (SQLite) inside your project root.
-*   **Entry Points:** `server.py` (MCP Protocol) and `cli.py` (Human Interface).
+*   **Entry Points:** `devilmcp` command (installed via pip) or `devilmcp/server.py`.
 
 ### Custom Tools
 You can register your own local CLI tools for the agent to use by creating a `tools.toml` file in your project root. See `tools.toml.example` for details.
