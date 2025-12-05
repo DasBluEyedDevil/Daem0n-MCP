@@ -4,7 +4,7 @@ Manages CLI tool configurations and capabilities.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 from enum import Enum
 import toml
@@ -13,6 +13,10 @@ from .database import DatabaseManager
 from .models import Tool
 from sqlalchemy import select
 from datetime import datetime, timezone # Import for default values if tools.toml is missing created_at
+from .executor import ToolExecutor, ExecutionResult
+
+if TYPE_CHECKING:
+    from .subprocess_executor import SubprocessExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +68,19 @@ class ToolConfig:
 
 class ToolRegistry:
     """Central registry for CLI tools"""
-    
+
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self._tools_cache: Dict[str, ToolConfig] = {}
+        self._executors: Dict[str, ToolExecutor] = {}
+        self._native_registry: Dict[str, type] = {}
+
+        # Register native executors
+        try:
+            from .native_executors.git import GitNativeExecutor
+            self._native_registry["git"] = GitNativeExecutor
+        except ImportError:
+            logger.warning("GitNativeExecutor not available (gitpython not installed)")
     
     async def load_tools(self):
         """Load tool configurations from database"""
@@ -220,3 +233,67 @@ class ToolRegistry:
                 return True
             logger.warning(f"Tool '{name}' not found for enabling.")
             return False
+
+    async def get_executor(self, tool_name: str) -> ToolExecutor:
+        """Get or create the appropriate executor for a tool."""
+        from .subprocess_executor import SubprocessExecutor
+
+        # Return cached executor if exists
+        if tool_name in self._executors:
+            return self._executors[tool_name]
+
+        # Check if native executor available
+        if tool_name in self._native_registry:
+            try:
+                import os
+                repo_path = os.getenv('PROJECT_ROOT', os.getcwd())
+                executor = self._native_registry[tool_name](repo_path)
+                self._executors[tool_name] = executor
+                logger.info(f"Using native executor for {tool_name}")
+                return executor
+            except Exception as e:
+                logger.warning(f"Failed to create native executor for {tool_name}: {e}")
+
+        # Fall back to subprocess executor
+        tool_config = self.get_tool(tool_name)
+        if not tool_config:
+            raise ValueError(f"Tool '{tool_name}' not found")
+
+        executor = SubprocessExecutor(tool_config)
+        self._executors[tool_name] = executor
+        return executor
+
+    async def execute_tool(
+        self,
+        tool_name: str,
+        command: str,
+        args: List[str] = None
+    ) -> ExecutionResult:
+        """Main entry point - routes to correct executor."""
+        args = args or []
+
+        try:
+            executor = await self.get_executor(tool_name)
+            return await executor.execute(command, args)
+        except ValueError as e:
+            return ExecutionResult(
+                success=False,
+                output="",
+                error=str(e)
+            )
+        except Exception as e:
+            logger.error(f"Tool execution failed: {e}")
+            return ExecutionResult(
+                success=False,
+                output="",
+                error=f"Execution failed: {e}"
+            )
+
+    async def cleanup_executors(self) -> None:
+        """Clean up all cached executors."""
+        for executor in self._executors.values():
+            try:
+                await executor.cleanup()
+            except Exception as e:
+                logger.error(f"Error cleaning up executor: {e}")
+        self._executors.clear()
