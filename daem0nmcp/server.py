@@ -509,13 +509,13 @@ async def get_briefing(
     message_parts = [f"Daem0nMCP ready. {stats['total_memories']} memories stored."]
 
     if failed_approaches:
-        message_parts.append(f"⚠️ {len(failed_approaches)} failed approaches to avoid!")
+        message_parts.append(f"[WARNING] {len(failed_approaches)} failed approaches to avoid!")
 
     if active_warnings:
         message_parts.append(f"{len(active_warnings)} active warnings.")
 
     if git_changes and git_changes.get("uncommitted_changes"):
-        message_parts.append(f"📝 {len(git_changes['uncommitted_changes'])} uncommitted file(s).")
+        message_parts.append(f"{len(git_changes['uncommitted_changes'])} uncommitted file(s).")
 
     if stats.get("learning_insights", {}).get("suggestion"):
         message_parts.append(stats["learning_insights"]["suggestion"])
@@ -1158,12 +1158,18 @@ def cleanup():
     """Cleanup on exit."""
     import asyncio
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        # Try to get the running loop if one exists
+        try:
+            loop = asyncio.get_running_loop()
+            # If there's a running loop, schedule cleanup
             loop.create_task(db_manager.close())
-        else:
-            loop.run_until_complete(db_manager.close())
+        except RuntimeError:
+            # No running loop - try to create one for cleanup
+            # Only do this if the engine was actually created
+            if db_manager._engine is not None:
+                asyncio.run(db_manager.close())
     except Exception:
+        # Cleanup is best-effort, don't crash on exit
         pass
 
 
@@ -1175,20 +1181,18 @@ atexit.register(cleanup)
 # ============================================================================
 def main():
     """Run the MCP server."""
-    import asyncio
-
     logger.info("Starting Daem0nMCP server...")
     logger.info(f"Storage: {storage_path}")
 
-    # Initialize database
-    try:
-        asyncio.run(db_manager.init_db())
-        logger.info("Database initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-        raise
+    # NOTE: Database initialization is now lazy and happens on first tool call.
+    # This ensures the async engine is created within the correct event loop
+    # context (the one that FastMCP creates and manages).
+    #
+    # Previously, calling asyncio.run(db_manager.init_db()) here created an
+    # event loop, initialized the engine, then CLOSED that loop. When mcp.run()
+    # created a new loop, database operations would hang waiting on the dead loop.
 
-    # Run MCP server
+    # Run MCP server - this creates and manages its own event loop
     try:
         mcp.run(transport="stdio")
     except KeyboardInterrupt:
