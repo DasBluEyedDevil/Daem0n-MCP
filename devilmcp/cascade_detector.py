@@ -1,16 +1,18 @@
 """
 Cascade Detector Module
 Detects and analyzes potential cascading failures and dependency chains.
+
+Auto-hydrates dependency graph from the database - no manual ETL required.
 """
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 from datetime import datetime, timezone
 from sqlalchemy import select, desc, func
 
 from .database import DatabaseManager
-from .models import CascadeEvent
+from .models import CascadeEvent, FileDependency, ProjectFile
 
 try:
     import networkx as nx
@@ -28,6 +30,7 @@ class CascadeDetector:
         self.db = db_manager
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(exist_ok=True)
+        self._graph_hydrated = False
 
         # Dependency graph
         if nx:
@@ -35,42 +38,80 @@ class CascadeDetector:
         else:
             self.dep_graph = None
 
-    def build_dependency_graph(self, dependencies: Dict[str, Dict]) -> Dict:
+    async def _ensure_hydrated(self) -> bool:
         """
-        Build a dependency graph from project dependencies.
+        Ensure the dependency graph is loaded from DB.
+        Called automatically before any graph operation.
+        """
+        if self._graph_hydrated or not self.dep_graph:
+            return self._graph_hydrated
+
+        try:
+            await self._hydrate_from_db()
+            self._graph_hydrated = True
+            return True
+        except Exception as e:
+            logger.error(f"Failed to hydrate dependency graph: {e}")
+            return False
+
+    async def _hydrate_from_db(self) -> None:
+        """
+        Load the dependency graph from FileDependency table.
+        This replaces the manual build_dependency_graph() approach.
         """
         if not self.dep_graph:
-            return {"error": "networkx not available for graph analysis"}
+            return
 
-        # Clear existing graph
         self.dep_graph.clear()
 
-        # Build graph from dependencies
-        for file_path, deps in dependencies.items():
-            self.dep_graph.add_node(file_path, type='file')
+        async with self.db.get_session() as session:
+            # Get all files
+            files_result = await session.execute(select(ProjectFile))
+            files = {f.id: f.file_path for f in files_result.scalars().all()}
 
-            # Add edges for each dependency
-            for dep in deps.get('internal_deps', []):
-                self.dep_graph.add_node(dep, type='module')
-                self.dep_graph.add_edge(file_path, dep, dep_type='internal')
+            # Add all files as nodes
+            for file_id, file_path in files.items():
+                self.dep_graph.add_node(file_path, type='file')
 
-            for dep in deps.get('external_deps', []):
-                self.dep_graph.add_node(dep, type='external')
-                self.dep_graph.add_edge(file_path, dep, dep_type='external')
+            # Get all dependencies
+            deps_result = await session.execute(select(FileDependency))
+            deps = deps_result.scalars().all()
 
-        # Calculate graph statistics
-        stats = {
+            # Add edges
+            for dep in deps:
+                source_path = files.get(dep.source_file_id)
+                target_path = files.get(dep.target_file_id)
+
+                if source_path and target_path:
+                    self.dep_graph.add_edge(
+                        source_path,
+                        target_path,
+                        dep_type=dep.dependency_type or 'import'
+                    )
+
+        node_count = self.dep_graph.number_of_nodes()
+        edge_count = self.dep_graph.number_of_edges()
+        logger.info(f"Hydrated dependency graph: {node_count} nodes, {edge_count} edges")
+
+    async def refresh_graph(self) -> Dict:
+        """
+        Force refresh the dependency graph from DB.
+        Returns graph statistics.
+        """
+        self._graph_hydrated = False
+        await self._ensure_hydrated()
+
+        if not self.dep_graph:
+            return {"error": "networkx not available"}
+
+        return {
             "total_nodes": self.dep_graph.number_of_nodes(),
             "total_edges": self.dep_graph.number_of_edges(),
-            "density": nx.density(self.dep_graph),
-            "strongly_connected_components": nx.number_strongly_connected_components(self.dep_graph),
-            "weakly_connected_components": nx.number_weakly_connected_components(self.dep_graph),
-            "analyzed_at": datetime.now(timezone.utc).isoformat()
+            "density": nx.density(self.dep_graph) if self.dep_graph.number_of_nodes() > 0 else 0,
+            "refreshed_at": datetime.now(timezone.utc).isoformat()
         }
 
-        return stats
-
-    def detect_dependencies(
+    async def detect_dependencies(
         self,
         target: str,
         depth: int = 5,
@@ -78,18 +119,30 @@ class CascadeDetector:
     ) -> Dict:
         """
         Detect all dependencies for a target file or module.
+        Auto-hydrates from DB if needed.
         """
-        if not self.dep_graph or target not in self.dep_graph:
-            # Fallback to simple analysis without graph
+        await self._ensure_hydrated()
+
+        if not self.dep_graph:
             return {
                 "target": target,
                 "upstream": [],
                 "downstream": [],
-                "message": "Limited analysis - full graph not available"
+                "message": "networkx not available - install with: pip install networkx"
+            }
+
+        # Try to find the target (support partial paths)
+        actual_target = self._find_node(target)
+        if not actual_target:
+            return {
+                "target": target,
+                "upstream": [],
+                "downstream": [],
+                "message": f"Target '{target}' not found in dependency graph"
             }
 
         result = {
-            "target": target,
+            "target": actual_target,
             "upstream": [],
             "downstream": [],
             "depth": depth
@@ -97,116 +150,61 @@ class CascadeDetector:
 
         # Upstream dependencies (what depends on this)
         if direction in ["upstream", "both"]:
-            try:
-                visited = set()
-                current_layer = {target}
-                
-                for level in range(1, depth + 1):
-                    next_layer = set()
-                    for node in current_layer:
-                        preds = list(self.dep_graph.predecessors(node))
-                        for p in preds:
-                            if p not in visited and p not in current_layer:
-                                next_layer.add(p)
-                                visited.add(p)
-                    
-                    if next_layer:
-                         result["upstream"].append({
-                            "level": level,
-                            "dependencies": list(next_layer)
-                        })
-                    current_layer = next_layer
-                    if not current_layer:
-                        break
-
-            except Exception as e:
-                logger.error(f"Error analyzing upstream dependencies: {e}")
+            result["upstream"] = self._trace_dependencies(actual_target, depth, "upstream")
 
         # Downstream dependencies (what this depends on)
         if direction in ["downstream", "both"]:
-            try:
-                visited = set()
-                current_layer = {target}
-                
-                for level in range(1, depth + 1):
-                    next_layer = set()
-                    for node in current_layer:
-                        succs = list(self.dep_graph.successors(node))
-                        for s in succs:
-                            if s not in visited and s not in current_layer:
-                                next_layer.add(s)
-                                visited.add(s)
-                    
-                    if next_layer:
-                         result["downstream"].append({
-                            "level": level,
-                            "dependencies": list(next_layer)
-                        })
-                    current_layer = next_layer
-                    if not current_layer:
-                        break
-            except Exception as e:
-                logger.error(f"Error analyzing downstream dependencies: {e}")
+            result["downstream"] = self._trace_dependencies(actual_target, depth, "downstream")
 
         return result
 
-    def generate_dependency_diagram(
-        self,
-        target: str,
-        depth: int = 3
-    ) -> str:
-        """
-        Generate a MermaidJS dependency diagram for visual impact analysis.
-        """
-        if not self.dep_graph or target not in self.dep_graph:
-            return "graph TD;\nError[Target not found in graph];"
+    def _find_node(self, target: str) -> Optional[str]:
+        """Find a node that matches the target (exact or suffix match)."""
+        if not self.dep_graph:
+            return None
 
-        mermaid = ["graph TD"]
-        
-        # Style definitions
-        mermaid.append("classDef target fill:#ff9900,stroke:#333,stroke-width:2px;")
-        mermaid.append("classDef upstream fill:#ffcccc,stroke:#333;")
-        mermaid.append("classDef downstream fill:#ccffcc,stroke:#333;")
-        
-        # Add target node
-        mermaid.append(f'Target("{target}"):::target')
+        # Exact match
+        if target in self.dep_graph:
+            return target
 
-        # Get dependencies
-        deps = self.detect_dependencies(target, depth=depth, direction="both")
-        
-        added_nodes = {target}
-        
-        # Process Upstream (Who depends on Target)
-        # A -> Target
-        for level in deps.get("upstream", []):
-            for node in level["dependencies"]:
-                if node not in added_nodes:
-                    mermaid.append(f'"{node}"("{node}"):::upstream')
-                    added_nodes.add(node)
-                
-                # We need edges. Since detect_dependencies returns levels, we know 'node' eventually hits target.
-                # But for the diagram, we want direct edges if possible.
-                # Let's look at graph edges that connect 'node' towards 'target' or previously added nodes.
-                # Simple approach: Just show immediate edges from the graph subset
-                pass
+        # Suffix match (e.g., 'server.py' matches 'devilmcp/server.py')
+        for node in self.dep_graph.nodes():
+            if node.endswith(target) or node.endswith('/' + target):
+                return node
 
-        # Process Downstream (Target depends on Who)
-        # Target -> B
-        for level in deps.get("downstream", []):
-            for node in level["dependencies"]:
-                if node not in added_nodes:
-                    mermaid.append(f'"{node}"("{node}"):::downstream')
-                    added_nodes.add(node)
+        return None
 
-        # Add Edges
-        # We iterate all added nodes and check if edges exist between them in the main graph
-        subgraph = self.dep_graph.subgraph(added_nodes)
-        for u, v in subgraph.edges():
-            mermaid.append(f'"{u}" --> "{v}"')
+    def _trace_dependencies(self, target: str, depth: int, direction: str) -> List[Dict]:
+        """Trace dependencies in a given direction."""
+        layers = []
+        visited = set()
+        current_layer = {target}
 
-        return "\n".join(mermaid)
+        for level in range(1, depth + 1):
+            next_layer = set()
+            for node in current_layer:
+                if direction == "upstream":
+                    neighbors = list(self.dep_graph.predecessors(node))
+                else:
+                    neighbors = list(self.dep_graph.successors(node))
 
-    def analyze_cascade_risk(
+                for n in neighbors:
+                    if n not in visited and n not in current_layer:
+                        next_layer.add(n)
+                        visited.add(n)
+
+            if next_layer:
+                layers.append({
+                    "level": level,
+                    "dependencies": list(next_layer)
+                })
+            current_layer = next_layer
+            if not current_layer:
+                break
+
+        return layers
+
+    async def analyze_cascade_risk(
         self,
         target: str,
         change_type: str,
@@ -214,7 +212,10 @@ class CascadeDetector:
     ) -> Dict:
         """
         Analyze the risk of cascading failures from a change.
+        Auto-hydrates from DB if needed.
         """
+        await self._ensure_hydrated()
+
         risk = {
             "target": target,
             "change_type": change_type,
@@ -225,9 +226,8 @@ class CascadeDetector:
             "recommendations": []
         }
 
-        # Analyze dependency depth
-        deps = self.detect_dependencies(target, depth=5, direction="upstream")
-
+        # Get dependencies
+        deps = await self.detect_dependencies(target, depth=5, direction="upstream")
         upstream_count = sum(len(level["dependencies"]) for level in deps.get("upstream", []))
 
         # Assess risk based on dependency count and change type
@@ -267,15 +267,16 @@ class CascadeDetector:
         ]
 
         # Find critical paths
-        if self.dep_graph and target in self.dep_graph:
-            risk["critical_paths"] = self._find_critical_paths(target)
+        actual_target = self._find_node(target)
+        if self.dep_graph and actual_target:
+            risk["critical_paths"] = self._find_critical_paths(actual_target)
 
         # Generate recommendations
         risk["recommendations"] = self._generate_cascade_recommendations(risk)
 
         return risk
 
-    def _find_critical_paths(self, target: str, max_paths: int = 5) -> List[List[str]]:
+    def _find_critical_paths(self, target: str, max_paths: int = 5) -> List[Dict]:
         """Find critical dependency paths from target."""
         if not self.dep_graph:
             return []
@@ -288,15 +289,12 @@ class CascadeDetector:
                 if node == target:
                     continue
 
-                # Check if there's a path
                 if nx.has_path(self.dep_graph, target, node):
-                    # Find all simple paths (limited to reasonable length)
                     paths = list(nx.all_simple_paths(
                         self.dep_graph, target, node, cutoff=5
                     ))
 
                     for path in paths[:max_paths]:
-                        # Calculate path criticality based on node degrees
                         criticality = sum(self.dep_graph.out_degree(n) for n in path)
 
                         critical_paths.append({
@@ -305,7 +303,6 @@ class CascadeDetector:
                             "criticality": criticality
                         })
 
-            # Sort by criticality and return top paths
             critical_paths.sort(key=lambda x: x["criticality"], reverse=True)
             return critical_paths[:max_paths]
 
@@ -323,10 +320,9 @@ class CascadeDetector:
 
         if risk_level in ["critical", "high"]:
             recommendations.extend([
-                "⚠️  HIGH RISK: This change has high cascade potential",
+                "HIGH RISK: This change has high cascade potential",
                 "Consider breaking this change into smaller, isolated changes",
                 "Implement comprehensive integration tests before proceeding",
-                "Set up canary deployment to catch issues early",
                 "Have immediate rollback plan ready"
             ])
 
@@ -338,26 +334,66 @@ class CascadeDetector:
 
         if cascade_prob in ["high", "very_high"]:
             recommendations.extend([
-                "Create feature flag to control rollout",
                 "Monitor error rates and performance metrics closely",
-                "Notify affected team members of the change"
+                "Consider feature flag to control rollout"
             ])
 
         if risk["change_type"] in ["breaking", "delete"]:
             recommendations.extend([
                 "Provide migration guide for affected consumers",
-                "Consider deprecation period before removal",
-                "Update all documentation to reflect changes"
+                "Consider deprecation period before removal"
             ])
 
-        # General best practices
-        recommendations.extend([
-            "Run full test suite including integration tests",
-            "Review dependency chain manually",
-            "Document the change and its impact"
-        ])
+        recommendations.append("Run full test suite including integration tests")
 
         return recommendations
+
+    async def generate_dependency_diagram(
+        self,
+        target: str,
+        depth: int = 3
+    ) -> str:
+        """
+        Generate a MermaidJS dependency diagram for visual impact analysis.
+        """
+        await self._ensure_hydrated()
+
+        actual_target = self._find_node(target)
+        if not self.dep_graph or not actual_target:
+            return "graph TD;\nError[Target not found in graph];"
+
+        mermaid = ["graph TD"]
+        mermaid.append("classDef target fill:#ff9900,stroke:#333,stroke-width:2px;")
+        mermaid.append("classDef upstream fill:#ffcccc,stroke:#333;")
+        mermaid.append("classDef downstream fill:#ccffcc,stroke:#333;")
+
+        # Sanitize node names for mermaid
+        def sanitize(name: str) -> str:
+            return name.replace("/", "_").replace(".", "_").replace("-", "_")
+
+        mermaid.append(f'{sanitize(actual_target)}["{actual_target}"]:::target')
+
+        deps = await self.detect_dependencies(actual_target, depth=depth, direction="both")
+        added_nodes = {actual_target}
+
+        for level in deps.get("upstream", []):
+            for node in level["dependencies"]:
+                if node not in added_nodes:
+                    mermaid.append(f'{sanitize(node)}["{node}"]:::upstream')
+                    added_nodes.add(node)
+
+        for level in deps.get("downstream", []):
+            for node in level["dependencies"]:
+                if node not in added_nodes:
+                    mermaid.append(f'{sanitize(node)}["{node}"]:::downstream')
+                    added_nodes.add(node)
+
+        # Add edges from subgraph
+        subgraph = self.dep_graph.subgraph(added_nodes)
+        for u, v in subgraph.edges():
+            mermaid.append(f'{sanitize(u)} --> {sanitize(v)}')
+
+        return "\n".join(mermaid)
 
     async def log_cascade_event(
         self,
@@ -367,9 +403,7 @@ class CascadeDetector:
         description: str,
         resolution: Optional[str] = None
     ) -> Dict:
-        """
-        Log a cascade failure event for learning.
-        """
+        """Log a cascade failure event for learning."""
         async with self.db.get_session() as session:
             new_event = CascadeEvent(
                 trigger=trigger,
@@ -392,115 +426,59 @@ class CascadeDetector:
         severity: Optional[str] = None,
         limit: int = 10
     ) -> List[Dict]:
-        """
-        Query historical cascade events.
-        """
+        """Query historical cascade events."""
         async with self.db.get_session() as session:
             stmt = select(CascadeEvent).order_by(desc(CascadeEvent.timestamp))
 
             if trigger:
                 stmt = stmt.where(CascadeEvent.trigger.contains(trigger))
-            
+
             if severity:
                 stmt = stmt.where(CascadeEvent.severity == severity)
-            
+
             stmt = stmt.limit(limit)
             result = await session.execute(stmt)
-            
+
             return [self._event_to_dict(e) for e in result.scalars()]
 
-    def suggest_safe_changes(
-        self,
-        target: str,
-        proposed_change: str
-    ) -> Dict:
-        """
-        Suggest safe approaches for making a change to minimize cascade risk.
-        (Logic mostly sync, but reuses analyze_cascade_risk)
-        """
-        # Analyze current risk
-        risk = self.analyze_cascade_risk(target, "modify")
+    async def get_cascade_statistics(self) -> Dict:
+        """Get statistics about cascade analysis and events."""
+        await self._ensure_hydrated()
 
-        suggestions = {
-            "target": target,
-            "risk_level": risk["risk_level"],
-            "approach": [],
-            "testing_strategy": [],
-            "rollout_plan": []
+        stats = {
+            "graph_nodes": self.dep_graph.number_of_nodes() if self.dep_graph else 0,
+            "graph_edges": self.dep_graph.number_of_edges() if self.dep_graph else 0
         }
 
-        # Approach suggestions based on risk
-        if risk["risk_level"] in ["critical", "high"]:
-            suggestions["approach"].extend([
-                "Use adapter pattern to maintain backward compatibility",
-                "Implement changes behind feature flag",
-                "Create parallel implementation before deprecating old one",
-                "Add extensive logging and monitoring"
-            ])
-
-            suggestions["testing_strategy"].extend([
-                "Comprehensive integration test suite",
-                "Test with production-like data volume",
-                "Stress testing of affected components",
-                "Shadow deployment for comparison"
-            ])
-
-            suggestions["rollout_plan"].extend([
-                "Stage 1: Deploy to development environment",
-                "Stage 2: Limited rollout to 5% of traffic",
-                "Stage 3: Monitor metrics for 24-48 hours",
-                "Stage 4: Gradual increase if metrics are good",
-                "Have automated rollback triggers ready"
-            ])
-
-        else:  # Medium or low risk
-            suggestions["approach"].extend([
-                "Make incremental changes",
-                "Ensure backward compatibility where possible",
-                "Add appropriate error handling"
-            ])
-
-            suggestions["testing_strategy"].extend([
-                "Unit tests for changed functionality",
-                "Integration tests for affected components",
-                "Manual testing of key workflows"
-            ])
-
-            suggestions["rollout_plan"].extend([
-                "Deploy to staging first",
-                "Run smoke tests",
-                "Deploy to production with monitoring",
-                "Quick rollback available if needed"
-            ])
-
-        return suggestions
-
-    async def get_cascade_statistics(self) -> Dict:
-        """
-        Get statistics about cascade analysis and events.
-        """
         async with self.db.get_session() as session:
             total_events = await session.scalar(select(func.count(CascadeEvent.id)))
-            
+
             if total_events == 0:
-                return {"total_events": 0}
-            
+                stats["total_events"] = 0
+                return stats
+
             stmt = select(CascadeEvent.severity, func.count(CascadeEvent.id)).group_by(CascadeEvent.severity)
             res = await session.execute(stmt)
             severity_dist = {row[0]: row[1] for row in res.all()}
-            
-            stmt_trig = select(CascadeEvent.trigger, func.count(CascadeEvent.id)).group_by(CascadeEvent.trigger).order_by(desc(func.count(CascadeEvent.id))).limit(5)
+
+            stmt_trig = select(CascadeEvent.trigger, func.count(CascadeEvent.id)).group_by(
+                CascadeEvent.trigger
+            ).order_by(desc(func.count(CascadeEvent.id))).limit(5)
             res_trig = await session.execute(stmt_trig)
             common_triggers = [(row[0], row[1]) for row in res_trig.all()]
-            
-            last_event = await session.scalar(select(CascadeEvent.timestamp).order_by(desc(CascadeEvent.timestamp)).limit(1))
 
-            return {
+            last_event = await session.scalar(
+                select(CascadeEvent.timestamp).order_by(desc(CascadeEvent.timestamp)).limit(1)
+            )
+
+            stats.update({
                 "total_events": total_events,
                 "severity_distribution": severity_dist,
                 "most_common_triggers": common_triggers,
                 "most_recent_event": last_event.isoformat() if last_event else None
-            }
+            })
+
+        return stats
 
     def _event_to_dict(self, e: CascadeEvent) -> Dict:
         return {

@@ -6,7 +6,7 @@ Example: DEVILMCP_PORT=9000, DEVILMCP_LOG_LEVEL=DEBUG
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from pydantic_settings import BaseSettings
 
 
@@ -28,10 +28,35 @@ class Settings(BaseSettings):
     # Feature flags
     auto_migrate: bool = True  # Run Alembic on startup
 
+    # Security settings
+    # IMPORTANT: Tool execution is DISABLED by default for security.
+    # Set DEVILMCP_TOOL_EXECUTION_ENABLED=true to enable.
+    tool_execution_enabled: bool = False
+
+    # Comma-separated list of allowed commands.
+    # Only these commands can be executed when tool execution is enabled.
+    # Example: DEVILMCP_ALLOWED_COMMANDS="git,python,pytest,npm"
+    allowed_commands: str = "git,python,pytest,npm,node"
+
     class Config:
         env_prefix = "DEVILMCP_"
         env_file = ".env"
         env_file_encoding = "utf-8"
+
+    def get_allowed_commands_list(self) -> List[str]:
+        """Get list of allowed commands from comma-separated string."""
+        if not self.allowed_commands:
+            return []
+        return [cmd.strip() for cmd in self.allowed_commands.split(",") if cmd.strip()]
+
+    def is_command_allowed(self, command: str) -> bool:
+        """Check if a command is in the whitelist."""
+        if not self.tool_execution_enabled:
+            return False
+        allowed = self.get_allowed_commands_list()
+        # Check the base command (e.g., 'python' from 'python3.11')
+        base_cmd = command.split("/")[-1]  # Handle full paths
+        return base_cmd in allowed or any(base_cmd.startswith(cmd) for cmd in allowed)
 
     def get_storage_path(self) -> str:
         """
