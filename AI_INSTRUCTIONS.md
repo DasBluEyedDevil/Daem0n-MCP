@@ -1,6 +1,8 @@
-# DevilMCP: AI Memory System - Protocol & Instructions
+# DevilMCP: AI Memory System - Complete Protocol & Reference
 
 **CRITICAL: Read and follow this protocol for every session.**
+
+DevilMCP gives you persistent memory across sessions. You can remember decisions, learn from failures, and follow established patterns - all stored in a local database that persists between conversations.
 
 ---
 
@@ -13,6 +15,7 @@ IMMEDIATELY call: get_briefing()
 - This loads your context: recent decisions, warnings, rules, git changes
 - Do NOT ask the user for context that is already in the briefing
 - Review any `failed_approaches` - these are mistakes to avoid
+- Check `git_changes` to see what happened since your last session
 
 ### 2. BEFORE ANY CODING/CHANGES
 ```
@@ -77,25 +80,139 @@ When `check_rules` returns guidance:
 
 ---
 
-## AVAILABLE TOOLS (15 Total)
+## COMPLETE TOOL REFERENCE (15 Tools)
 
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `get_briefing()` | Session start | FIRST thing every session |
-| `context_check(description)` | Quick pre-flight | Before any changes |
-| `recall(topic)` | Get topic memories | Deep dive on a topic |
-| `recall_for_file(path)` | File-specific memories | When touching a file |
-| `remember(...)` | Store memory | After decisions/learnings |
-| `record_outcome(...)` | Track result | After implementation |
-| `check_rules(action)` | Get rule guidance | Before significant action |
-| `add_rule(trigger, ...)` | Create rule | Establishing team patterns |
-| `update_rule(id, ...)` | Modify rule | Refining guidance |
-| `list_rules()` | Show all rules | Reviewing configuration |
-| `search_memories(query)` | Search memories | Finding specific content |
-| `find_related(id)` | Related memories | Exploring connections |
-| `scan_todos(path)` | Find tech debt | Discovering TODO/FIXME/HACK comments |
-| `ingest_doc(url, topic)` | Import docs | Loading external documentation |
-| `propose_refactor(path)` | Refactor context | Before refactoring a file |
+### Core Tools
+
+#### `get_briefing(project_path?, focus_areas?)`
+**When**: FIRST thing every session
+**Returns**: Statistics, recent decisions, warnings, failed approaches, git changes
+```
+get_briefing()
+get_briefing(focus_areas=["authentication", "database"])
+```
+
+#### `context_check(description)`
+**When**: Before any changes - quick pre-flight check
+**Returns**: Relevant memories + matching rules + warnings combined
+```
+context_check("adding user authentication to the API")
+```
+
+#### `recall(topic, categories?, limit?)`
+**When**: Deep dive on a specific topic
+**Returns**: Categorized memories ranked by relevance
+```
+recall("authentication")
+recall("database", categories=["warning", "pattern"], limit=5)
+```
+
+#### `recall_for_file(file_path, limit?)`
+**When**: Before modifying any file
+**Returns**: All memories linked to that file
+```
+recall_for_file("src/auth/handlers.py")
+```
+
+#### `remember(category, content, rationale?, context?, tags?, file_path?)`
+**When**: After making decisions or learning something
+**Returns**: Created memory with ID (save this for record_outcome)
+```
+remember(
+    category="decision",
+    content="Using JWT instead of sessions for auth",
+    rationale="Need stateless auth for horizontal scaling",
+    tags=["auth", "architecture"],
+    file_path="src/auth/jwt.py"
+)
+```
+
+#### `record_outcome(memory_id, outcome, worked)`
+**When**: After implementing and testing a decision
+**Returns**: Updated memory
+```
+record_outcome(42, "JWT auth working, load tests pass", worked=true)
+record_outcome(43, "Caching caused stale data", worked=false)
+```
+
+#### `check_rules(action, context?)`
+**When**: Before significant actions
+**Returns**: Matching rules with must_do/must_not/warnings
+```
+check_rules("adding a new API endpoint")
+check_rules("modifying database schema")
+```
+
+### Rule Management
+
+#### `add_rule(trigger, must_do?, must_not?, ask_first?, warnings?, priority?)`
+**When**: Establishing team patterns or constraints
+```
+add_rule(
+    trigger="adding new API endpoint",
+    must_do=["Add rate limiting", "Add to OpenAPI spec"],
+    must_not=["Use synchronous database calls"],
+    ask_first=["Is this a breaking change?"],
+    priority=10
+)
+```
+
+#### `update_rule(rule_id, must_do?, must_not?, ask_first?, warnings?, priority?, enabled?)`
+**When**: Refining existing rules
+```
+update_rule(5, must_do=["Add rate limiting", "Add authentication"])
+update_rule(5, enabled=false)  # Disable a rule
+```
+
+#### `list_rules(enabled_only?, limit?)`
+**When**: Reviewing all configured rules
+```
+list_rules()
+list_rules(enabled_only=false)  # Include disabled rules
+```
+
+### Search & Discovery
+
+#### `search_memories(query, limit?)`
+**When**: Finding specific content across all memories
+```
+search_memories("rate limiting")
+search_memories("JWT token", limit=10)
+```
+
+#### `find_related(memory_id, limit?)`
+**When**: Exploring connections from a specific memory
+```
+find_related(42)  # Find memories related to memory #42
+```
+
+### Tech Debt & Refactoring
+
+#### `scan_todos(path?, auto_remember?, types?)`
+**When**: Finding TODO/FIXME/HACK comments in code
+**Returns**: Grouped tech debt items with file locations
+```
+scan_todos()  # Scan current directory
+scan_todos(path="src/", types=["FIXME", "HACK"])  # Only critical
+scan_todos(auto_remember=true)  # Auto-create warning memories
+```
+
+#### `propose_refactor(file_path)`
+**When**: Before refactoring a file - gets combined context
+**Returns**: File memories + TODOs + rules + constraints + opportunities
+```
+propose_refactor("src/auth/handlers.py")
+```
+Use the returned `constraints` (failed approaches, warnings) and `opportunities` (TODOs) to plan your refactor.
+
+#### `ingest_doc(url, topic, chunk_size?)`
+**When**: Importing external documentation for reference
+**Returns**: Chunks stored as permanent learnings
+```
+ingest_doc("https://stripe.com/docs/api/charges", "stripe")
+ingest_doc("https://react.dev/reference/hooks", "react-hooks")
+```
+After ingesting, use `recall("stripe")` to retrieve the documentation.
 
 ---
 
@@ -144,6 +261,11 @@ AI: record_outcome(42, "Fix works, concurrent tests pass", worked=true)
 - **Decisions** and **Learnings** decay over time (30-day half-life)
 - Recent memories score higher than old ones
 
+### Semantic Search
+- Uses TF-IDF for keyword matching (always available)
+- Optional vector embeddings for better semantic understanding
+- "blocking database calls" can match "synchronous queries" with vectors
+
 ### Conflict Detection
 When you `remember()` something:
 - System checks for similar failed decisions
@@ -160,6 +282,14 @@ When you `remember()` something:
 Failures get 1.5x relevance boost in future searches.
 You WILL see past mistakes - learn from them.
 
+### Tech Debt Tracking
+`scan_todos()` finds TODO/FIXME/HACK comments and can auto-create warnings.
+Use before starting work to see what needs attention.
+
+### External Knowledge
+`ingest_doc()` imports documentation from URLs.
+Use when working with external APIs or libraries to have their docs in memory.
+
 ---
 
 ## DATA STORAGE
@@ -171,13 +301,31 @@ Per-project storage at:
 
 ---
 
-## SUMMARY
+## WORKFLOW CHEAT SHEET
 
 ```
-Session Start:  get_briefing()
-Before Changes: context_check(description) or recall_for_file(path)
-Making Decision: remember(category, content, rationale, file_path)
-After Result:   record_outcome(id, outcome, worked)
+┌─────────────────────────────────────────────────────────────┐
+│  SESSION START                                              │
+│  └─> get_briefing()                                         │
+├─────────────────────────────────────────────────────────────┤
+│  BEFORE CHANGES                                             │
+│  └─> context_check("what you're doing")                     │
+│  └─> recall_for_file("path/to/file.py")                     │
+├─────────────────────────────────────────────────────────────┤
+│  BEFORE REFACTORING                                         │
+│  └─> propose_refactor("path/to/file.py")                    │
+│  └─> scan_todos("path/to/dir")                              │
+├─────────────────────────────────────────────────────────────┤
+│  AFTER MAKING DECISIONS                                     │
+│  └─> remember(category, content, rationale, file_path)      │
+├─────────────────────────────────────────────────────────────┤
+│  AFTER IMPLEMENTATION                                       │
+│  └─> record_outcome(memory_id, outcome, worked)             │
+├─────────────────────────────────────────────────────────────┤
+│  IMPORTING EXTERNAL DOCS                                    │
+│  └─> ingest_doc(url, topic)                                 │
+│  └─> recall(topic)  # to retrieve later                     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **The system learns from YOUR outcomes. Record them.**
