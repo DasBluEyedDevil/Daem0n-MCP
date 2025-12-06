@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migration script: Convert old DevilMCP database to new simplified schema.
+Migration script: Convert old Daem0nMCP database to new simplified schema.
 
 This script migrates data from the old schema (13 tables) to the new schema (3 tables):
 - decisions -> memories (category='decision')
@@ -9,7 +9,7 @@ This script migrates data from the old schema (13 tables) to the new schema (3 t
 - changes with issues -> memories (category='warning')
 
 Usage:
-    python scripts/migrate_to_v2.py /path/to/project/.devilmcp/storage/devilmcp.db
+    python scripts/migrate_to_v2.py /path/to/project/.daem0nmcp/storage/daem0nmcp.db
 
 Or to migrate the current project:
     python scripts/migrate_to_v2.py
@@ -370,9 +370,9 @@ def main():
         # Try to find database in current project
         from pathlib import Path
         cwd = Path.cwd()
-        db_path = cwd / ".devilmcp" / "storage" / "devilmcp.db"
+        db_path = cwd / ".daem0nmcp" / "storage" / "daem0nmcp.db"
         if not db_path.exists():
-            print("Usage: python scripts/migrate_to_v2.py /path/to/devilmcp.db")
+            print("Usage: python scripts/migrate_to_v2.py /path/to/daem0nmcp.db")
             print(f"       Or run from project root (checked: {db_path})")
             sys.exit(1)
 

@@ -1,3 +1,3 @@
 """
-DevilMCP Core Package
+Daem0nMCP Core Package
 """
