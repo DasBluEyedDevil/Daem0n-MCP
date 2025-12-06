@@ -1,6 +1,7 @@
 # tests/test_executor.py
 import pytest
-from devilmcp.executor import ExecutionResult, ToolExecutor
+from devilmcp.executor import ExecutionResult
+
 
 def test_execution_result_success():
     result = ExecutionResult(success=True, output="hello world")
@@ -9,7 +10,7 @@ def test_execution_result_success():
     assert result.error is None
     assert result.return_code is None
     assert result.timed_out is False
-    assert result.executor_type == "subprocess"
+
 
 def test_execution_result_failure():
     result = ExecutionResult(
@@ -17,12 +18,12 @@ def test_execution_result_failure():
         output="",
         error="Command not found",
         return_code=127,
-        timed_out=False,
-        executor_type="subprocess-stateless"
+        timed_out=False
     )
     assert result.success is False
     assert result.return_code == 127
     assert result.error == "Command not found"
+
 
 def test_execution_result_timeout():
     result = ExecutionResult(
@@ -33,7 +34,3 @@ def test_execution_result_timeout():
     )
     assert result.timed_out is True
     assert result.output == "partial output"
-
-def test_tool_executor_is_abstract():
-    with pytest.raises(TypeError):
-        ToolExecutor()  # Cannot instantiate abstract class

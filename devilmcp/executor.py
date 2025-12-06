@@ -1,12 +1,16 @@
 # devilmcp/executor.py
 """
-Tool Executor Interface
-Defines the contract for all tool execution strategies.
+Execution Result dataclass.
+
+Simplified from abstract base class to just a result container.
+We removed the ToolExecutor ABC because:
+1. We only have one executor (SubprocessExecutor)
+2. The "native executor" pattern was YAGNI vaporware
+3. Simple is better than complex
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Optional, Dict, List
+from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -17,23 +21,3 @@ class ExecutionResult:
     error: Optional[str] = None
     return_code: Optional[int] = None
     timed_out: bool = False
-    executor_type: str = "subprocess"
-
-
-class ToolExecutor(ABC):
-    """Base interface for all tool execution strategies."""
-
-    @abstractmethod
-    async def execute(
-        self,
-        command: str,
-        args: List[str],
-        env: Optional[Dict[str, str]] = None
-    ) -> ExecutionResult:
-        """Execute a command and return the result."""
-        pass
-
-    @abstractmethod
-    async def cleanup(self) -> None:
-        """Release any resources held by the executor."""
-        pass

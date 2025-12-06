@@ -26,20 +26,21 @@ pytest -v --asyncio-mode=auto  # For async tests
 
 ```
 ┌─────────────────────────────────────┐
-│  FastMCP Server (server.py)         │  ← Entry point, exposes 50+ MCP tools
+│  FastMCP Server (server.py)         │  ← Entry point, exposes MCP tools
 ├─────────────────────────────────────┤
 │  Feature Modules                    │
 │  • context_manager.py   → Project structure & dependency analysis
 │  • decision_tracker.py  → Architectural decision logging
 │  • change_analyzer.py   → Code change impact prediction
-│  • cascade_detector.py  → Cascade failure detection (networkx graphs)
+│  • cascade_detector.py  → Cascade failure detection (auto-hydrates from DB)
 │  • task_manager.py      → Task/todo management
 │  • thought_processor.py → AI reasoning chain tracking
-│  • tool_registry.py     → CLI tool management
-│  • process_manager.py   → Process lifecycle management (deprecated)
-│  • executor.py          → Tool execution abstraction
-│  • subprocess_executor.py → Subprocess-based tool execution
-│  • native_executors/    → Native SDK integrations (git, etc.)
+│  • tool_registry.py     → CLI tool management (with security whitelist)
+│  • subprocess_executor.py → Stateless subprocess execution
+├─────────────────────────────────────┤
+│  parsers/                           │
+│  • python_parser.py     → Python AST parsing (stdlib ast)
+│  • javascript_parser.py → JS parsing (tree-sitter + regex fallback)
 ├─────────────────────────────────────┤
 │  database.py + models.py            │  ← SQLAlchemy ORM, async SQLite
 └─────────────────────────────────────┘
@@ -50,10 +51,23 @@ pytest -v --asyncio-mode=auto  # For async tests
 ## Key Patterns
 
 - **Async-first:** All database operations and managers use `async`/`await`
-- **SQLAlchemy ORM:** 16 models in `models.py` (Decision, Change, Task, Tool, etc.)
+- **SQLAlchemy ORM:** Models in `models.py` (Decision, Change, Task, Tool, etc.)
 - **FastMCP framework:** Tools defined as decorated async functions in `server.py`
 - **Git-aware:** Context manager respects `.gitignore` for project scanning
-- **AST parsing:** Uses `astroid` for Python import analysis
+- **AST parsing:** Python uses stdlib `ast`, JS uses tree-sitter with regex fallback
+- **Auto-hydration:** CascadeDetector loads dependency graph from DB automatically
+
+## Security
+
+Tool execution is **disabled by default**. To enable:
+
+```bash
+# Enable tool execution
+export DEVILMCP_TOOL_EXECUTION_ENABLED=true
+
+# Whitelist allowed commands (comma-separated)
+export DEVILMCP_ALLOWED_COMMANDS="git,python,pytest,npm,node"
+```
 
 ## Adding New MCP Tools
 
