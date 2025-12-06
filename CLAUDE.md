@@ -54,7 +54,7 @@ pytest -v --asyncio-mode=auto  # For async tests
 - **SQLAlchemy ORM:** Models in `models.py` (Decision, Change, Task, Tool, etc.)
 - **FastMCP framework:** Tools defined as decorated async functions in `server.py`
 - **Git-aware:** Context manager respects `.gitignore` for project scanning
-- **AST parsing:** Python uses stdlib `ast`, JS uses tree-sitter with regex fallback
+- **AST parsing:** Python uses stdlib `ast`, JS uses tree-sitter (no fallback)
 - **Auto-hydration:** CascadeDetector loads dependency graph from DB automatically
 
 ## Security
@@ -65,9 +65,13 @@ Tool execution is **disabled by default**. To enable:
 # Enable tool execution
 export DEVILMCP_TOOL_EXECUTION_ENABLED=true
 
-# Whitelist allowed commands (comma-separated)
-export DEVILMCP_ALLOWED_COMMANDS="git,python,pytest,npm,node"
+# Whitelist allowed commands (minimal safe default)
+export DEVILMCP_ALLOWED_COMMANDS="git,pytest"
 ```
+
+**WARNING:** The command whitelist is NOT a sandbox. If you allow `python` or `node`, the AI agent can write and execute arbitrary code. This effectively grants shell access. For true isolation:
+- Run DevilMCP inside a Docker container
+- Or only allow read-only commands like `git status`
 
 ## Adding New MCP Tools
 

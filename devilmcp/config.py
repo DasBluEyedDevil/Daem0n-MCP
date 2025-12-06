@@ -29,14 +29,21 @@ class Settings(BaseSettings):
     auto_migrate: bool = True  # Run Alembic on startup
 
     # Security settings
+    #
     # IMPORTANT: Tool execution is DISABLED by default for security.
     # Set DEVILMCP_TOOL_EXECUTION_ENABLED=true to enable.
+    #
+    # WARNING: This is NOT a sandbox. If you enable tool execution, the AI agent
+    # has effective shell access. The allowed_commands whitelist provides only
+    # basic protection - if 'python' is allowed, the agent can write and execute
+    # arbitrary Python code. For true isolation, run DevilMCP in a Docker container.
+    #
     tool_execution_enabled: bool = False
 
     # Comma-separated list of allowed commands.
-    # Only these commands can be executed when tool execution is enabled.
-    # Example: DEVILMCP_ALLOWED_COMMANDS="git,python,pytest,npm"
-    allowed_commands: str = "git,python,pytest,npm,node"
+    # NOTE: This is a basic filter, not a security boundary. If you allow 'python',
+    # you're allowing arbitrary code execution. Only add commands you fully trust.
+    allowed_commands: str = "git,pytest"  # Minimal safe default (no python/node)
 
     class Config:
         env_prefix = "DEVILMCP_"

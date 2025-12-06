@@ -32,20 +32,28 @@ class ContextManager:
         self.db = db_manager
         # No file path storage anymore
 
-    async def analyze_project_structure(self, project_path: str) -> Dict:
+    async def analyze_project_structure(
+        self,
+        project_path: str,
+        force_rescan: bool = False
+    ) -> Dict:
         """
-        Analyze project structure and build file list.
+        Analyze project structure with incremental scanning.
+
+        Only re-scans files that have changed (based on mtime) unless force_rescan=True.
         Uses git to respect .gitignore if available.
-        Persists to SQLite.
         """
         project_path = os.path.abspath(project_path)
-        
+
         structure = {
             "root": project_path,
             "files": [],
             "directories": [],
             "languages": {},
-            "total_files": 0
+            "total_files": 0,
+            "files_updated": 0,
+            "files_added": 0,
+            "files_removed": 0
         }
 
         file_list = []
@@ -54,9 +62,7 @@ class ContextManager:
         if GIT_AVAILABLE:
             try:
                 repo = git.Repo(project_path, search_parent_directories=True)
-                # Get tracked files
                 git_files = repo.git.ls_files().split('\n')
-                # Filter out empty strings
                 file_list = [os.path.join(repo.working_dir, f) for f in git_files if f]
                 logger.info(f"Used git to find {len(file_list)} tracked files")
             except (git.InvalidGitRepositoryError, Exception) as e:
@@ -65,18 +71,8 @@ class ContextManager:
         else:
             file_list = self._walk_directory(project_path)
 
-        # Process files and update DB
         async with self.db.get_session() as session:
-            # We could wipe old data for this project or update incrementally.
-            # For now, let's update incrementally.
-            # Ideally we need to know which files were REMOVED too.
-            # A simple strategy: Mark all existing as "stale", update found, delete remaining "stale".
-            # But ProjectFile assumes file_path is unique.
-            # Since multiple projects might use same DB but isolation is folder-based, 
-            # we should be careful. server.py sets up DB per project folder.
-            # So effectively 1 DB = 1 Project. We can sync fully.
-            
-            # Get existing files map
+            # Get existing files map with their last_modified timestamps
             result = await session.execute(select(ProjectFile))
             existing_files = {f.file_path: f for f in result.scalars().all()}
             found_paths = set()
@@ -84,8 +80,7 @@ class ContextManager:
             for full_path in file_list:
                 rel_path = os.path.relpath(full_path, project_path)
                 found_paths.add(rel_path)
-                
-                # Skip .git directory internal files
+
                 if ".git" + os.sep in full_path:
                     continue
 
@@ -93,8 +88,14 @@ class ContextManager:
                 if ext:
                     structure["languages"][ext] = structure["languages"].get(ext, 0) + 1
 
-                size = os.path.getsize(full_path) if os.path.exists(full_path) else 0
-                
+                # Get file mtime for incremental scanning
+                try:
+                    stat = os.stat(full_path)
+                    file_mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+                    size = stat.st_size
+                except OSError:
+                    continue  # File disappeared
+
                 file_info = {
                     "path": rel_path,
                     "full_path": full_path,
@@ -102,36 +103,47 @@ class ContextManager:
                     "size": size
                 }
                 structure["files"].append(file_info)
-                
-                # Update DB
+
+                # Incremental update: only update if file is new or changed
                 if rel_path in existing_files:
                     pf = existing_files[rel_path]
-                    if pf.size != size: # Only update if changed
+                    db_mtime = pf.last_modified
+
+                    # Compare mtimes - update if file is newer or force_rescan
+                    if force_rescan or db_mtime is None or file_mtime > db_mtime:
                         pf.size = size
-                        pf.last_modified = datetime.now(timezone.utc)
+                        pf.last_modified = file_mtime
                         session.add(pf)
+                        structure["files_updated"] += 1
                 else:
+                    # New file
                     pf = ProjectFile(
                         file_path=rel_path,
                         file_type=ext,
                         size=size,
-                        last_modified=datetime.now(timezone.utc)
+                        last_modified=file_mtime
                     )
                     session.add(pf)
+                    structure["files_added"] += 1
 
-                # Track directories
                 dirname = os.path.dirname(rel_path)
                 if dirname and dirname not in structure["directories"]:
                     structure["directories"].append(dirname)
-            
+
             # Remove files that no longer exist
             for path, pf in existing_files.items():
                 if path not in found_paths:
                     await session.delete(pf)
-            
+                    structure["files_removed"] += 1
+
             await session.commit()
 
         structure["total_files"] = len(structure["files"])
+        logger.info(
+            f"Project scan: {structure['total_files']} files, "
+            f"{structure['files_added']} added, {structure['files_updated']} updated, "
+            f"{structure['files_removed']} removed"
+        )
         return structure
 
     def _walk_directory(self, project_path: str) -> List[str]:
