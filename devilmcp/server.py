@@ -2,7 +2,7 @@
 DevilMCP Server - AI Memory System with Semantic Understanding
 
 A smarter MCP server that provides:
-1. Semantic memory storage and retrieval (TF-IDF, not just keywords)
+1. Semantic memory storage and retrieval (TF-IDF + optional vectors)
 2. Time-weighted recall (recent memories matter more, but patterns/warnings are permanent)
 3. Conflict detection (warns about contradicting decisions)
 4. Rule-based decision trees for consistent AI behavior
@@ -10,8 +10,10 @@ A smarter MCP server that provides:
 6. File-level memory associations
 7. Git awareness (shows changes since last session)
 8. Tech debt scanning (finds TODO/FIXME/HACK comments)
+9. External documentation ingestion
+10. Refactor proposal generation
 
-13 Tools:
+15 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - recall_for_file: Get all memories for a specific file
@@ -25,6 +27,8 @@ A smarter MCP server that provides:
 - update_rule: Modify existing rule
 - find_related: Discover connected memories
 - scan_todos: Find TODO/FIXME/HACK comments and track as tech debt
+- ingest_doc: Fetch and store external documentation as learnings
+- propose_refactor: Generate refactor suggestions based on memory context
 """
 
 import sys
@@ -924,6 +928,227 @@ async def scan_todos(
             (f", created {len(new_memories)} new warnings" if new_memories else "")
         )
     }
+
+
+# ============================================================================
+# Helper: Web fetching for documentation ingestion
+# ============================================================================
+def _fetch_and_extract(url: str) -> Optional[str]:
+    """Fetch URL and extract text content."""
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+    except ImportError:
+        return None
+
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = client.get(url)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Remove script and style elements
+            for element in soup(['script', 'style', 'nav', 'footer', 'header']):
+                element.decompose()
+
+            # Get text
+            text = soup.get_text(separator='\n', strip=True)
+
+            # Clean up whitespace
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            return '\n'.join(lines)
+
+    except Exception as e:
+        logger.error(f"Failed to fetch {url}: {e}")
+        return None
+
+
+# ============================================================================
+# Tool 14: INGEST_DOC - Import external documentation
+# ============================================================================
+@mcp.tool()
+async def ingest_doc(
+    url: str,
+    topic: str,
+    chunk_size: int = 2000
+) -> Dict[str, Any]:
+    """
+    Fetch external documentation and store it as permanent learnings.
+
+    Use this to import knowledge from external sources:
+    - API documentation (Stripe, Twilio, etc.)
+    - Library docs (React, Django, etc.)
+    - Team wikis or RFCs
+    - Best practices guides
+
+    The content is chunked and stored as permanent learnings that can be
+    recalled later. Each chunk is tagged with the topic for easy retrieval.
+
+    Args:
+        url: The URL to fetch documentation from
+        topic: Topic tag for organizing the docs (e.g., "stripe", "react-hooks")
+        chunk_size: Max characters per memory chunk (default: 2000)
+
+    Returns:
+        Summary of ingested content
+
+    Examples:
+        ingest_doc("https://stripe.com/docs/api/charges", "stripe-charges")
+        ingest_doc("https://react.dev/reference/react/hooks", "react-hooks")
+    """
+    await db_manager.init_db()
+
+    content = _fetch_and_extract(url)
+
+    if content is None:
+        return {
+            "error": "Failed to fetch URL. Make sure httpx and beautifulsoup4 are installed: pip install devilmcp[web]",
+            "url": url
+        }
+
+    if not content.strip():
+        return {
+            "error": "No text content found at URL",
+            "url": url
+        }
+
+    # Chunk the content
+    chunks = []
+    words = content.split()
+    current_chunk = []
+    current_size = 0
+
+    for word in words:
+        word_len = len(word) + 1  # +1 for space
+        if current_size + word_len > chunk_size and current_chunk:
+            chunks.append(' '.join(current_chunk))
+            current_chunk = [word]
+            current_size = word_len
+        else:
+            current_chunk.append(word)
+            current_size += word_len
+
+    if current_chunk:
+        chunks.append(' '.join(current_chunk))
+
+    # Store each chunk as a learning
+    memories_created = []
+    for i, chunk in enumerate(chunks):
+        memory = await memory_manager.remember(
+            category='learning',
+            content=chunk[:500] + "..." if len(chunk) > 500 else chunk,
+            rationale=f"Ingested from {url} (chunk {i+1}/{len(chunks)})",
+            tags=['docs', 'ingested', topic],
+            context={'source_url': url, 'chunk_index': i, 'total_chunks': len(chunks)}
+        )
+        memories_created.append(memory)
+
+    return {
+        "status": "success",
+        "url": url,
+        "topic": topic,
+        "chunks_created": len(chunks),
+        "total_chars": len(content),
+        "message": f"Ingested {len(chunks)} chunks from {url}. Use recall('{topic}') to retrieve.",
+        "memory_ids": [m.get('id') for m in memories_created if 'id' in m]
+    }
+
+
+# ============================================================================
+# Tool 15: PROPOSE_REFACTOR - Generate refactor suggestions
+# ============================================================================
+@mcp.tool()
+async def propose_refactor(
+    file_path: str
+) -> Dict[str, Any]:
+    """
+    Generate refactor suggestions for a file based on memory context.
+
+    Combines:
+    - File-specific memories (past decisions, warnings)
+    - TODO/FIXME comments in the file
+    - Relevant rules and patterns
+
+    Returns structured context that helps the AI agent propose
+    informed refactoring decisions.
+
+    Args:
+        file_path: The file to analyze for refactoring
+
+    Returns:
+        Combined context with memories, todos, and suggested actions
+
+    Example:
+        propose_refactor("src/auth/handlers.py")
+    """
+    await db_manager.init_db()
+
+    result = {
+        "file_path": file_path,
+        "memories": {},
+        "todos": [],
+        "rules": {},
+        "constraints": [],
+        "opportunities": []
+    }
+
+    # Get file-specific memories
+    file_memories = await memory_manager.recall_for_file(file_path)
+    result["memories"] = file_memories
+
+    # Scan for TODOs in this specific file
+    if os.path.exists(file_path):
+        file_todos = _scan_for_todos(os.path.dirname(file_path) or ".", max_files=1)
+        result["todos"] = [t for t in file_todos if t['file'].endswith(os.path.basename(file_path))]
+
+    # Check relevant rules
+    filename = os.path.basename(file_path)
+    rules = await rules_engine.check_rules(f"refactoring {filename}")
+    result["rules"] = rules
+
+    # Extract constraints from warnings and failed approaches
+    for cat in ['warnings', 'decisions', 'patterns']:
+        for mem in file_memories.get(cat, []):
+            if mem.get('worked') is False:
+                result["constraints"].append({
+                    "type": "failed_approach",
+                    "content": mem['content'],
+                    "outcome": mem.get('outcome'),
+                    "action": "AVOID this approach"
+                })
+            elif cat == 'warnings':
+                result["constraints"].append({
+                    "type": "warning",
+                    "content": mem['content'],
+                    "action": "Consider this warning"
+                })
+
+    # Identify opportunities from TODOs
+    for todo in result["todos"]:
+        result["opportunities"].append({
+            "type": todo['type'],
+            "content": todo['content'],
+            "line": todo['line'],
+            "action": f"Address this {todo['type']}"
+        })
+
+    # Build summary message
+    num_constraints = len(result["constraints"])
+    num_opportunities = len(result["opportunities"])
+    num_memories = file_memories.get('found', 0)
+
+    result["message"] = (
+        f"Analysis for {file_path}: "
+        f"{num_memories} memories, "
+        f"{num_constraints} constraints, "
+        f"{num_opportunities} opportunities"
+    )
+
+    if num_constraints > 0:
+        result["message"] += " | Review constraints before refactoring!"
+
+    return result
 
 
 # ============================================================================

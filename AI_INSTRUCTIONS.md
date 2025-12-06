@@ -77,7 +77,7 @@ When `check_rules` returns guidance:
 
 ---
 
-## AVAILABLE TOOLS (13 Total)
+## AVAILABLE TOOLS (15 Total)
 
 | Tool | Purpose | When to Use |
 |------|---------|-------------|
@@ -94,6 +94,8 @@ When `check_rules` returns guidance:
 | `search_memories(query)` | Search memories | Finding specific content |
 | `find_related(id)` | Related memories | Exploring connections |
 | `scan_todos(path)` | Find tech debt | Discovering TODO/FIXME/HACK comments |
+| `ingest_doc(url, topic)` | Import docs | Loading external documentation |
+| `propose_refactor(path)` | Refactor context | Before refactoring a file |
 
 ---
 
@@ -182,4 +184,4 @@ After Result:   record_outcome(id, outcome, worked)
 
 ---
 
-*DevilMCP v2.1.2: Persistent memory with semantic understanding, code symbol extraction, and tech debt scanning.*
+*DevilMCP v2.2.0: Persistent memory with semantic understanding, optional vector embeddings, doc ingestion, and refactor proposals.*

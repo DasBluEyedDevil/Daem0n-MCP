@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devilmcp"
-version = "2.1.2"
+version = "2.2.0"
 description = "AI Memory & Decision System - Give AI agents persistent memory and consistent decision-making"
 readme = "README.md"
 license = {text = "MIT"}
@@ -34,6 +34,20 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+]
+web = [
+    "httpx>=0.25.0",
+    "beautifulsoup4>=4.12.0",
+]
+vectors = [
+    "sentence-transformers>=2.2.0",
+    "numpy>=1.24.0",
+]
+all = [
+    "httpx>=0.25.0",
+    "beautifulsoup4>=4.12.0",
+    "sentence-transformers>=2.2.0",
+    "numpy>=1.24.0",
 ]
 
 [project.scripts]

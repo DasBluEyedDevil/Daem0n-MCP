@@ -32,13 +32,18 @@ pytest tests/ -v --asyncio-mode=auto
 
 ```
 devilmcp/
-├── server.py      # MCP server, 13 tools (FastMCP)
+├── server.py      # MCP server, 15 tools (FastMCP)
 ├── memory.py      # MemoryManager - semantic store/recall with decay
 ├── rules.py       # RulesEngine - TF-IDF matched decision trees
 ├── similarity.py  # TF-IDF index, cosine similarity, conflict detection
+├── vectors.py     # Optional vector embeddings (sentence-transformers)
 ├── database.py    # DatabaseManager - async SQLite
 ├── models.py      # SQLAlchemy models (2 tables)
+├── cli.py         # Command-line interface for pre-commit hooks
 └── config.py      # Pydantic settings
+
+scripts/
+└── pre-commit     # Git hook for memory-aware commits
 ```
 
 **Data Storage:** `<project_root>/.devilmcp/storage/devilmcp.db`
@@ -66,11 +71,11 @@ devilmcp/
 - **Failed decision boosting**: Failed outcomes are highlighted in recalls (1.5x boost)
 - **Git awareness**: Briefing shows changes since last memory
 
-## MCP Tools (13 total)
+## MCP Tools (15 total)
 
 Core:
 1. `remember` - Store a memory with conflict detection and file association
-2. `recall` - Semantic retrieval with decay weighting
+2. `recall` - Semantic retrieval with decay weighting (TF-IDF + optional vectors)
 3. `recall_for_file` - Get memories for a specific file
 4. `add_rule` - Create decision tree node
 5. `check_rules` - Semantic matching against rules
@@ -84,6 +89,8 @@ Utility:
 11. `update_rule` - Modify existing rule
 12. `find_related` - Discover connected memories
 13. `scan_todos` - Find TODO/FIXME/HACK comments in codebase
+14. `ingest_doc` - Fetch and store external documentation as learnings
+15. `propose_refactor` - Generate refactor context from memory + todos
 
 ## Adding New Tools
 
@@ -111,9 +118,10 @@ async def my_tool(param: str) -> Dict[str, Any]:
 pytest tests/ -v --asyncio-mode=auto
 ```
 
-77 tests covering:
+88 tests covering:
 - Memory CRUD and semantic recall
 - TF-IDF indexing and similarity
+- Vector embeddings and hybrid search
 - Code symbol extraction
 - Memory decay calculations
 - Conflict detection

@@ -24,6 +24,7 @@ from .similarity import (
     get_global_index,
     STOP_WORDS
 )
+from . import vectors
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class MemoryManager:
     Manages AI memories - storing, retrieving, and learning from them.
 
     Uses TF-IDF similarity for semantic matching instead of naive keyword overlap.
+    Optionally uses vector embeddings for better semantic understanding.
     Applies memory decay to favor recent memories.
     Detects conflicts with existing memories.
     """
@@ -52,12 +54,17 @@ class MemoryManager:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self._index: Optional[TFIDFIndex] = None
+        self._vector_index: Optional[vectors.VectorIndex] = None
         self._index_loaded = False
+        self._vectors_enabled = vectors.is_available()
 
     async def _ensure_index(self) -> TFIDFIndex:
         """Ensure the TF-IDF index is loaded with all memories."""
         if self._index is None:
             self._index = TFIDFIndex()
+
+        if self._vector_index is None:
+            self._vector_index = vectors.VectorIndex()
 
         if not self._index_loaded:
             async with self.db.get_session() as session:
@@ -70,8 +77,13 @@ class MemoryManager:
                         text += " " + mem.rationale
                     self._index.add_document(mem.id, text, mem.tags)
 
+                    # Load vectors if available
+                    if self._vectors_enabled and mem.vector_embedding:
+                        self._vector_index.add_from_bytes(mem.id, mem.vector_embedding)
+
                 self._index_loaded = True
-                logger.info(f"Loaded {len(memories)} memories into TF-IDF index")
+                vector_count = len(self._vector_index) if self._vector_index else 0
+                logger.info(f"Loaded {len(memories)} memories into TF-IDF index ({vector_count} with vectors)")
 
         return self._index
 
@@ -114,6 +126,12 @@ class MemoryManager:
         # They represent project facts, not episodic events
         is_permanent = category in {'pattern', 'warning'}
 
+        # Compute vector embedding if available
+        text_for_embedding = content
+        if rationale:
+            text_for_embedding += " " + rationale
+        vector_embedding = vectors.encode(text_for_embedding) if self._vectors_enabled else None
+
         memory = Memory(
             category=category,
             content=content,
@@ -122,7 +140,8 @@ class MemoryManager:
             tags=tags or [],
             keywords=keywords.strip(),
             file_path=file_path,
-            is_permanent=is_permanent
+            is_permanent=is_permanent,
+            vector_embedding=vector_embedding
         )
 
         async with self.db.get_session() as session:
@@ -130,14 +149,18 @@ class MemoryManager:
             await session.flush()
             memory_id = memory.id
 
-            # Add to index
+            # Add to TF-IDF index
             index = await self._ensure_index()
             text = content
             if rationale:
                 text += " " + rationale
             index.add_document(memory_id, text, tags)
 
-            logger.info(f"Stored {category}: {content[:50]}...")
+            # Add to vector index if available
+            if self._vectors_enabled and vector_embedding and self._vector_index:
+                self._vector_index.add_from_bytes(memory_id, vector_embedding)
+
+            logger.info(f"Stored {category}: {content[:50]}..." + (" [+vector]" if vector_embedding else ""))
 
             result = {
                 "id": memory_id,
@@ -213,8 +236,12 @@ class MemoryManager:
         """
         index = await self._ensure_index()
 
-        # Search using TF-IDF
-        search_results = index.search(topic, top_k=limit * 4, threshold=0.05)
+        # Use hybrid search if vectors available, otherwise TF-IDF only
+        if self._vectors_enabled and self._vector_index and len(self._vector_index) > 0:
+            hybrid = vectors.HybridSearch(index, self._vector_index)
+            search_results = hybrid.search(topic, top_k=limit * 4)
+        else:
+            search_results = index.search(topic, top_k=limit * 4, threshold=0.05)
 
         if not search_results:
             return {"memories": [], "message": "No relevant memories found", "topic": topic}

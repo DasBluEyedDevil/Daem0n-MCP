@@ -6,7 +6,7 @@ Only 2 tables:
 - rules: Decision tree nodes / enforcement rules
 """
 
-from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, Boolean, LargeBinary
 from sqlalchemy.orm import DeclarativeBase
 from datetime import datetime, timezone
 
@@ -56,6 +56,10 @@ class Memory(Base):
     # Permanent flag - semantic memories (patterns, warnings) don't decay
     # Auto-set based on category, but can be overridden
     is_permanent = Column(Boolean, default=False)
+
+    # Vector embedding for semantic search (optional - requires sentence-transformers)
+    # Stored as packed floats (bytes)
+    vector_embedding = Column(LargeBinary, nullable=True)
 
     # Outcome tracking
     outcome = Column(Text, nullable=True)  # What actually happened
