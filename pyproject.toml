@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devilmcp"
-version = "1.0.0"
-description = "Extremely powerful MCP server for AI agent context management"
+version = "2.0.0"
+description = "AI Memory & Decision System - Give AI agents persistent memory and consistent decision-making"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     {name = "DevilMCP"}
 ]
@@ -17,7 +17,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -26,22 +25,9 @@ classifiers = [
 
 dependencies = [
     "fastmcp>=0.2.0",
-    "requests>=2.31.0",
-    "python-dotenv>=1.0.0",
-    "networkx>=3.2",
-    "astroid>=3.0.0",
-    "radon>=6.0.1",
-    "gitpython>=3.1.40",
-    "pyyaml>=6.0",
     "sqlalchemy>=2.0.0",
     "aiosqlite>=0.19.0",
-    "toml>=0.10.2",
     "pydantic-settings>=2.0.0",
-    "alembic>=1.13.0",
-    "tree-sitter>=0.21.0",
-    "tree-sitter-python>=0.21.0",
-    "tree-sitter-javascript>=0.21.0",
-    "tree-sitter-typescript>=0.21.0",
 ]
 
 [project.optional-dependencies]

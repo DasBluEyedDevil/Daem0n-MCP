@@ -1,25 +1,9 @@
+# Core dependencies
 fastmcp>=0.2.0
-requests>=2.31.0
-python-dotenv>=1.0.0
-networkx>=3.2
-astroid>=3.0.0
-radon>=6.0.1
-gitpython>=3.1.40
-pyyaml>=6.0
 sqlalchemy>=2.0.0
 aiosqlite>=0.19.0
-pytest>=7.0.0
-pytest-asyncio>=0.23.0
-toml>=0.10.2
-
-# Pydantic Settings
 pydantic-settings>=2.0.0
 
-# Alembic for database migrations
-alembic>=1.13.0
-
-# Tree-sitter for code parsing (optional but recommended)
-tree-sitter>=0.21.0
-tree-sitter-python>=0.21.0
-tree-sitter-javascript>=0.21.0
-tree-sitter-typescript>=0.21.0
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.23.0

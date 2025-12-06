@@ -1,30 +1,37 @@
 """
-DevilMCP Server
-An extremely powerful MCP server for AI agents to maintain context,
-track decisions, and understand cascading impacts.
+DevilMCP Server - Focused AI Memory System
+
+A streamlined MCP server that provides:
+1. Memory storage and retrieval (decisions, patterns, warnings, learnings)
+2. Rule-based decision trees for consistent AI behavior
+3. Outcome tracking for continuous learning
+
+Core Tools:
+- remember: Store a decision, pattern, warning, or learning
+- recall: Retrieve relevant memories for a topic
+- add_rule: Add a decision tree node
+- check_rules: Validate an action against rules
+- record_outcome: Track whether a decision worked
+- get_briefing: Get everything needed to start a session
 """
 
 import sys
 import logging
-import asyncio
 import atexit
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 try:
     from mcp.server.fastmcp import FastMCP
 except ImportError:
-    print("ERROR: fastmcp not installed. Run: pip install -r requirements.txt", file=sys.stderr)
-    exit(1)
+    print("ERROR: fastmcp not installed. Run: pip install fastmcp", file=sys.stderr)
+    sys.exit(1)
 
-from devilmcp.config import settings
-from devilmcp.context_manager import ContextManager
-from devilmcp.decision_tracker import DecisionTracker
-from devilmcp.change_analyzer import ChangeAnalyzer
-from devilmcp.cascade_detector import CascadeDetector
-from devilmcp.thought_processor import ThoughtProcessor
-from devilmcp.database import DatabaseManager
-from devilmcp.tool_registry import ToolRegistry
-from devilmcp.task_manager import TaskManager
+from .config import settings
+from .database import DatabaseManager
+from .memory import MemoryManager
+from .rules import RulesEngine
+from .models import Memory, Rule
+from sqlalchemy import select
 
 # Configure logging
 logging.basicConfig(
@@ -34,681 +41,452 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server
-port = settings.port
-storage_path = settings.get_storage_path()
-
 mcp = FastMCP("DevilMCP")
 
 # Initialize core modules
+storage_path = settings.get_storage_path()
 db_manager = DatabaseManager(storage_path)
-tool_registry = ToolRegistry(db_manager)
-task_manager = TaskManager(db_manager)
-context_mgr = ContextManager(db_manager)
-decision_tracker = DecisionTracker(db_manager)
-cascade_detector = CascadeDetector(db_manager, storage_path)
-change_analyzer = ChangeAnalyzer(db_manager, cascade_detector)
-thought_processor = ThoughtProcessor(db_manager)
+memory_manager = MemoryManager(db_manager)
+rules_engine = RulesEngine(db_manager)
 
-logger.info("DevilMCP Server initialized")
-# Context management tools
-@mcp.tool()
-async def analyze_project_structure(project_path: str) -> Dict:
-    """
-    Analyze entire project structure to build comprehensive context.
-    """
-    logger.info(f"Analyzing project structure: {project_path}")
-    return await context_mgr.analyze_project_structure(project_path)
+logger.info(f"DevilMCP Server initialized (storage: {storage_path})")
 
-@mcp.tool()
-async def track_file_dependencies(
-    file_path: str,
-    project_root: Optional[str] = None
-) -> Dict:
-    """
-    Analyze file dependencies including imports and relationships.
-    """
-    logger.info(f"Tracking dependencies: {file_path}")
-    return await context_mgr.track_file_dependencies(file_path, project_root)
 
+# ============================================================================
+# Tool 1: REMEMBER - Store a memory
+# ============================================================================
 @mcp.tool()
-async def get_project_context(
-    project_path: Optional[str] = None,
-    include_dependencies: bool = True,
-    summary_only: bool = False
-) -> Dict:
-    """
-    Retrieve comprehensive project context.
-    """
-    logger.info(f"Getting project context: {project_path or 'all'}")
-    return await context_mgr.get_project_context(project_path, include_dependencies, summary_only)
-
-@mcp.tool()
-async def get_focused_context(file_path: str) -> Dict:
-    """
-    Get context focused on a specific file (imports, imported_by, dependencies).
-    Efficient for understanding a single file's place in the architecture.
-    """
-    logger.info(f"Getting focused context for: {file_path}")
-    return await context_mgr.get_focused_context(file_path)
-
-@mcp.tool()
-async def search_context(query: str, context_type: str = "all") -> List[Dict]:
-    """
-    Search context data for specific information.
-    """
-    logger.info(f"Searching context: {query}")
-    return await context_mgr.search_context(query, context_type)
-
-# Decision tracking tools
-@mcp.tool()
-async def log_decision(
-    decision: str,
-    rationale: str,
-    context: Dict,
-    alternatives_considered: Optional[List[str]] = None,
-    expected_impact: Optional[str] = None,
-    risk_level: str = "medium",
-    tags: Optional[List[str]] = None
-) -> Dict:
-    """
-    Log a decision with full context and rationale.
-    """
-    logger.info(f"Logging decision: {decision}")
-    return await decision_tracker.log_decision(
-        decision, rationale, context, alternatives_considered,
-        expected_impact, risk_level, tags
-    )
-
-@mcp.tool()
-async def update_decision_outcome(
-    decision_id: int,
-    outcome: str,
-    actual_impact: str,
-    lessons_learned: Optional[str] = None
-) -> Optional[Dict]:
-    """
-    Update a decision with its actual outcome.
-    """
-    logger.info(f"Updating decision outcome: {decision_id}")
-    return await decision_tracker.update_decision_outcome(
-        decision_id, outcome, actual_impact, lessons_learned
-    )
-
-@mcp.tool()
-async def query_decisions(
-    query: Optional[str] = None,
-    tags: Optional[List[str]] = None,
-    risk_level: Optional[str] = None,
-    limit: int = 10
-) -> List[Dict]:
-    """
-    Query past decisions.
-    """
-    logger.info(f"Querying decisions: {query}")
-    return await decision_tracker.query_decisions(query, tags, risk_level, limit)
-
-@mcp.tool()
-async def analyze_decision_impact(decision_id: int) -> Dict:
-    """
-    Analyze the impact of a specific decision.
-    """
-    logger.info(f"Analyzing decision impact: {decision_id}")
-    return await decision_tracker.analyze_decision_impact(decision_id)
-
-@mcp.tool()
-async def get_decision_statistics() -> Dict:
-    """
-    Get statistics about decisions made.
-    """
-    return await decision_tracker.get_decision_statistics()
-
-# Change analysis tools
-@mcp.tool()
-async def log_change(
-    file_path: str,
-    change_type: str,
-    description: str,
-    rationale: str,
-    affected_components: List[str],
-    risk_assessment: Optional[Dict] = None,
-    rollback_plan: Optional[str] = None
-) -> Dict:
-    """
-    Log a code change with comprehensive context.
-    """
-    logger.info(f"Logging change: {file_path}")
-    return await change_analyzer.log_change(
-        file_path, change_type, description, rationale,
-        affected_components, risk_assessment, rollback_plan
-    )
-
-@mcp.tool()
-async def update_change_status(
-    change_id: int,
-    status: str,
-    actual_impact: Optional[str] = None,
-    issues: Optional[List[str]] = None
-) -> Optional[Dict]:
-    """
-    Update the status of a logged change.
-    """
-    logger.info(f"Updating change status: {change_id}")
-    return await change_analyzer.update_change_status(
-        change_id, status, actual_impact, issues
-    )
-
-@mcp.tool()
-async def analyze_change_impact(
-    file_path: str,
-    change_description: str,
-    dependencies: Optional[Dict] = None
-) -> Dict:
-    """
-    Analyze the potential impact of a proposed change.
-    """
-    logger.info(f"Analyzing change impact: {file_path}")
-    return await change_analyzer.analyze_change_impact(
-        file_path, change_description, dependencies
-    )
-
-@mcp.tool()
-async def query_changes(
-    file_path: Optional[str] = None,
-    change_type: Optional[str] = None,
-    status: Optional[str] = None,
-    limit: int = 10
-) -> List[Dict]:
-    """
-    Query change history.
-    """
-    logger.info(f"Querying changes: {file_path}")
-    return await change_analyzer.query_changes(file_path, change_type, status, limit)
-
-@mcp.tool()
-async def scan_uncommitted_changes(repo_path: str) -> List[Dict]:
-    """
-    Scan the git repository for uncommitted (staged and unstaged) changes.
-    """
-    logger.info(f"Scanning uncommitted changes in: {repo_path}")
-    return await change_analyzer.scan_uncommitted_changes(repo_path)
-
-@mcp.tool()
-async def detect_change_conflicts(proposed_change: Dict) -> List[Dict]:
-    """
-    Detect potential conflicts with other changes.
-    """
-    logger.info("Detecting change conflicts")
-    return await change_analyzer.detect_change_conflicts(proposed_change)
-
-# Cascade failure detection tools
-@mcp.tool()
-def build_dependency_graph(dependencies: Dict[str, Dict]) -> Dict:
-    """
-    Build a dependency graph from project dependencies.
-    """
-    logger.info("Building dependency graph")
-    return cascade_detector.build_dependency_graph(dependencies)
-
-@mcp.tool()
-def detect_dependencies(
-    target: str,
-    depth: int = 5,
-    direction: str = "both"
-) -> Dict:
-    """
-    Detect all dependencies for a target.
-    """
-    logger.info(f"Detecting dependencies: {target}")
-    return cascade_detector.detect_dependencies(target, depth, direction)
-
-@mcp.tool()
-def generate_dependency_diagram(target: str, depth: int = 3) -> str:
-    """
-    Generate a MermaidJS diagram of dependencies.
-    """
-    logger.info(f"Generating dependency diagram for: {target}")
-    return cascade_detector.generate_dependency_diagram(target, depth)
-
-@mcp.tool()
-def analyze_cascade_risk(
-    target: str,
-    change_type: str,
-    context: Optional[Dict] = None
-) -> Dict:
-    """
-    Analyze the risk of cascading failures from a change.
-    """
-    logger.info(f"Analyzing cascade risk: {target}")
-    return cascade_detector.analyze_cascade_risk(target, change_type, context)
-
-@mcp.tool()
-async def log_cascade_event(
-    trigger: str,
-    affected_components: List[str],
-    severity: str,
-    description: str,
-    resolution: Optional[str] = None
-) -> Dict:
-    """
-    Log a cascade failure event for learning.
-    """
-    logger.info(f"Logging cascade event: {trigger}")
-    return await cascade_detector.log_cascade_event(
-        trigger, affected_components, severity, description, resolution
-    )
-
-@mcp.tool()
-async def query_cascade_history(
-    trigger: Optional[str] = None,
-    severity: Optional[str] = None,
-    limit: int = 10
-) -> List[Dict]:
-    """
-    Query historical cascade events.
-    """
-    logger.info(f"Querying cascade history: {trigger}")
-    return await cascade_detector.query_cascade_history(trigger, severity, limit)
-
-@mcp.tool()
-def suggest_safe_changes(target: str, proposed_change: str) -> Dict:
-    """
-    Suggest safe approaches for making a change.
-    """
-    logger.info(f"Suggesting safe changes: {target}")
-    return cascade_detector.suggest_safe_changes(target, proposed_change)
-
-# Thought process management tools
-@mcp.tool()
-async def start_thought_session(session_id: str, context: Dict) -> Dict:
-    """
-    Start a new thought processing session.
-    """
-    logger.info(f"Starting thought session: {session_id}")
-    return await thought_processor.start_session(session_id, context)
-
-@mcp.tool()
-async def end_thought_session(
-    session_id: str,
-    summary: Optional[str] = None,
-    outcomes: Optional[List[str]] = None
-) -> Dict:
-    """
-    End a thought processing session.
-    """
-    logger.info(f"Ending thought session: {session_id}")
-    return await thought_processor.end_session(session_id, summary, outcomes)
-
-@mcp.tool()
-async def log_thought_process(
-    thought: str,
+async def remember(
     category: str,
-    reasoning: str,
-    related_to: Optional[List[str]] = None,
-    confidence: Optional[float] = None,
-    session_id: Optional[str] = None
-) -> Dict:
-    """
-    Log a thought process with reasoning.
-    """
-    logger.info(f"Logging thought: {category}")
-    return await thought_processor.log_thought_process(
-        thought, category, reasoning, related_to, confidence, session_id
-    )
-
-@mcp.tool()
-async def retrieve_thought_context(
-    thought_id: Optional[int] = None,
-    category: Optional[str] = None,
-    session_id: Optional[str] = None,
-    limit: int = 10
-) -> List[Dict]:
-    """
-    Retrieve related thought context.
-    """
-    logger.info(f"Retrieving thought context: {thought_id}")
-    return await thought_processor.retrieve_thought_context(
-        thought_id, category, session_id, limit
-    )
-
-@mcp.tool()
-async def analyze_reasoning_gaps(session_id: Optional[str] = None) -> Dict:
-    """
-    Analyze gaps in reasoning or considerations.
-    """
-    logger.info(f"Analyzing reasoning gaps: {session_id}")
-    return await thought_processor.analyze_reasoning_gaps(session_id)
-
-@mcp.tool()
-async def record_insight(
-    insight: str,
-    source: str,
-    applicability: str,
-    session_id: Optional[str] = None
-) -> Dict:
-    """
-    Record an insight gained during processing.
-    """
-    logger.info(f"Recording insight: {insight[:50]}...")
-    return await thought_processor.record_insight(
-        insight, source, applicability, session_id
-    )
-
-@mcp.tool()
-async def get_session_summary(session_id: str) -> Dict:
-    """
-    Get comprehensive summary of a session.
-    """
-    logger.info(f"Getting session summary: {session_id}")
-    return await thought_processor.get_session_summary(session_id)
-
-# Task Management Tools
-@mcp.tool()
-async def create_task(
-    title: str,
-    description: Optional[str] = None,
-    priority: str = "medium",
-    assigned_to: Optional[str] = None,
-    tags: Optional[List[str]] = None,
-    parent_id: Optional[int] = None
-) -> Dict:
-    """
-    Create a new task.
-    """
-    logger.info(f"Creating task: {title}")
-    return await task_manager.create_task(
-        title, description, priority, assigned_to, tags, parent_id
-    )
-
-@mcp.tool()
-async def update_task(
-    task_id: int,
-    status: Optional[str] = None,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    priority: Optional[str] = None,
-    assigned_to: Optional[str] = None,
+    content: str,
+    rationale: Optional[str] = None,
+    context: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None
-) -> Dict:
+) -> Dict[str, Any]:
     """
-    Update a task.
-    """
-    logger.info(f"Updating task: {task_id}")
-    updated = await task_manager.update_task(
-        task_id, status, title, description, priority, assigned_to, tags
-    )
-    if updated:
-        return updated
-    return {"error": f"Task {task_id} not found"}
+    Store a decision, pattern, warning, or learning in long-term memory.
 
+    Use this immediately when:
+    - Making an architectural decision
+    - Establishing a pattern to follow
+    - Encountering something that should be avoided (warning)
+    - Learning something useful from experience
+
+    Args:
+        category: One of 'decision', 'pattern', 'warning', 'learning'
+        content: The actual content to remember
+        rationale: Why this is important / the reasoning behind it
+        context: Structured context (files involved, alternatives considered, etc.)
+        tags: Tags for easier retrieval (e.g., ['auth', 'security', 'api'])
+
+    Returns:
+        The created memory with its ID for future reference
+
+    Examples:
+        remember("decision", "Use JWT tokens instead of sessions",
+                 rationale="Need stateless auth for horizontal scaling",
+                 tags=["auth", "architecture"])
+
+        remember("warning", "Don't use sync DB calls in request handlers",
+                 rationale="Caused timeout issues in production",
+                 context={"file": "api/handlers.py"})
+
+        remember("pattern", "All API endpoints must have rate limiting",
+                 rationale="Security requirement from review",
+                 tags=["api", "security"])
+    """
+    await db_manager.init_db()
+    return await memory_manager.remember(
+        category=category,
+        content=content,
+        rationale=rationale,
+        context=context,
+        tags=tags
+    )
+
+
+# ============================================================================
+# Tool 2: RECALL - Retrieve relevant memories
+# ============================================================================
 @mcp.tool()
-async def list_tasks(
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    assigned_to: Optional[str] = None,
+async def recall(
+    topic: str,
+    categories: Optional[List[str]] = None,
+    limit: int = 10
+) -> Dict[str, Any]:
+    """
+    Recall memories relevant to a topic. This is ACTIVE memory retrieval.
+
+    Call this before working on any feature or making changes to get:
+    - Past decisions about this area
+    - Patterns that should be followed
+    - Warnings about what to avoid
+    - Learnings from previous work
+
+    Args:
+        topic: What you're looking for (e.g., "authentication", "database schema")
+        categories: Limit to specific categories (default: all)
+        limit: Max memories per category (default: 10)
+
+    Returns:
+        Categorized memories with relevance scores
+
+    Examples:
+        recall("authentication")  # Get all memories about auth
+        recall("API endpoints", categories=["pattern", "warning"])
+        recall("database")  # Before making DB changes
+    """
+    await db_manager.init_db()
+    return await memory_manager.recall(
+        topic=topic,
+        categories=categories,
+        limit=limit
+    )
+
+
+# ============================================================================
+# Tool 3: ADD_RULE - Create a decision tree node
+# ============================================================================
+@mcp.tool()
+async def add_rule(
+    trigger: str,
+    must_do: Optional[List[str]] = None,
+    must_not: Optional[List[str]] = None,
+    ask_first: Optional[List[str]] = None,
+    warnings: Optional[List[str]] = None,
+    priority: int = 0
+) -> Dict[str, Any]:
+    """
+    Add a rule to the decision tree. Rules provide automatic guidance.
+
+    When an action matches a rule's trigger, the AI gets guidance on:
+    - What MUST be done
+    - What MUST NOT be done
+    - What questions to ask first
+    - What warnings to consider
+
+    Args:
+        trigger: What activates this rule (natural language, e.g., "adding new API endpoint")
+        must_do: Things that must be done when this rule applies
+        must_not: Things that must be avoided
+        ask_first: Questions to consider before proceeding
+        warnings: Warnings from past experience
+        priority: Higher priority rules are shown first (default: 0)
+
+    Returns:
+        The created rule
+
+    Examples:
+        add_rule(
+            trigger="adding new API endpoint",
+            must_do=["Add rate limiting", "Add to OpenAPI spec", "Write integration test"],
+            must_not=["Use synchronous database calls"],
+            ask_first=["Is this a breaking change?", "Does this need authentication?"]
+        )
+
+        add_rule(
+            trigger="modifying database schema",
+            must_do=["Create migration", "Test rollback", "Update seed data"],
+            warnings=["Schema change on 2024-10-01 caused 2hr outage"]
+        )
+    """
+    await db_manager.init_db()
+    return await rules_engine.add_rule(
+        trigger=trigger,
+        must_do=must_do,
+        must_not=must_not,
+        ask_first=ask_first,
+        warnings=warnings,
+        priority=priority
+    )
+
+
+# ============================================================================
+# Tool 4: CHECK_RULES - Validate an action against rules
+# ============================================================================
+@mcp.tool()
+async def check_rules(
+    action: str,
+    context: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Check if an action triggers any rules and get guidance.
+
+    Call this BEFORE taking any significant action to get:
+    - Matching rules for this type of action
+    - Combined must_do / must_not guidance
+    - Relevant warnings
+    - Questions to consider
+
+    Args:
+        action: Description of what you're about to do
+        context: Optional context (files involved, etc.)
+
+    Returns:
+        Matching rules and combined guidance
+
+    Examples:
+        check_rules("adding a new REST endpoint for user profiles")
+        check_rules("modifying the authentication middleware")
+        check_rules("updating the database schema to add a new column")
+    """
+    await db_manager.init_db()
+    return await rules_engine.check_rules(action=action, context=context)
+
+
+# ============================================================================
+# Tool 5: RECORD_OUTCOME - Track if a decision worked
+# ============================================================================
+@mcp.tool()
+async def record_outcome(
+    memory_id: int,
+    outcome: str,
+    worked: bool
+) -> Dict[str, Any]:
+    """
+    Record the outcome of a decision to learn from it.
+
+    Use this after implementing a decision to track:
+    - What actually happened
+    - Whether it worked out
+
+    Failed decisions inform future recalls - they become implicit warnings.
+
+    Args:
+        memory_id: The ID of the memory (returned from 'remember')
+        outcome: Description of what happened
+        worked: Did it work out? True/False
+
+    Returns:
+        Updated memory
+
+    Examples:
+        record_outcome(42, "JWT auth works well, no session issues", worked=True)
+        record_outcome(43, "Caching caused stale data bugs", worked=False)
+    """
+    await db_manager.init_db()
+    return await memory_manager.record_outcome(
+        memory_id=memory_id,
+        outcome=outcome,
+        worked=worked
+    )
+
+
+# ============================================================================
+# Tool 6: GET_BRIEFING - Session start summary
+# ============================================================================
+@mcp.tool()
+async def get_briefing(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get everything needed to start a session.
+
+    Call this at the START of every conversation to get:
+    - Memory statistics (how much context exists)
+    - Recent decisions
+    - Active warnings
+    - High-priority rules
+
+    This ensures the AI starts with full context awareness.
+
+    Args:
+        project_path: Optional project path (uses default if not specified)
+
+    Returns:
+        Session briefing with key information
+
+    Example:
+        get_briefing()  # At session start
+    """
+    await db_manager.init_db()
+
+    # Get statistics
+    stats = await memory_manager.get_statistics()
+
+    # Get recent decisions (last 5)
+    async with db_manager.get_session() as session:
+        result = await session.execute(
+            select(Memory)
+            .where(Memory.category == 'decision')
+            .order_by(Memory.created_at.desc())
+            .limit(5)
+        )
+        recent_decisions = [
+            {"id": m.id, "content": m.content, "created_at": m.created_at.isoformat()}
+            for m in result.scalars().all()
+        ]
+
+        # Get active warnings
+        result = await session.execute(
+            select(Memory)
+            .where(Memory.category == 'warning')
+            .order_by(Memory.created_at.desc())
+            .limit(10)
+        )
+        active_warnings = [
+            {"id": m.id, "content": m.content}
+            for m in result.scalars().all()
+        ]
+
+        # Get high-priority rules
+        result = await session.execute(
+            select(Rule)
+            .where(Rule.enabled == True)  # noqa: E712
+            .order_by(Rule.priority.desc())
+            .limit(5)
+        )
+        top_rules = [
+            {"id": r.id, "trigger": r.trigger, "priority": r.priority}
+            for r in result.scalars().all()
+        ]
+
+    return {
+        "status": "ready",
+        "statistics": stats,
+        "recent_decisions": recent_decisions,
+        "active_warnings": active_warnings,
+        "top_rules": top_rules,
+        "message": (
+            f"DevilMCP ready. {stats['total_memories']} memories stored. "
+            f"{len(active_warnings)} active warnings. "
+            f"{len(top_rules)} rules configured."
+        )
+    }
+
+
+# ============================================================================
+# Utility: SEARCH - Full text search across memories
+# ============================================================================
+@mcp.tool()
+async def search_memories(
+    query: str,
+    limit: int = 20
+) -> List[Dict[str, Any]]:
+    """
+    Search across all memories with a text query.
+
+    Use this when you need to find specific memories by content.
+
+    Args:
+        query: Search text
+        limit: Maximum results (default: 20)
+
+    Returns:
+        Matching memories
+    """
+    await db_manager.init_db()
+    return await memory_manager.search(query=query, limit=limit)
+
+
+# ============================================================================
+# Utility: LIST_RULES - See all configured rules
+# ============================================================================
+@mcp.tool()
+async def list_rules(
+    enabled_only: bool = True,
     limit: int = 50
-) -> List[Dict]:
+) -> List[Dict[str, Any]]:
     """
-    List tasks with optional filters.
-    """
-    logger.info(f"Listing tasks (status={status})")
-    return await task_manager.list_tasks(status, priority, assigned_to, limit)
+    List all configured rules.
 
+    Args:
+        enabled_only: Only show enabled rules (default: True)
+        limit: Maximum results (default: 50)
+
+    Returns:
+        List of rules
+    """
+    await db_manager.init_db()
+    return await rules_engine.list_rules(enabled_only=enabled_only, limit=limit)
+
+
+# ============================================================================
+# Utility: UPDATE_RULE - Modify existing rules
+# ============================================================================
 @mcp.tool()
-async def get_task(task_id: int) -> Dict:
+async def update_rule(
+    rule_id: int,
+    must_do: Optional[List[str]] = None,
+    must_not: Optional[List[str]] = None,
+    ask_first: Optional[List[str]] = None,
+    warnings: Optional[List[str]] = None,
+    priority: Optional[int] = None,
+    enabled: Optional[bool] = None
+) -> Dict[str, Any]:
     """
-    Get details of a specific task.
-    """
-    logger.info(f"Getting task: {task_id}")
-    task = await task_manager.get_task(task_id)
-    if task:
-        return task
-    return {"error": f"Task {task_id} not found"}
+    Update an existing rule.
 
-# Utility tools
-@mcp.tool()
-async def get_mcp_statistics() -> Dict:
-    """
-    Get comprehensive statistics about MCP usage.
-    """
-    logger.info("Getting MCP statistics")
-    decision_stats = await decision_tracker.get_decision_statistics()
-    change_stats = await change_analyzer.get_change_statistics()
-    cascade_stats = await cascade_detector.get_cascade_statistics()
-    thought_stats = await thought_processor.get_thought_statistics()
-    return {
-        "decisions": decision_stats,
-        "changes": change_stats,
-        "cascades": cascade_stats,
-        "thoughts": thought_stats,
-        "server_info": {
-            "name": "DevilMCP",
-            "version": "1.0.0",
-            "storage_path": storage_path
-        }
-    }
+    Args:
+        rule_id: ID of the rule to update
+        must_do: New must_do list (replaces existing)
+        must_not: New must_not list (replaces existing)
+        ask_first: New ask_first list (replaces existing)
+        warnings: New warnings list (replaces existing)
+        priority: New priority
+        enabled: Enable/disable rule
 
-# === TOOL MANAGEMENT TOOLS (Robustness) ===
-
-@mcp.tool()
-async def start_tool_session(
-    tool_name: str,
-    context: Optional[Dict] = None
-) -> Dict:
+    Returns:
+        Updated rule or error
     """
-    Start a CLI tool session.
-
-    Note: Sessions are now managed automatically by execute_tool().
-    This tool verifies the tool exists and prepares the executor.
-    """
-    logger.info(f"Starting tool session: {tool_name}")
-    tool_config = tool_registry.get_tool(tool_name)
-    if not tool_config:
-        return {"error": f"Tool not found: {tool_name}"}
-
-    # Get or create the executor (sessions start automatically on first command)
-    try:
-        executor = await tool_registry.get_executor(tool_name)
-        return {
-            "tool_name": tool_name,
-            "status": "ready",
-            "message": "Tool executor ready. Use execute_tool() to run commands.",
-            "is_stateful": bool(tool_config.prompt_patterns)
-        }
-    except Exception as e:
-        return {"error": f"Failed to initialize tool: {e}"}
-
-@mcp.tool()
-async def get_tool_status(tool_name: str) -> Dict:
-    """
-    Get status of a CLI tool.
-    """
-    tool_config = tool_registry.get_tool(tool_name)
-    if not tool_config:
-        return {"error": f"Tool '{tool_name}' not found."}
-
-    has_executor = tool_name in tool_registry._executors
-    return {
-        "tool_name": tool_name,
-        "enabled": tool_config.enabled,
-        "has_active_executor": has_executor,
-        "is_stateful": bool(tool_config.prompt_patterns),
-        "command": tool_config.command
-    }
-
-@mcp.tool()
-async def terminate_tool_session(tool_name: str) -> Dict:
-    """
-    Terminate a CLI tool session and clean up resources.
-    """
-    logger.info(f"Terminating tool session: {tool_name}")
-
-    if tool_name in tool_registry._executors:
-        executor = tool_registry._executors[tool_name]
-        await executor.cleanup()
-        del tool_registry._executors[tool_name]
-        return {"status": "terminated", "tool_name": tool_name}
-    else:
-        return {"status": "no_session", "tool_name": tool_name, "message": "No active session found"}
-
-@mcp.tool()
-async def register_custom_tool(
-    name: str,
-    display_name: str,
-    command: str,
-    capabilities: List[str],
-    args: Optional[List[str]] = None,
-    config: Optional[Dict] = None
-) -> Dict:
-    """
-    Register a new custom CLI tool.
-    """
-    logger.info(f"Registering custom tool: {name}")
-    success = await tool_registry.register_tool(
-        name=name,
-        display_name=display_name,
-        command=command,
-        capabilities=capabilities,
-        args=args or [],
-        config=config or {}
+    await db_manager.init_db()
+    return await rules_engine.update_rule(
+        rule_id=rule_id,
+        must_do=must_do,
+        must_not=must_not,
+        ask_first=ask_first,
+        warnings=warnings,
+        priority=priority,
+        enabled=enabled
     )
-    return {
-        "status": "success" if success else "failed",
-        "tool_name": name
-    }
 
-@mcp.tool()
-async def update_tool_config(
-    name: str,
-    display_name: Optional[str] = None,
-    command: Optional[str] = None,
-    args: Optional[List[str]] = None,
-    capabilities: Optional[List[str]] = None,
-    enabled: Optional[bool] = None,
-    config: Optional[Dict] = None
-) -> Dict:
-    """
-    Update an existing tool's configuration.
-    """
-    tool_config = await tool_registry.update_tool(
-        name=name,
-        display_name=display_name,
-        command=command,
-        args=args,
-        capabilities=capabilities,
-        enabled=enabled,
-        config=config
-    )
-    if tool_config:
-        return {"status": "success", "tool_name": name, "config": tool_config.config}
-    else:
-        return {"status": "failed", "tool_name": name, "error": "Tool not found or update failed."}
 
-@mcp.tool()
-async def disable_tool(tool_name: str) -> Dict:
-    """Disable a tool."""
-    success = await tool_registry.disable_tool(tool_name)
-    return {"status": "success" if success else "failed", "tool_name": tool_name}
-
-@mcp.tool()
-async def enable_tool(tool_name: str) -> Dict:
-    """Enable a tool."""
-    success = await tool_registry.enable_tool(tool_name)
-    return {"status": "success" if success else "failed", "tool_name": tool_name}
-
-@mcp.tool()
-async def list_available_tools() -> List[Dict]:
-    """
-    List all available CLI tools and their capabilities.
-    """
-    tools = tool_registry.get_all_tools()
-    return [
-        {
-            "name": tool.name,
-            "display_name": tool.display_name,
-            "command": tool.command,
-            "args": [arg for arg in tool.args],
-            "capabilities": [c.value for c in tool.capabilities],
-            "enabled": tool.enabled,
-            "config_summary": {
-                "prompt_patterns": tool.prompt_patterns,
-                "init_timeout": tool.init_timeout,
-                "command_timeout": tool.command_timeout
-            }
-        }
-        for tool in tools
-    ]
-
-@mcp.tool()
-async def execute_tool(
-    tool_name: str,
-    command: str,
-    args: Optional[List[str]] = None
-) -> Dict:
-    """
-    Execute a command using the appropriate executor (native or subprocess).
-
-    For stateless tools (no prompt_patterns): runs command and returns when complete.
-    For stateful tools (has prompt_patterns): maintains session between calls.
-    """
-    result = await tool_registry.execute_tool(tool_name, command, args or [])
-    return {
-        "success": result.success,
-        "output": result.output,
-        "error": result.error,
-        "return_code": result.return_code,
-        "timed_out": result.timed_out,
-        "executor_type": result.executor_type
-    }
-
-# Main entry point
-
-async def init_tools():
-    """Initialize tool registry."""
-    await tool_registry.load_tools()
-    logger.info("Tool registry initialized")
-
-async def cleanup():
-    """Cleanup resources on shutdown."""
-    logger.info("Cleaning up resources...")
+# ============================================================================
+# Cleanup
+# ============================================================================
+def cleanup():
+    """Cleanup on exit."""
+    import asyncio
     try:
-        await tool_registry.cleanup_executors()
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}", exc_info=True)
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(db_manager.close())
+        else:
+            loop.run_until_complete(db_manager.close())
+    except Exception:
+        pass
 
+
+atexit.register(cleanup)
+
+
+# ============================================================================
+# Entry point
+# ============================================================================
 def main():
-    """Main entry point for the DevilMCP server."""
-    logger.info(f"Starting DevilMCP server on port {port}")
-    logger.info(f"Storage path: {storage_path}")
+    """Run the MCP server."""
+    import asyncio
 
-    # Initialize database and tools
+    logger.info("Starting DevilMCP server...")
+    logger.info(f"Storage: {storage_path}")
+
+    # Initialize database
     try:
         asyncio.run(db_manager.init_db())
-        asyncio.run(init_tools())
-        logger.info("Database and Tools initialized")
+        logger.info("Database initialized")
     except Exception as e:
-        logger.error(f"Failed to initialize database or tools: {e}", exc_info=True)
+        logger.error(f"Failed to initialize database: {e}")
         raise
 
-    # Register cleanup handler
-    def cleanup_sync():
-        """Synchronous cleanup wrapper for atexit."""
-        try:
-            asyncio.run(cleanup())
-        except Exception as e:
-            logger.error(f"Error in cleanup handler: {e}", exc_info=True)
-
-    atexit.register(cleanup_sync)
-
+    # Run MCP server
     try:
         mcp.run(transport="stdio")
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")
     except Exception as e:
-        logger.error(f"Server error: {e}", exc_info=True)
+        logger.error(f"Server error: {e}")
         raise
-    finally:
-        # Ensure cleanup runs even if atexit doesn't trigger
-        cleanup_sync()
+
 
 if __name__ == "__main__":
     main()

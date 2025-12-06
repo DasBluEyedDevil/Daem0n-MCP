@@ -1,53 +1,39 @@
+"""
+Database Manager - Simplified for the focused memory system.
+"""
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 from contextlib import asynccontextmanager
 from pathlib import Path
-from .models import Base, Tool
-from sqlalchemy import select
-import toml
 import logging
-from datetime import datetime, timezone
+
+from .models import Base
 
 logger = logging.getLogger(__name__)
 
-def run_migrations(db_url: str) -> None:
-    """Run Alembic migrations to upgrade schema to head."""
-    try:
-        from alembic.config import Config
-        from alembic import command
-        from pathlib import Path
-
-        # Get the path to alembic.ini within the package
-        package_dir = Path(__file__).parent
-        alembic_ini_path = package_dir / "alembic.ini"
-
-        alembic_cfg = Config(str(alembic_ini_path))
-        # Override the script location to use package path
-        alembic_cfg.set_main_option("script_location", str(package_dir / "alembic"))
-        # Set the database URL (use sync URL for Alembic)
-        sync_url = db_url.replace("+aiosqlite", "")
-        alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
-
-        command.upgrade(alembic_cfg, "head")
-        logger.info("Database migrations completed successfully")
-    except ImportError:
-        logger.warning("Alembic not installed, skipping migrations")
-    except Exception as e:
-        logger.error(f"Error running migrations: {e}", exc_info=True)
-        raise
-
 
 class DatabaseManager:
+    """
+    Manages the SQLite database connection.
+
+    Simplified from the original - no more tool initialization or complex migrations.
+    Just creates tables and provides session management.
+    """
+
     def __init__(self, storage_path: str = "./storage", db_name: str = "devilmcp.db"):
         self.storage_path = Path(storage_path)
-        self.storage_path.mkdir(exist_ok=True)
-        self.db_url = f"sqlite+aiosqlite:///{self.storage_path}/{db_name}"
-        
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+
+        self.db_path = self.storage_path / db_name
+        self.db_url = f"sqlite+aiosqlite:///{self.db_path}"
+
         self.engine = create_async_engine(
             self.db_url,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
+
         self.SessionLocal = async_sessionmaker(
             bind=self.engine,
             expire_on_commit=False,
@@ -55,66 +41,10 @@ class DatabaseManager:
         )
 
     async def init_db(self):
-        """Initialize the database tables and run migrations."""
-        from .config import settings
-        
-        # Run Alembic migrations if enabled
-        if settings.auto_migrate:
-            run_migrations(self.db_url)
-        else:
-            # Fall back to create_all for development
-            async with self.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-        
-        await self._init_default_tools()
-
-    async def _init_default_tools(self):
-        """Initialize default tool configurations from tools.toml into the database."""
-        tools_toml_path = Path("tools.toml")
-        if not tools_toml_path.exists():
-            logger.warning(f"tools.toml not found at {tools_toml_path}. Skipping default tool initialization.")
-            return
-
-        try:
-            config = toml.load(tools_toml_path)
-            if "tools" not in config:
-                logger.warning("No 'tools' section found in tools.toml. Skipping default tool initialization.")
-                return
-
-            async with self.get_session() as session:
-                for tool_name, tool_data in config["tools"].items():
-                    # Check if tool exists
-                    result = await session.execute(
-                        select(Tool).where(Tool.name == tool_name)
-                    )
-                    existing_tool = result.scalar_one_or_none()
-                    
-                    if existing_tool:
-                        # Update existing tool
-                        existing_tool.display_name = tool_data.get("display_name", existing_tool.display_name)
-                        existing_tool.command = tool_data.get("command", existing_tool.command)
-                        existing_tool.args = tool_data.get("args", existing_tool.args)
-                        existing_tool.capabilities = tool_data.get("capabilities", existing_tool.capabilities)
-                        existing_tool.enabled = 1 if tool_data.get("enabled", True) else 0
-                        existing_tool.config = tool_data.get("config", existing_tool.config)
-                        logger.info(f"Updated default tool: {tool_name}")
-                    else:
-                        # Create new tool
-                        new_tool = Tool(
-                            name=tool_name,
-                            display_name=tool_data.get("display_name", tool_name),
-                            command=tool_data.get("command", tool_name),
-                            args=tool_data.get("args", []),
-                            capabilities=tool_data.get("capabilities", []),
-                            enabled=1 if tool_data.get("enabled", True) else 0,
-                            config=tool_data.get("config", {}),
-                            created_at=datetime.now(timezone.utc)
-                        )
-                        session.add(new_tool)
-                        logger.info(f"Registered default tool: {tool_name}")
-                await session.commit()
-        except Exception as e:
-            logger.error(f"Error initializing default tools from tools.toml: {e}", exc_info=True)
+        """Initialize the database tables."""
+        async with self.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info(f"Database initialized at {self.db_path}")
 
     @asynccontextmanager
     async def get_session(self):

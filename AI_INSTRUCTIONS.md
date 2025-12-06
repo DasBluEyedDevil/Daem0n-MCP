@@ -1,294 +1,181 @@
-# DevilMCP: Autonomous Setup & Integration Instructions
+# DevilMCP: AI Memory System - Setup & Usage
 
-**SYSTEM PROMPT FOR AI ASSISTANTS (Claude, Cursor, Windsurf, etc.)**
-
----
-
-## 🛑 STOP: Read This First
-
-You are an AI assistant being introduced to **DevilMCP**, your new long-term memory and project management engine.
-
-**The user has just downloaded DevilMCP.** Your immediate goal is to install it, configure it, and integrate yourself with it—**completely autonomously**. The user should not have to type a single terminal command manually.
-
-Follow the **Zero-Touch Setup Protocol** below.
+**Instructions for AI Assistants (Claude, Cursor, Windsurf, etc.)**
 
 ---
 
-## 🚀 Phase 1: Autonomous Installation
+## What is DevilMCP?
 
-**Goal:** Install the DevilMCP package so it is available as a command-line tool.
-
-### Option A: Standard Installation (Recommended)
-
-1.  **Locate DevilMCP:**
-    *   Ask the user for the path to the downloaded `DevilMCP` folder if it is not provided in the initial prompt.
-    *   *Assumption:* The user has unzipped the repo to a known location (e.g., `C:/Tools/DevilMCP`).
-
-2.  **Install the Package:**
-    *   Execute the following shell command to install DevilMCP in "editable" mode:
-    ```bash
-    pip install -e "/path/to/DevilMCP"
-    ```
-    *   *Validation:* Run `python -c "import devilmcp"` to confirm installation.
-
-### Option B: Docker Installation (Isolated & Secure)
-
-For containerized deployment with better isolation:
-
-1.  **Build the Docker image:**
-    ```bash
-    cd /path/to/DevilMCP
-    docker compose build
-    ```
-
-2.  **Run with Docker:**
-    ```bash
-    PROJECT_PATH=$(pwd) docker compose up -d
-    ```
-
-3.  **For MCP configuration with Docker**, use:
-    ```json
-    {
-      "mcpServers": {
-        "devilmcp": {
-          "command": "docker",
-          "args": ["compose", "-f", "/path/to/DevilMCP/docker-compose.yml", "run", "--rm", "devilmcp"],
-          "env": {
-            "PROJECT_PATH": "/path/to/user/project"
-          }
-        }
-      }
-    }
-    ```
+DevilMCP gives you **persistent memory** and **decision trees**:
+- Remember decisions, patterns, warnings, and learnings across sessions
+- Get guidance from rules before taking actions
+- Learn from outcomes (what worked, what didn't)
 
 ---
 
-## 🔌 Phase 2: Autonomous Integration
+## Installation
 
-**Goal:** Connect yourself to the DevilMCP server so you can use its tools.
+```bash
+pip install -e "/path/to/DevilMCP"
+```
 
-### Scenario A: You are Claude Desktop / Claude Code
-You need to add DevilMCP to your own configuration file.
+Verify: `python -c "import devilmcp; print('OK')"`
 
-1.  **Find the Config File:**
-    *   Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-    *   Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
-    *   Linux: `~/.config/Claude/claude_desktop_config.json`
+---
 
-2.  **Read & Update Config:**
-    *   Read the existing config file.
-    *   Add the following entry to the `mcpServers` object (replace `/path/to/DevilMCP` with the actual path):
-    ```json
+## MCP Configuration
+
+Add to your MCP config file:
+
+**Claude Desktop/Code:**
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+**Cursor:** `~/.cursor/mcp.json`
+
+```json
+{
+  "mcpServers": {
     "devilmcp": {
       "command": "python",
       "args": ["-m", "devilmcp.server"],
       "env": {
         "PYTHONPATH": "/path/to/DevilMCP",
-        "DEVILMCP_PROJECT_ROOT": "/path/to/user/project"
+        "DEVILMCP_PROJECT_ROOT": "/path/to/your/project"
       }
     }
-    ```
-    *   Write the updated config back to the file.
+  }
+}
+```
 
-3.  **Instruct User to Restart:**
-    *   You cannot restart yourself. Tell the user: *"I have configured DevilMCP. Please restart me (quit and relaunch the application) to activate the connection."*
-
-### Scenario B: You are an IDE Agent (Cursor/Windsurf/VS Code)
-
-#### Cursor IDE
-1.  **Locate the MCP config file:**
-    *   Windows: `%USERPROFILE%\.cursor\mcp.json`
-    *   Mac/Linux: `~/.cursor/mcp.json`
-2.  **Create or update the file:**
-    ```json
-    {
-      "mcpServers": {
-        "devilmcp": {
-          "command": "python",
-          "args": ["-m", "devilmcp.server"],
-          "env": {
-            "PYTHONPATH": "/path/to/DevilMCP",
-            "DEVILMCP_PROJECT_ROOT": "/path/to/user/project"
-          }
-        }
-      }
-    }
-    ```
-3.  **Restart Cursor** to activate the MCP connection.
-
-#### Windsurf IDE
-1.  **Locate the MCP config file:**
-    *   Windows: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`
-    *   Mac/Linux: `~/.codeium/windsurf/mcp_config.json`
-2.  **Create or update the file:**
-    ```json
-    {
-      "mcpServers": {
-        "devilmcp": {
-          "command": "python",
-          "args": ["-m", "devilmcp.server"],
-          "env": {
-            "PYTHONPATH": "/path/to/DevilMCP",
-            "DEVILMCP_PROJECT_ROOT": "/path/to/user/project"
-          }
-        }
-      }
-    }
-    ```
-3.  **Restart Windsurf** to activate.
-
-#### VS Code with Continue Extension
-1.  **Open Continue settings:** Press `Ctrl+Shift+P` → "Continue: Open config.json"
-2.  **Add to the `mcpServers` section:**
-    ```json
-    "mcpServers": [
-      {
-        "name": "devilmcp",
-        "command": "python",
-        "args": ["-m", "devilmcp.server"],
-        "env": {
-          "PYTHONPATH": "/path/to/DevilMCP",
-          "DEVILMCP_PROJECT_ROOT": "/path/to/user/project"
-        }
-      }
-    ]
-    ```
-3.  **Reload VS Code** to activate.
+Restart after configuration.
 
 ---
 
-## ⚙️ Configuration
+## Your Protocol
 
-DevilMCP uses environment variables with the `DEVILMCP_` prefix for all settings.
+### 1. Session Start
+```
+Call: get_briefing()
+```
+This loads your context: recent decisions, warnings, rules.
 
-### Environment Variables
+### 2. Before Making Changes
+```
+Call: recall("topic")           # Get relevant memories
+Call: check_rules("action")     # Get guidance
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEVILMCP_PROJECT_ROOT` | Current directory | Root path of the project to analyze |
-| `DEVILMCP_STORAGE_PATH` | Auto-detected | Path to store database and data |
-| `DEVILMCP_PORT` | `8080` | Server port (for HTTP transport) |
-| `DEVILMCP_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `DEVILMCP_AUTO_MIGRATE` | `true` | Run database migrations on startup |
-| `DEVILMCP_DEFAULT_COMMAND_TIMEOUT` | `30000` | Default command timeout in ms |
-| `DEVILMCP_DEFAULT_INIT_TIMEOUT` | `10000` | Default init timeout in ms |
+Follow `must_do` items. Avoid `must_not` items. Consider `ask_first` questions.
 
-### Storage Path Logic
+### 3. When Making Decisions
+```
+Call: remember(
+    category="decision",
+    content="What you decided",
+    rationale="Why",
+    tags=["relevant", "tags"]
+)
+```
 
-If `DEVILMCP_STORAGE_PATH` is not set:
-1. If `DEVILMCP_PROJECT_ROOT` is set → uses `{project_root}/.devilmcp/storage`
-2. Otherwise → uses `{cwd}/.devilmcp/storage`
-3. If running from DevilMCP directory itself → uses centralized storage
+Categories: `decision`, `pattern`, `warning`, `learning`
 
-### Example .env File
-
-Copy `.env.example` to `.env` and customize:
-```bash
-DEVILMCP_PROJECT_ROOT=/path/to/your/project
-DEVILMCP_LOG_LEVEL=DEBUG
-DEVILMCP_AUTO_MIGRATE=true
+### 4. After Implementation
+```
+Call: record_outcome(
+    memory_id=<id from remember>,
+    outcome="What happened",
+    worked=true/false
+)
 ```
 
 ---
 
-## 🧠 Phase 3: Active Usage Protocols
+## Available Tools
 
-Once connected, you MUST adhere to these operational rules. **Do not wait for user instructions.**
-
-### 1. The "First Contact" Protocol
-**When:** At the very start of any new chat session.
-**Action:**
-1.  Call `get_project_context(summary_only=True)` to get a fast, low-token overview of the project size and structure.
-2.  Call `list_tasks(status="todo")` to see what work is pending.
-3.  **Report:** "I have loaded the project context. We have X pending tasks. Ready to proceed."
-
-### 2. The "Architectural Decision" Protocol
-**When:** You choose a library, pattern, or strategy (e.g., "We will use Redux").
-**Action:**
-1.  Call `log_decision(decision="...", rationale="...")` IMMEDIATELY.
-2.  **Do not ask permission.** Just log it. It is better to have a record than not.
-
-### 3. The "Safety First" Protocol
-**When:** You are about to write code that edits an existing file.
-**Action:**
-1.  Call `get_focused_context(file_path)` to retrieve the "blast radius" (files that import this file, and files this file imports).
-2.  Call `analyze_change_impact(file_path, description)` to predict breakage.
-3.  **If Risk is High:** Stop and warn the user. *"Changing this file will break X and Y. Shall I proceed or refactor safely?"*
-
-### 4. The "Project Manager" Protocol
-**When:** The user gives a vague or complex instruction (e.g., "Fix the login bugs").
-**Action:**
-1.  Break it down into sub-tasks.
-2.  Call `create_task()` for each sub-task.
-3.  Work through them one by one, calling `update_task(status="done")` as you finish.
-
-### 5. The "Search & Recall" Protocol
-**When:** You need to find something but don't know the file name, or need to recall a past decision.
-**Action:**
-1.  Use `search_context(query="...", context_type="all")`.
-2.  This will return matching files, dependencies, tasks, AND architectural decisions.
-3.  Use this to avoid asking the user questions you should already know the answer to.
-
-### 6. The "Custom Tools" Protocol
-**When:** You need to execute a registered CLI tool.
-**Action:**
-1.  Use `list_available_tools()` to see what tools are available.
-2.  Use `execute_tool(tool_name, command, args)` to run the tool with appropriate parameters.
-3.  For stateful tools (REPLs), the session is maintained across calls automatically.
+| Tool | Purpose |
+|------|---------|
+| `remember` | Store a decision/pattern/warning/learning |
+| `recall` | Get relevant memories for a topic |
+| `add_rule` | Create a decision tree rule |
+| `check_rules` | Get guidance before an action |
+| `record_outcome` | Track if a decision worked |
+| `get_briefing` | Session start summary |
+| `search_memories` | Full-text search |
+| `list_rules` | Show all rules |
+| `update_rule` | Modify a rule |
 
 ---
 
-## 🛠️ Architecture Overview
+## Example Session
 
-### Code Parsing
-DevilMCP uses **Tree-sitter** for accurate multi-language AST analysis:
-- **Python**: Uses Python's built-in `ast` module (always accurate)
-- **JavaScript/TypeScript**: Uses tree-sitter for proper AST parsing
+```
+AI: [Session start]
+AI: get_briefing()
+→ "3 memories, 1 warning, 2 rules configured"
 
-The parsers extract:
-- Imports (module name, imported names, line numbers)
-- Functions (name, parameters, line range)
-- Classes (name, methods, line range)
+User: "Add user authentication"
 
-### Database Migrations
-DevilMCP uses **Alembic** for SQLite schema management:
-- Migrations run automatically on startup (when `DEVILMCP_AUTO_MIGRATE=true`)
-- Schema versioned and tracked
-- Safe upgrades for existing databases
+AI: recall("authentication")
+→ Decision: "Use JWT tokens" (worked: true)
+→ Warning: "Sessions caused scaling issues"
 
-### Tool Execution
-Tools are executed via one of two executor types:
-- **Native Executors**: Direct SDK integration (e.g., GitPython for git)
-- **Subprocess Executors**: For CLI tools with stateless or stateful modes
+AI: check_rules("adding authentication")
+→ must_do: ["Add rate limiting"]
+→ must_not: ["Use session cookies"]
 
----
+AI: remember(
+    category="decision",
+    content="Using OAuth2 with JWT",
+    rationale="Aligns with existing pattern, stateless",
+    tags=["auth", "api"]
+)
+→ id: 42
 
-## 📝 Summary for the User
+[After implementation]
 
-If the user asks "Is it ready?", you should be able to say:
-
-> "I have installed DevilMCP, configured the connection, and verified I can access the tools. I scanned your project and found [X] files. I am ready to help you build with full context awareness."
-
----
-
-## 🐳 Docker Quick Reference
-
-```bash
-# Build
-docker compose build
-
-# Run with current directory as project
-PROJECT_PATH=$(pwd) docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop
-docker compose down
+AI: record_outcome(42, "OAuth2 working well", worked=true)
 ```
 
-Docker features:
-- **Non-root user** for security
-- **Read-only project mount** (your code is safe)
-- **Persistent data volume** for database
-- **Resource limits** can be added in compose file
+---
+
+## Data Storage
+
+Your memories are stored per-project at:
+```
+<project_root>/.devilmcp/storage/devilmcp.db
+```
+
+---
+
+## Quick Reference
+
+**Store something:**
+```
+remember("decision", "content", rationale="why", tags=["tag"])
+```
+
+**Get context:**
+```
+recall("topic")
+get_briefing()
+```
+
+**Create rule:**
+```
+add_rule(
+    trigger="when this happens",
+    must_do=["do this"],
+    must_not=["avoid this"]
+)
+```
+
+**Check before acting:**
+```
+check_rules("what I'm about to do")
+```
+
+---
+
+*DevilMCP: Your persistent memory across sessions.*

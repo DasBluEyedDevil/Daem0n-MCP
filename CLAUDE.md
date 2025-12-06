@@ -1,106 +1,96 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working with this repository.
 
 ## Project Overview
 
-DevilMCP is an MCP (Model Context Protocol) server that provides long-term memory and context management for AI agents. It solves "AI amnesia" by persisting architectural decisions, tracking code change impacts, detecting cascade failures, and managing tasks across sessions.
+DevilMCP is a focused MCP server providing **AI memory and decision trees**. It gives AI agents:
+- Persistent memory across sessions (decisions, patterns, warnings, learnings)
+- Rule-based decision trees for consistent behavior
+- Outcome tracking for learning
 
 ## Commands
 
 ```bash
-# Install (editable mode)
+# Install
 pip install -e .
 
 # Run the MCP server
 python -m devilmcp.server
-# Or via console script:
-devilmcp
 
 # Run tests
-pytest devilmcp/
-pytest -v --asyncio-mode=auto  # For async tests
+pytest tests/ -v --asyncio-mode=auto
 ```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│  FastMCP Server (server.py)         │  ← Entry point, exposes MCP tools
-├─────────────────────────────────────┤
-│  Feature Modules                    │
-│  • context_manager.py   → Project structure & dependency analysis
-│  • decision_tracker.py  → Architectural decision logging
-│  • change_analyzer.py   → Code change impact prediction
-│  • cascade_detector.py  → Cascade failure detection (auto-hydrates from DB)
-│  • task_manager.py      → Task/todo management
-│  • thought_processor.py → AI reasoning chain tracking
-│  • tool_registry.py     → CLI tool management (with security whitelist)
-│  • subprocess_executor.py → Stateless subprocess execution
-├─────────────────────────────────────┤
-│  parsers/                           │
-│  • python_parser.py     → Python AST parsing (stdlib ast)
-│  • javascript_parser.py → JS parsing (tree-sitter + regex fallback)
-├─────────────────────────────────────┤
-│  database.py + models.py            │  ← SQLAlchemy ORM, async SQLite
-└─────────────────────────────────────┘
+devilmcp/
+├── server.py      # MCP server, 9 tools (FastMCP)
+├── memory.py      # MemoryManager - store/recall memories
+├── rules.py       # RulesEngine - decision tree nodes
+├── database.py    # DatabaseManager - async SQLite
+├── models.py      # SQLAlchemy models (3 tables)
+└── config.py      # Pydantic settings
 ```
 
-**Data Storage:** Each project gets isolated storage at `<project_root>/.devilmcp/storage/devilmcp.db`
+**Data Storage:** `<project_root>/.devilmcp/storage/devilmcp.db`
+
+## Database Schema (3 tables)
+
+**memories**: Stores decisions, patterns, warnings, learnings
+- category, content, rationale, context, tags, keywords
+- outcome tracking (outcome, worked)
+
+**rules**: Decision tree nodes
+- trigger, trigger_keywords
+- must_do, must_not, ask_first, warnings
+- priority, enabled
+
+**project_state**: Cached project info
 
 ## Key Patterns
 
-- **Async-first:** All database operations and managers use `async`/`await`
-- **SQLAlchemy ORM:** Models in `models.py` (Decision, Change, Task, Tool, etc.)
-- **FastMCP framework:** Tools defined as decorated async functions in `server.py`
-- **Git-aware:** Context manager respects `.gitignore` for project scanning
-- **AST parsing:** Python uses stdlib `ast`, JS uses tree-sitter (no fallback)
-- **Auto-hydration:** CascadeDetector loads dependency graph from DB automatically
+- **Async-first**: All database operations use async/await
+- **Keyword extraction**: Content is indexed for semantic-ish search
+- **Rule matching**: Actions are matched against rules by keyword overlap
+- **Outcome learning**: Failed decisions inform future recalls
 
-## Security
+## MCP Tools (9 total)
 
-Tool execution is **disabled by default**. To enable:
+Core:
+1. `remember` - Store a memory (decision/pattern/warning/learning)
+2. `recall` - Retrieve relevant memories by topic
+3. `add_rule` - Create decision tree node
+4. `check_rules` - Validate action against rules
+5. `record_outcome` - Track if decision worked
+6. `get_briefing` - Session start summary
 
-```bash
-# Enable tool execution
-export DEVILMCP_TOOL_EXECUTION_ENABLED=true
+Utility:
+7. `search_memories` - Full-text search
+8. `list_rules` - Show all rules
+9. `update_rule` - Modify existing rule
 
-# Whitelist allowed commands (minimal safe default)
-export DEVILMCP_ALLOWED_COMMANDS="git,pytest"
-```
+## Adding New Tools
 
-**WARNING:** The command whitelist is NOT a sandbox. If you allow `python` or `node`, the AI agent can write and execute arbitrary code. This effectively grants shell access. For true isolation:
-- Run DevilMCP inside a Docker container
-- Or only allow read-only commands like `git status`
-
-## Adding New MCP Tools
-
-1. Define the tool in `server.py` using `@mcp.tool()` decorator
-2. Tools are async functions that can access module-level managers
-3. Example pattern from existing tools:
 ```python
 @mcp.tool()
-async def my_new_tool(param: str) -> str:
-    """Description shown to AI agents."""
-    result = await some_manager.do_work(param)
-    return json.dumps(result)
+async def my_tool(param: str) -> Dict[str, Any]:
+    """Tool description shown to AI agents."""
+    await db_manager.init_db()
+    # ... implementation
+    return {"result": "..."}
 ```
 
-## Custom CLI Tools
+## AI Agent Protocol
 
-Register external tools in `tools.toml` (see `tools.toml.example`):
-```toml
-[tools.my-tool]
-display_name = "My Tool"
-command = "python"
-args = ["-c", "print('hello')"]
-capabilities = ["testing", "utilities"]
-enabled = true
+1. **Session Start**: Call `get_briefing()`
+2. **Before Changes**: Call `recall(topic)` and `check_rules(action)`
+3. **Making Decisions**: Call `remember(category, content, rationale)`
+4. **After Implementation**: Call `record_outcome(memory_id, outcome, worked)`
+
+## Testing
+
+```bash
+pytest tests/ -v --asyncio-mode=auto
 ```
-
-## AI Agent Integration
-
-When AI agents connect via MCP, they should follow protocols from `AI_INSTRUCTIONS.md`:
-- **First Contact:** Call `get_project_context(summary_only=True)` then `list_tasks(status="todo")`
-- **Before Edits:** Call `get_focused_context(file_path)` and `analyze_change_impact()`
-- **Log Decisions:** Call `log_decision()` immediately for architectural choices

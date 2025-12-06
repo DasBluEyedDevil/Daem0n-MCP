@@ -2,11 +2,11 @@
 Centralized configuration using Pydantic Settings.
 
 All settings are loaded from environment variables with DEVILMCP_ prefix.
-Example: DEVILMCP_PORT=9000, DEVILMCP_LOG_LEVEL=DEBUG
+Example: DEVILMCP_LOG_LEVEL=DEBUG
 """
 
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 from pydantic_settings import BaseSettings
 
 
@@ -18,52 +18,12 @@ class Settings(BaseSettings):
     storage_path: Optional[str] = None  # Auto-detect if not set
 
     # Server
-    port: int = 8080
     log_level: str = "INFO"
-
-    # Timeouts (milliseconds)
-    default_command_timeout: int = 30000
-    default_init_timeout: int = 10000
-
-    # Feature flags
-    auto_migrate: bool = True  # Run Alembic on startup
-
-    # Security settings
-    #
-    # IMPORTANT: Tool execution is DISABLED by default for security.
-    # Set DEVILMCP_TOOL_EXECUTION_ENABLED=true to enable.
-    #
-    # WARNING: This is NOT a sandbox. If you enable tool execution, the AI agent
-    # has effective shell access. The allowed_commands whitelist provides only
-    # basic protection - if 'python' is allowed, the agent can write and execute
-    # arbitrary Python code. For true isolation, run DevilMCP in a Docker container.
-    #
-    tool_execution_enabled: bool = False
-
-    # Comma-separated list of allowed commands.
-    # NOTE: This is a basic filter, not a security boundary. If you allow 'python',
-    # you're allowing arbitrary code execution. Only add commands you fully trust.
-    allowed_commands: str = "git,pytest"  # Minimal safe default (no python/node)
 
     class Config:
         env_prefix = "DEVILMCP_"
         env_file = ".env"
         env_file_encoding = "utf-8"
-
-    def get_allowed_commands_list(self) -> List[str]:
-        """Get list of allowed commands from comma-separated string."""
-        if not self.allowed_commands:
-            return []
-        return [cmd.strip() for cmd in self.allowed_commands.split(",") if cmd.strip()]
-
-    def is_command_allowed(self, command: str) -> bool:
-        """Check if a command is in the whitelist."""
-        if not self.tool_execution_enabled:
-            return False
-        allowed = self.get_allowed_commands_list()
-        # Check the base command (e.g., 'python' from 'python3.11')
-        base_cmd = command.split("/")[-1]  # Handle full paths
-        return base_cmd in allowed or any(base_cmd.startswith(cmd) for cmd in allowed)
 
     def get_storage_path(self) -> str:
         """
@@ -80,6 +40,7 @@ class Settings(BaseSettings):
 
         # Check for explicit storage path override
         if self.storage_path:
+            Path(self.storage_path).mkdir(parents=True, exist_ok=True)
             return self.storage_path
 
         # Get project root
@@ -100,11 +61,6 @@ class Settings(BaseSettings):
         storage.mkdir(parents=True, exist_ok=True)
 
         return str(storage)
-
-    def get_database_url(self) -> str:
-        """Get SQLite database URL for SQLAlchemy."""
-        storage = self.get_storage_path()
-        return f"sqlite+aiosqlite:///{storage}/devilmcp.db"
 
 
 # Singleton instance
