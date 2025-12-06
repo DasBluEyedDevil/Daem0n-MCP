@@ -39,6 +39,74 @@ STOP_WORDS = {
 }
 
 
+def extract_code_symbols(text: str) -> List[str]:
+    """
+    Extract code symbols from text - function names, class names, variables.
+
+    Looks for:
+    - Backtick-enclosed code: `functionName`, `ClassName`, `CONSTANT`
+    - CamelCase identifiers: getUserById, UserService
+    - snake_case identifiers: get_user_by_id, user_service
+    - SCREAMING_SNAKE: MAX_RETRIES, API_KEY
+    - Method calls: .methodName(), .property
+
+    Returns symbols as-is (preserves case for exact matching) plus lowercased versions.
+    """
+    if not text:
+        return []
+
+    symbols: Set[str] = set()
+
+    # Extract backtick-enclosed code (highest confidence)
+    backtick_matches = re.findall(r'`([a-zA-Z_][a-zA-Z0-9_]*(?:\([^)]*\))?)`', text)
+    for match in backtick_matches:
+        # Remove function call parens for the symbol
+        clean = re.sub(r'\([^)]*\)', '', match)
+        if len(clean) >= 2:
+            symbols.add(clean)
+
+    # Extract CamelCase identifiers (likely class/function names)
+    # Must start with letter, contain at least one lowercase and one uppercase
+    camel_matches = re.findall(r'\b([A-Z][a-z]+(?:[A-Z][a-z0-9]*)+)\b', text)
+    for match in camel_matches:
+        if len(match) >= 3:
+            symbols.add(match)
+
+    # Extract lowerCamelCase (likely function/method names)
+    lower_camel = re.findall(r'\b([a-z]+(?:[A-Z][a-z0-9]*)+)\b', text)
+    for match in lower_camel:
+        if len(match) >= 3:
+            symbols.add(match)
+
+    # Extract snake_case identifiers
+    snake_matches = re.findall(r'\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b', text)
+    for match in snake_matches:
+        if len(match) >= 3 and match not in STOP_WORDS:
+            symbols.add(match)
+
+    # Extract SCREAMING_SNAKE_CASE (constants)
+    screaming = re.findall(r'\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b', text)
+    for match in screaming:
+        if len(match) >= 3:
+            symbols.add(match)
+
+    # Extract method/property access: .methodName or .property
+    method_matches = re.findall(r'\.([a-zA-Z_][a-zA-Z0-9_]*)', text)
+    for match in method_matches:
+        if len(match) >= 2 and match.lower() not in STOP_WORDS:
+            symbols.add(match)
+
+    # Return both original case and lowercased versions for matching flexibility
+    result = []
+    for sym in symbols:
+        result.append(sym)
+        lower = sym.lower()
+        if lower != sym:
+            result.append(lower)
+
+    return result
+
+
 def tokenize(text: str) -> List[str]:
     """
     Tokenize text into meaningful terms.
@@ -48,9 +116,13 @@ def tokenize(text: str) -> List[str]:
     - Preserves technical terms (e.g., 'api', 'jwt', 'oauth')
     - Filters stop words
     - Handles snake_case and camelCase
+    - Extracts code symbols (function/class names)
     """
     if not text:
         return []
+
+    # First, extract code symbols (preserves exact identifiers)
+    symbols = extract_code_symbols(text)
 
     # Handle camelCase -> separate words
     text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
@@ -72,6 +144,9 @@ def tokenize(text: str) -> List[str]:
         if len(w) == 2 and w not in {'db', 'ui', 'id', 'io', 'os', 'ip', 'vm', 'ai', 'ml'}:
             continue
         tokens.append(w)
+
+    # Add extracted symbols (both original case and lowercased)
+    tokens.extend([s.lower() for s in symbols])
 
     return tokens
 

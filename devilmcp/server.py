@@ -3,24 +3,39 @@ DevilMCP Server - AI Memory System with Semantic Understanding
 
 A smarter MCP server that provides:
 1. Semantic memory storage and retrieval (TF-IDF, not just keywords)
-2. Time-weighted recall (recent memories matter more)
+2. Time-weighted recall (recent memories matter more, but patterns/warnings are permanent)
 3. Conflict detection (warns about contradicting decisions)
 4. Rule-based decision trees for consistent AI behavior
 5. Outcome tracking for continuous learning
+6. File-level memory associations
+7. Git awareness (shows changes since last session)
+8. Tech debt scanning (finds TODO/FIXME/HACK comments)
 
-Core Tools:
-- remember: Store a decision, pattern, warning, or learning
+13 Tools:
+- remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
+- recall_for_file: Get all memories for a specific file
 - add_rule: Add a decision tree node
 - check_rules: Validate an action against rules
 - record_outcome: Track whether a decision worked
-- get_briefing: Get everything needed to start a session
+- get_briefing: Get everything needed to start a session (with git changes)
+- context_check: Quick pre-flight check (recall + rules combined)
+- search_memories: Search across all memories
+- list_rules: Show all rules
+- update_rule: Modify existing rule
+- find_related: Discover connected memories
+- scan_todos: Find TODO/FIXME/HACK comments and track as tech debt
 """
 
 import sys
+import os
+import re
 import logging
 import atexit
+import subprocess
+from pathlib import Path
 from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -63,13 +78,16 @@ async def remember(
     content: str,
     rationale: Optional[str] = None,
     context: Optional[Dict[str, Any]] = None,
-    tags: Optional[List[str]] = None
+    tags: Optional[List[str]] = None,
+    file_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Store a decision, pattern, warning, or learning in long-term memory.
 
-    NOW WITH CONFLICT DETECTION: If you're storing something that contradicts
-    a previous decision or matches a known failure, you'll be warned.
+    FEATURES:
+    - Conflict detection: Warns if this contradicts a past failure
+    - File association: Link memories to specific files
+    - Auto-permanent: Patterns and warnings don't decay (they're project facts)
 
     Use this immediately when:
     - Making an architectural decision
@@ -83,6 +101,7 @@ async def remember(
         rationale: Why this is important / the reasoning behind it
         context: Structured context (files involved, alternatives considered, etc.)
         tags: Tags for easier retrieval (e.g., ['auth', 'security', 'api'])
+        file_path: Optional file path to associate this memory with
 
     Returns:
         The created memory with its ID, plus any conflict warnings
@@ -94,7 +113,10 @@ async def remember(
 
         remember("warning", "Don't use sync DB calls in request handlers",
                  rationale="Caused timeout issues in production",
-                 context={"file": "api/handlers.py"})
+                 file_path="api/handlers.py")
+
+        remember("pattern", "All API routes must have rate limiting",
+                 file_path="api/routes.py")
     """
     await db_manager.init_db()
     return await memory_manager.remember(
@@ -102,7 +124,8 @@ async def remember(
         content=content,
         rationale=rationale,
         context=context,
-        tags=tags
+        tags=tags,
+        file_path=file_path
     )
 
 
@@ -287,6 +310,65 @@ async def record_outcome(
 
 
 # ============================================================================
+# Helper: Git awareness
+# ============================================================================
+def _get_git_changes(since_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+    """Get git changes since a given date."""
+    try:
+        # Check if we're in a git repo
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode != 0:
+            return None
+
+        git_info = {}
+
+        # Get recent commits
+        if since_date:
+            since_str = since_date.strftime("%Y-%m-%d")
+            cmd = ["git", "log", f"--since={since_str}", "--oneline", "-10"]
+        else:
+            cmd = ["git", "log", "--oneline", "-5"]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            git_info["recent_commits"] = result.stdout.strip().split("\n")
+
+        # Get changed files (uncommitted)
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            changes = result.stdout.strip().split("\n")
+            git_info["uncommitted_changes"] = [
+                {"status": line[:2].strip(), "file": line[3:]}
+                for line in changes if line.strip()
+            ]
+
+        # Get current branch
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            git_info["branch"] = result.stdout.strip()
+
+        return git_info if git_info else None
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return None
+
+
+# ============================================================================
 # Tool 6: GET_BRIEFING - Smart session start summary
 # ============================================================================
 @mcp.tool()
@@ -303,6 +385,7 @@ async def get_briefing(
     - Active warnings (what to watch out for)
     - High-priority rules (what to always check)
     - Failed approaches (what not to repeat)
+    - Git changes since last memory (what happened while you were away)
 
     If you provide focus_areas, you'll also get relevant memories for those topics.
 
@@ -322,7 +405,20 @@ async def get_briefing(
     # Get statistics with learning insights
     stats = await memory_manager.get_statistics()
 
+    # Get most recent memory timestamp for git awareness
+    last_memory_date = None
+
     async with db_manager.get_session() as session:
+        # Get most recent memory
+        result = await session.execute(
+            select(Memory.created_at)
+            .order_by(Memory.created_at.desc())
+            .limit(1)
+        )
+        row = result.first()
+        if row:
+            last_memory_date = row[0]
+
         # Get recent decisions (last 5)
         result = await session.execute(
             select(Memory)
@@ -386,6 +482,9 @@ async def get_briefing(
             for r in result.scalars().all()
         ]
 
+    # Get git changes since last memory
+    git_changes = _get_git_changes(last_memory_date)
+
     # Pre-fetch memories for focus areas if specified
     focus_memories = {}
     if focus_areas:
@@ -411,6 +510,9 @@ async def get_briefing(
     if active_warnings:
         message_parts.append(f"{len(active_warnings)} active warnings.")
 
+    if git_changes and git_changes.get("uncommitted_changes"):
+        message_parts.append(f"📝 {len(git_changes['uncommitted_changes'])} uncommitted file(s).")
+
     if stats.get("learning_insights", {}).get("suggestion"):
         message_parts.append(stats["learning_insights"]["suggestion"])
 
@@ -421,6 +523,7 @@ async def get_briefing(
         "active_warnings": active_warnings,
         "failed_approaches": failed_approaches,
         "top_rules": top_rules,
+        "git_changes": git_changes,
         "focus_areas": focus_memories if focus_memories else None,
         "message": " ".join(message_parts)
     }
@@ -612,6 +715,213 @@ async def context_check(
         "message": (
             "⚠️ Review warnings before proceeding" if has_concerns else
             "✓ No concerns found, but always use good judgment"
+        )
+    }
+
+
+# ============================================================================
+# Tool 12: RECALL_FOR_FILE - Get memories for a specific file
+# ============================================================================
+@mcp.tool()
+async def recall_for_file(
+    file_path: str,
+    limit: int = 10
+) -> Dict[str, Any]:
+    """
+    Get all memories associated with a specific file.
+
+    Use this when opening or modifying a file to see:
+    - Past decisions about this file
+    - Patterns that apply
+    - Warnings about potential issues
+    - Failed approaches to avoid
+
+    Args:
+        file_path: The file path to look up
+        limit: Max memories to return (default: 10)
+
+    Returns:
+        Memories organized by category with warning indicators
+
+    Example:
+        recall_for_file("api/handlers.py")
+        recall_for_file("src/components/Auth.tsx")
+    """
+    await db_manager.init_db()
+    return await memory_manager.recall_for_file(file_path=file_path, limit=limit)
+
+
+# ============================================================================
+# Helper: TODO/FIXME Scanner
+# ============================================================================
+# Pattern matches TODO, FIXME, HACK, XXX, BUG, NOTE with optional colon and content
+TODO_PATTERN = re.compile(
+    r'(?:#|//|/\*|\*|--|<!--|\'\'\'|""")\s*'  # Comment markers
+    r'(TODO|FIXME|HACK|XXX|BUG)\s*'  # Keywords (NOT matching NOTE - too noisy)
+    r':?\s*'  # Optional colon
+    r'(.+?)(?:\*/|-->|\'\'\'|"""|$)',  # Content until end marker
+    re.IGNORECASE
+)
+
+# File extensions to scan
+SCANNABLE_EXTENSIONS = {
+    '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.c', '.cpp', '.h', '.hpp',
+    '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.scala', '.sh', '.bash',
+    '.html', '.css', '.scss', '.sass', '.less', '.vue', '.svelte',
+    '.sql', '.yaml', '.yml', '.toml', '.json', '.md', '.rst', '.txt'
+}
+
+# Directories to skip
+SKIP_DIRS = {
+    '.git', '.svn', '.hg', 'node_modules', '__pycache__', '.pytest_cache',
+    'venv', '.venv', 'env', '.env', 'dist', 'build', '.tox', '.eggs',
+    '*.egg-info', '.mypy_cache', '.coverage', 'htmlcov', '.devilmcp'
+}
+
+
+def _scan_for_todos(root_path: str, max_files: int = 500) -> List[Dict[str, Any]]:
+    """Scan directory for TODO/FIXME/HACK comments."""
+    todos = []
+    files_scanned = 0
+    root = Path(root_path)
+
+    if not root.exists():
+        return []
+
+    for file_path in root.rglob('*'):
+        # Skip directories
+        if file_path.is_dir():
+            continue
+
+        # Check if any parent is a skip directory
+        skip = False
+        for part in file_path.parts:
+            if part in SKIP_DIRS or part.endswith('.egg-info'):
+                skip = True
+                break
+        if skip:
+            continue
+
+        # Check extension
+        if file_path.suffix.lower() not in SCANNABLE_EXTENSIONS:
+            continue
+
+        # Limit files scanned
+        files_scanned += 1
+        if files_scanned > max_files:
+            break
+
+        try:
+            content = file_path.read_text(encoding='utf-8', errors='ignore')
+            for line_num, line in enumerate(content.split('\n'), 1):
+                matches = TODO_PATTERN.findall(line)
+                for match in matches:
+                    keyword, text = match
+                    text = text.strip()
+                    if text and len(text) > 3:  # Skip empty or very short todos
+                        rel_path = str(file_path.relative_to(root))
+                        todos.append({
+                            'type': keyword.upper(),
+                            'content': text[:200],  # Truncate long content
+                            'file': rel_path,
+                            'line': line_num,
+                            'full_line': line.strip()[:300]
+                        })
+        except (OSError, UnicodeDecodeError):
+            continue
+
+    return todos
+
+
+# ============================================================================
+# Tool 13: SCAN_TODOS - Find tech debt in codebase
+# ============================================================================
+@mcp.tool()
+async def scan_todos(
+    path: Optional[str] = None,
+    auto_remember: bool = False,
+    types: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Scan the codebase for TODO, FIXME, HACK, XXX, and BUG comments.
+
+    Tech debt finder - discovers and optionally tracks code comments that
+    indicate incomplete work, known issues, or workarounds.
+
+    Args:
+        path: Directory to scan (defaults to current directory)
+        auto_remember: If True, automatically create warning memories for each TODO
+        types: Filter to specific types (e.g., ["FIXME", "HACK"]) - default: all
+
+    Returns:
+        List of found items grouped by type, with file locations
+
+    Examples:
+        scan_todos()  # Scan current directory
+        scan_todos(types=["FIXME", "HACK"])  # Only critical items
+        scan_todos(auto_remember=True)  # Scan and save as warnings
+    """
+    await db_manager.init_db()
+
+    scan_path = path or os.getcwd()
+    found_todos = _scan_for_todos(scan_path)
+
+    # Filter by types if specified
+    if types:
+        types_upper = [t.upper() for t in types]
+        found_todos = [t for t in found_todos if t['type'] in types_upper]
+
+    # Group by type
+    by_type: Dict[str, List] = {}
+    for todo in found_todos:
+        todo_type = todo['type']
+        if todo_type not in by_type:
+            by_type[todo_type] = []
+        by_type[todo_type].append(todo)
+
+    # Get existing todo-related memories to avoid duplicates
+    existing_todos = set()
+    async with db_manager.get_session() as session:
+        result = await session.execute(
+            select(Memory)
+            .where(Memory.tags.contains('"tech_debt"'))  # JSON contains check
+        )
+        for mem in result.scalars().all():
+            # Create a simple signature to check duplicates
+            if mem.file_path:
+                existing_todos.add(f"{mem.file_path}:{mem.content[:50]}")
+
+    # Auto-remember if requested
+    new_memories = []
+    if auto_remember:
+        for todo in found_todos:
+            sig = f"{todo['file']}:{todo['content'][:50]}"
+            if sig not in existing_todos:
+                memory = await memory_manager.remember(
+                    category='warning',
+                    content=f"{todo['type']}: {todo['content']}",
+                    rationale=f"Found in codebase at {todo['file']}:{todo['line']}",
+                    tags=['tech_debt', 'auto_scanned', todo['type'].lower()],
+                    file_path=todo['file']
+                )
+                new_memories.append(memory)
+                existing_todos.add(sig)  # Prevent duplicates in same scan
+
+    # Build summary
+    summary_parts = []
+    for todo_type in ['FIXME', 'HACK', 'BUG', 'XXX', 'TODO']:
+        if todo_type in by_type:
+            count = len(by_type[todo_type])
+            summary_parts.append(f"{count} {todo_type}")
+
+    return {
+        "total_found": len(found_todos),
+        "by_type": by_type,
+        "summary": ", ".join(summary_parts) if summary_parts else "No tech debt found",
+        "new_memories_created": len(new_memories) if auto_remember else 0,
+        "message": (
+            f"Found {len(found_todos)} tech debt items" +
+            (f", created {len(new_memories)} new warnings" if new_memories else "")
         )
     }
 

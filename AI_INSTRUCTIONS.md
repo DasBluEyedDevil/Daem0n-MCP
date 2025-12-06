@@ -1,181 +1,185 @@
-# DevilMCP: AI Memory System - Setup & Usage
+# DevilMCP: AI Memory System - Protocol & Instructions
 
-**Instructions for AI Assistants (Claude, Cursor, Windsurf, etc.)**
-
----
-
-## What is DevilMCP?
-
-DevilMCP gives you **persistent memory** and **decision trees**:
-- Remember decisions, patterns, warnings, and learnings across sessions
-- Get guidance from rules before taking actions
-- Learn from outcomes (what worked, what didn't)
+**CRITICAL: Read and follow this protocol for every session.**
 
 ---
 
-## Installation
+## MANDATORY PROTOCOL
 
-```bash
-pip install -e "/path/to/DevilMCP"
+### 1. INITIALIZATION (Every Session Start)
+```
+IMMEDIATELY call: get_briefing()
+```
+- This loads your context: recent decisions, warnings, rules, git changes
+- Do NOT ask the user for context that is already in the briefing
+- Review any `failed_approaches` - these are mistakes to avoid
+
+### 2. BEFORE ANY CODING/CHANGES
+```
+Call: context_check("description of what you're about to do")
+```
+Or for detailed info:
+```
+Call: recall(topic)
+Call: check_rules(action)
 ```
 
-Verify: `python -c "import devilmcp; print('OK')"`
+**CRITICAL**: If `context_check` returns a WARNING or FAILED APPROACH:
+- You MUST acknowledge it explicitly
+- Explain how your new approach differs
+- Do NOT repeat past failures
 
----
-
-## MCP Configuration
-
-Add to your MCP config file:
-
-**Claude Desktop/Code:**
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Linux: `~/.config/Claude/claude_desktop_config.json`
-
-**Cursor:** `~/.cursor/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "devilmcp": {
-      "command": "python",
-      "args": ["-m", "devilmcp.server"],
-      "env": {
-        "PYTHONPATH": "/path/to/DevilMCP",
-        "DEVILMCP_PROJECT_ROOT": "/path/to/your/project"
-      }
-    }
-  }
-}
+### 3. FILE-LEVEL AWARENESS
 ```
-
-Restart after configuration.
-
----
-
-## Your Protocol
-
-### 1. Session Start
+When opening/modifying a file: recall_for_file("path/to/file.py")
 ```
-Call: get_briefing()
-```
-This loads your context: recent decisions, warnings, rules.
+This shows all memories (warnings, patterns, decisions) linked to that file.
 
-### 2. Before Making Changes
+### 4. MEMORY MANAGEMENT
+After completing significant work:
 ```
-Call: recall("topic")           # Get relevant memories
-Call: check_rules("action")     # Get guidance
-```
-
-Follow `must_do` items. Avoid `must_not` items. Consider `ask_first` questions.
-
-### 3. When Making Decisions
-```
-Call: remember(
-    category="decision",
-    content="What you decided",
+remember(
+    category="decision",  # or "pattern", "warning", "learning"
+    content="What you decided/learned",
     rationale="Why",
-    tags=["relevant", "tags"]
+    tags=["relevant", "tags"],
+    file_path="optional/file.py"  # Link to specific file
 )
 ```
 
-Categories: `decision`, `pattern`, `warning`, `learning`
+**Category Guide:**
+- `decision`: Architectural/design choices (decays over time)
+- `pattern`: Recurring approaches to follow (PERMANENT - never decays)
+- `warning`: Things to avoid (PERMANENT - never decays)
+- `learning`: Lessons from experience (decays over time)
 
-### 4. After Implementation
+### 5. OUTCOME TRACKING (NON-NEGOTIABLE)
 ```
-Call: record_outcome(
-    memory_id=<id from remember>,
-    outcome="What happened",
+record_outcome(
+    memory_id=<id>,
+    outcome="What actually happened",
     worked=true/false
 )
 ```
 
----
-
-## Available Tools
-
-| Tool | Purpose |
-|------|---------|
-| `remember` | Store a decision/pattern/warning/learning |
-| `recall` | Get relevant memories for a topic |
-| `add_rule` | Create a decision tree rule |
-| `check_rules` | Get guidance before an action |
-| `record_outcome` | Track if a decision worked |
-| `get_briefing` | Session start summary |
-| `search_memories` | Full-text search |
-| `list_rules` | Show all rules |
-| `update_rule` | Modify a rule |
+**CRITICAL**: If something fails, you MUST call `record_outcome` with `worked=false`.
+This prevents future loops - failures get boosted in future recalls.
 
 ---
 
-## Example Session
+## RULES ENFORCEMENT
+
+When `check_rules` returns guidance:
+- `must_do`: These are REQUIRED actions - do them
+- `must_not`: These are HARD CONSTRAINTS - never violate
+- `ask_first`: Consider these questions before proceeding
+- `warnings`: Past experiences to keep in mind
+
+---
+
+## AVAILABLE TOOLS (13 Total)
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `get_briefing()` | Session start | FIRST thing every session |
+| `context_check(description)` | Quick pre-flight | Before any changes |
+| `recall(topic)` | Get topic memories | Deep dive on a topic |
+| `recall_for_file(path)` | File-specific memories | When touching a file |
+| `remember(...)` | Store memory | After decisions/learnings |
+| `record_outcome(...)` | Track result | After implementation |
+| `check_rules(action)` | Get rule guidance | Before significant action |
+| `add_rule(trigger, ...)` | Create rule | Establishing team patterns |
+| `update_rule(id, ...)` | Modify rule | Refining guidance |
+| `list_rules()` | Show all rules | Reviewing configuration |
+| `search_memories(query)` | Search memories | Finding specific content |
+| `find_related(id)` | Related memories | Exploring connections |
+| `scan_todos(path)` | Find tech debt | Discovering TODO/FIXME/HACK comments |
+
+---
+
+## EXAMPLE SESSION
 
 ```
-AI: [Session start]
+[Session starts]
 AI: get_briefing()
-→ "3 memories, 1 warning, 2 rules configured"
+→ "DevilMCP ready. 15 memories. ⚠️ 2 failed approaches to avoid!"
+→ git_changes: {"uncommitted_changes": ["api/auth.py"]}
 
-User: "Add user authentication"
+User: "Fix the authentication bug in auth.py"
 
-AI: recall("authentication")
-→ Decision: "Use JWT tokens" (worked: true)
-→ Warning: "Sessions caused scaling issues"
+AI: recall_for_file("api/auth.py")
+→ Warning: "Session tokens caused race conditions" (Memory #12)
+→ Pattern: "Always use JWT validation middleware" (Memory #8)
 
-AI: check_rules("adding authentication")
-→ must_do: ["Add rate limiting"]
-→ must_not: ["Use session cookies"]
+AI: context_check("fixing authentication in auth.py")
+→ WARNING: "Similar fix attempted on 2024-01-15, failed due to cache"
+→ must_do: ["Add rate limiting", "Test with concurrent requests"]
 
+AI: [Acknowledges the warning]
+"I see there was a failed attempt before due to caching. I'll ensure
+this fix doesn't rely on cached tokens and will test concurrency."
+
+[After fixing]
 AI: remember(
     category="decision",
-    content="Using OAuth2 with JWT",
-    rationale="Aligns with existing pattern, stateless",
-    tags=["auth", "api"]
+    content="Fixed auth by invalidating token cache on logout",
+    rationale="Previous attempt failed because stale tokens persisted",
+    file_path="api/auth.py",
+    tags=["auth", "cache", "bugfix"]
 )
 → id: 42
 
-[After implementation]
-
-AI: record_outcome(42, "OAuth2 working well", worked=true)
+[After testing]
+AI: record_outcome(42, "Fix works, concurrent tests pass", worked=true)
 ```
 
 ---
 
-## Data Storage
+## KEY FEATURES
 
-Your memories are stored per-project at:
+### Permanent vs. Episodic Memory
+- **Patterns** and **Warnings** are PERMANENT - they never decay
+- **Decisions** and **Learnings** decay over time (30-day half-life)
+- Recent memories score higher than old ones
+
+### Conflict Detection
+When you `remember()` something:
+- System checks for similar failed decisions
+- Warns about potential duplicates
+- Surfaces related warnings
+
+### Git Awareness
+`get_briefing()` shows:
+- Recent commits since last memory
+- Uncommitted changes
+- Current branch
+
+### Failed Decision Boosting
+Failures get 1.5x relevance boost in future searches.
+You WILL see past mistakes - learn from them.
+
+---
+
+## DATA STORAGE
+
+Per-project storage at:
 ```
 <project_root>/.devilmcp/storage/devilmcp.db
 ```
 
 ---
 
-## Quick Reference
+## SUMMARY
 
-**Store something:**
 ```
-remember("decision", "content", rationale="why", tags=["tag"])
-```
-
-**Get context:**
-```
-recall("topic")
-get_briefing()
+Session Start:  get_briefing()
+Before Changes: context_check(description) or recall_for_file(path)
+Making Decision: remember(category, content, rationale, file_path)
+After Result:   record_outcome(id, outcome, worked)
 ```
 
-**Create rule:**
-```
-add_rule(
-    trigger="when this happens",
-    must_do=["do this"],
-    must_not=["avoid this"]
-)
-```
-
-**Check before acting:**
-```
-check_rules("what I'm about to do")
-```
+**The system learns from YOUR outcomes. Record them.**
 
 ---
 
-*DevilMCP: Your persistent memory across sessions.*
+*DevilMCP v2.1.2: Persistent memory with semantic understanding, code symbol extraction, and tech debt scanning.*

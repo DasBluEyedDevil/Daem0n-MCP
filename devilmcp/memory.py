@@ -81,7 +81,8 @@ class MemoryManager:
         content: str,
         rationale: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
+        file_path: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Store a new memory with conflict detection.
@@ -92,6 +93,7 @@ class MemoryManager:
             rationale: Why this is important / the reasoning
             context: Structured context (files, alternatives, etc.)
             tags: Tags for retrieval
+            file_path: Optional file path to associate this memory with
 
         Returns:
             The created memory as a dict, with any detected conflicts
@@ -108,13 +110,19 @@ class MemoryManager:
         # Check for conflicts before storing
         conflicts = await self._check_conflicts(content, tags)
 
+        # Semantic memories (patterns, warnings) are permanent - they don't decay
+        # They represent project facts, not episodic events
+        is_permanent = category in {'pattern', 'warning'}
+
         memory = Memory(
             category=category,
             content=content,
             rationale=rationale,
             context=context or {},
             tags=tags or [],
-            keywords=keywords.strip()
+            keywords=keywords.strip(),
+            file_path=file_path,
+            is_permanent=is_permanent
         )
 
         async with self.db.get_session() as session:
@@ -137,6 +145,8 @@ class MemoryManager:
                 "content": content,
                 "rationale": rationale,
                 "tags": tags or [],
+                "file_path": file_path,
+                "is_permanent": is_permanent,
                 "created_at": memory.created_at.isoformat()
             }
 
@@ -235,7 +245,12 @@ class MemoryManager:
                     continue
 
             # Calculate final score with decay
-            decay = calculate_memory_decay(mem.created_at, decay_half_life_days)
+            # Permanent memories (patterns, warnings) don't decay - they're project facts
+            if getattr(mem, 'is_permanent', False) or mem.category in {'pattern', 'warning'}:
+                decay = 1.0  # No decay for semantic memories
+            else:
+                decay = calculate_memory_decay(mem.created_at, decay_half_life_days)
+
             final_score = base_score * decay
 
             # Boost failed decisions - they're valuable warnings
@@ -499,3 +514,97 @@ class MemoryManager:
 
         # Filter out the source memory itself
         return [r for r in results if r['id'] != memory_id][:limit]
+
+    async def recall_for_file(
+        self,
+        file_path: str,
+        limit: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Get all memories associated with a specific file.
+
+        Use this when opening a file to see all relevant context -
+        warnings, patterns, and past decisions about this file.
+
+        Args:
+            file_path: The file path to look up
+            limit: Max memories to return
+
+        Returns:
+            Dict with memories organized by category
+        """
+        async with self.db.get_session() as session:
+            # Get memories directly linked to this file
+            result = await session.execute(
+                select(Memory)
+                .where(Memory.file_path == file_path)
+                .order_by(desc(Memory.created_at))
+                .limit(limit)
+            )
+            direct_memories = result.scalars().all()
+
+            # Also search for memories mentioning this file in content
+            filename = file_path.split('/')[-1] if '/' in file_path else file_path
+            result = await session.execute(
+                select(Memory)
+                .where(
+                    or_(
+                        Memory.content.like(f"%{filename}%"),
+                        Memory.rationale.like(f"%{filename}%")
+                    )
+                )
+                .order_by(desc(Memory.created_at))
+                .limit(limit)
+            )
+            mentioned_memories = result.scalars().all()
+
+        # Combine and deduplicate
+        seen_ids = set()
+        all_memories = []
+        for mem in direct_memories:
+            if mem.id not in seen_ids:
+                seen_ids.add(mem.id)
+                all_memories.append(mem)
+        for mem in mentioned_memories:
+            if mem.id not in seen_ids:
+                seen_ids.add(mem.id)
+                all_memories.append(mem)
+
+        # Organize by category
+        by_category = {
+            'decisions': [],
+            'patterns': [],
+            'warnings': [],
+            'learnings': []
+        }
+
+        for mem in all_memories[:limit]:
+            cat_key = mem.category + 's'
+            if cat_key in by_category:
+                mem_dict = {
+                    'id': mem.id,
+                    'content': mem.content,
+                    'rationale': mem.rationale,
+                    'context': mem.context,
+                    'tags': mem.tags,
+                    'file_path': mem.file_path,
+                    'outcome': mem.outcome,
+                    'worked': mem.worked,
+                    'created_at': mem.created_at.isoformat()
+                }
+
+                if mem.worked is False:
+                    mem_dict['_warning'] = f"⚠️ This approach FAILED: {mem.outcome or 'no details recorded'}"
+
+                by_category[cat_key].append(mem_dict)
+
+        total = sum(len(v) for v in by_category.values())
+
+        return {
+            'file_path': file_path,
+            'found': total,
+            'has_warnings': len(by_category['warnings']) > 0 or any(
+                m.get('worked') is False for cat in by_category.values() for m in cat
+            ),
+            **by_category
+        }

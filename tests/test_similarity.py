@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 
 from devilmcp.similarity import (
     tokenize,
+    extract_code_symbols,
     TFIDFIndex,
     calculate_memory_decay,
     detect_conflict,
@@ -53,6 +54,58 @@ class TestTokenize:
     def test_empty_text(self):
         assert tokenize("") == []
         assert tokenize(None) == []
+
+
+class TestExtractCodeSymbols:
+    """Test code symbol extraction."""
+
+    def test_extracts_backtick_code(self):
+        text = "Use the `getUserById` function to fetch users"
+        symbols = extract_code_symbols(text)
+        assert "getUserById" in symbols
+
+    def test_extracts_camel_case(self):
+        text = "The UserService class handles authentication"
+        symbols = extract_code_symbols(text)
+        assert "UserService" in symbols
+
+    def test_extracts_lower_camel_case(self):
+        text = "Call validateUserInput before processing"
+        symbols = extract_code_symbols(text)
+        assert "validateUserInput" in symbols
+
+    def test_extracts_snake_case(self):
+        text = "Use the get_user_by_id function"
+        symbols = extract_code_symbols(text)
+        assert "get_user_by_id" in symbols
+
+    def test_extracts_screaming_snake(self):
+        text = "Set MAX_RETRY_COUNT to 5"
+        symbols = extract_code_symbols(text)
+        assert "MAX_RETRY_COUNT" in symbols
+
+    def test_extracts_method_calls(self):
+        text = "Call obj.processData and obj.saveResult"
+        symbols = extract_code_symbols(text)
+        assert "processData" in symbols
+        assert "saveResult" in symbols
+
+    def test_includes_lowercased_versions(self):
+        text = "Use `UserService` for users"
+        symbols = extract_code_symbols(text)
+        assert "UserService" in symbols
+        assert "userservice" in symbols
+
+    def test_empty_text(self):
+        assert extract_code_symbols("") == []
+        assert extract_code_symbols(None) == []
+
+    def test_tokenize_includes_symbols(self):
+        """Test that tokenize() includes extracted symbols."""
+        text = "Use the `fetchUserProfile` function"
+        tokens = tokenize(text)
+        # Should include the symbol (lowercased)
+        assert "fetchuserprofile" in tokens
 
 
 class TestTFIDFIndex:

@@ -8,8 +8,11 @@ DevilMCP is a focused MCP server providing **AI memory and decision trees** with
 - Persistent memory across sessions (decisions, patterns, warnings, learnings)
 - TF-IDF based semantic search (not just keywords)
 - Time-weighted recall (recent memories matter more)
+- Permanent memories for patterns/warnings (project facts don't decay)
 - Conflict detection (warns about contradicting decisions)
 - Rule-based decision trees for consistent behavior
+- File-level memory associations
+- Git awareness (shows changes since last session)
 - Outcome tracking for learning from success/failure
 
 ## Commands
@@ -29,7 +32,7 @@ pytest tests/ -v --asyncio-mode=auto
 
 ```
 devilmcp/
-├── server.py      # MCP server, 11 tools (FastMCP)
+├── server.py      # MCP server, 13 tools (FastMCP)
 ├── memory.py      # MemoryManager - semantic store/recall with decay
 ├── rules.py       # RulesEngine - TF-IDF matched decision trees
 ├── similarity.py  # TF-IDF index, cosine similarity, conflict detection
@@ -44,6 +47,8 @@ devilmcp/
 
 **memories**: Stores decisions, patterns, warnings, learnings
 - category, content, rationale, context, tags, keywords
+- file_path (link memory to specific files)
+- is_permanent (patterns/warnings never decay)
 - outcome tracking (outcome, worked)
 - TF-IDF indexed for semantic search
 
@@ -56,26 +61,29 @@ devilmcp/
 
 - **Async-first**: All database operations use async/await
 - **TF-IDF similarity**: Content is indexed for semantic matching (not just keywords)
-- **Memory decay**: Recent memories weighted higher than old ones
+- **Memory decay**: Decisions/learnings decay over time; patterns/warnings are permanent
 - **Conflict detection**: New memories checked against existing for contradictions
-- **Failed decision boosting**: Failed outcomes are highlighted in recalls
+- **Failed decision boosting**: Failed outcomes are highlighted in recalls (1.5x boost)
+- **Git awareness**: Briefing shows changes since last memory
 
-## MCP Tools (11 total)
+## MCP Tools (13 total)
 
 Core:
-1. `remember` - Store a memory with conflict detection
+1. `remember` - Store a memory with conflict detection and file association
 2. `recall` - Semantic retrieval with decay weighting
-3. `add_rule` - Create decision tree node
-4. `check_rules` - Semantic matching against rules
-5. `record_outcome` - Track if decision worked (failures get boosted)
-6. `get_briefing` - Smart session start with focus areas
+3. `recall_for_file` - Get memories for a specific file
+4. `add_rule` - Create decision tree node
+5. `check_rules` - Semantic matching against rules
+6. `record_outcome` - Track if decision worked (failures get boosted)
+7. `get_briefing` - Smart session start with git changes
 
 Utility:
-7. `search_memories` - Semantic search across all memories
-8. `list_rules` - Show all rules
-9. `update_rule` - Modify existing rule
-10. `find_related` - Discover connected memories
-11. `context_check` - Quick pre-flight check (recall + rules combined)
+8. `context_check` - Quick pre-flight check (recall + rules combined)
+9. `search_memories` - Semantic search across all memories
+10. `list_rules` - Show all rules
+11. `update_rule` - Modify existing rule
+12. `find_related` - Discover connected memories
+13. `scan_todos` - Find TODO/FIXME/HACK comments in codebase
 
 ## Adding New Tools
 
@@ -92,9 +100,10 @@ async def my_tool(param: str) -> Dict[str, Any]:
 
 1. **Session Start**: Call `get_briefing(focus_areas=["topic1", "topic2"])`
 2. **Before Changes**: Call `context_check(description)` for quick guidance
-3. **Detailed Lookup**: Call `recall(topic)` and `check_rules(action)` separately
-4. **Making Decisions**: Call `remember(category, content, rationale)`
-5. **After Implementation**: Call `record_outcome(memory_id, outcome, worked)`
+3. **File-Level**: Call `recall_for_file(path)` when touching a file
+4. **Detailed Lookup**: Call `recall(topic)` and `check_rules(action)` separately
+5. **Making Decisions**: Call `remember(category, content, rationale, file_path)`
+6. **After Implementation**: Call `record_outcome(memory_id, outcome, worked)`
 
 ## Testing
 
@@ -102,10 +111,13 @@ async def my_tool(param: str) -> Dict[str, Any]:
 pytest tests/ -v --asyncio-mode=auto
 ```
 
-53 tests covering:
+77 tests covering:
 - Memory CRUD and semantic recall
 - TF-IDF indexing and similarity
+- Code symbol extraction
 - Memory decay calculations
 - Conflict detection
 - Rule matching and priority
+- File-level associations
+- TODO/FIXME scanner
 - All edge cases

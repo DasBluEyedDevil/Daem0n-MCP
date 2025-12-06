@@ -20,10 +20,13 @@ class Memory(Base):
     A memory is any piece of information the AI should remember.
 
     Categories:
-    - decision: An architectural or design choice
-    - pattern: A recurring approach that should be followed
-    - warning: Something that went wrong / should be avoided
-    - learning: A lesson learned from experience
+    - decision: An architectural or design choice (episodic - decays)
+    - pattern: A recurring approach that should be followed (semantic - permanent)
+    - warning: Something that went wrong / should be avoided (semantic - permanent)
+    - learning: A lesson learned from experience (episodic - decays)
+
+    Semantic memories (patterns, warnings) don't decay - they're project facts.
+    Episodic memories (decisions, learnings) decay over time.
     """
     __tablename__ = "memories"
 
@@ -44,8 +47,15 @@ class Memory(Base):
     # Tags for retrieval
     tags = Column(JSON, default=list)
 
+    # File path association - link memory to specific files
+    file_path = Column(String, nullable=True, index=True)
+
     # Extracted keywords for semantic-ish search (computed from content + tags)
     keywords = Column(Text, nullable=True, index=True)
+
+    # Permanent flag - semantic memories (patterns, warnings) don't decay
+    # Auto-set based on category, but can be overridden
+    is_permanent = Column(Boolean, default=False)
 
     # Outcome tracking
     outcome = Column(Text, nullable=True)  # What actually happened
