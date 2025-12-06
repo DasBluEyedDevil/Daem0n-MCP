@@ -5,6 +5,7 @@ All settings are loaded from environment variables with DAEM0NMCP_ prefix.
 Example: DAEM0NMCP_LOG_LEVEL=DEBUG
 """
 
+import shutil
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
@@ -25,6 +26,48 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
 
+    def _migrate_legacy_storage(self, project_path: Path, new_storage: Path) -> bool:
+        """
+        Migrate data from legacy .devilmcp directory to .daem0nmcp.
+
+        Returns True if migration occurred.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        legacy_storage = project_path / ".devilmcp" / "storage"
+        legacy_db = legacy_storage / "devilmcp.db"
+        new_db = new_storage / "daem0nmcp.db"
+
+        # Check if legacy storage exists and new doesn't have data yet
+        if not legacy_storage.exists():
+            return False
+
+        if new_db.exists():
+            logger.info("New database already exists, skipping legacy migration")
+            return False
+
+        # Create new storage directory
+        new_storage.mkdir(parents=True, exist_ok=True)
+
+        # Migrate database file
+        if legacy_db.exists():
+            shutil.copy2(legacy_db, new_db)
+            logger.info(f"Migrated database: {legacy_db} -> {new_db}")
+
+        # Also check for any other .db files (e.g., daem0nmcp.db in old location)
+        for db_file in legacy_storage.glob("*.db"):
+            if db_file.name != "devilmcp.db":
+                dest = new_storage / db_file.name
+                if not dest.exists():
+                    shutil.copy2(db_file, dest)
+                    logger.info(f"Migrated database: {db_file} -> {dest}")
+
+        logger.info(
+            f"Legacy migration complete. You can safely delete: {project_path / '.devilmcp'}"
+        )
+        return True
+
     def get_storage_path(self) -> str:
         """
         Determine storage path with project isolation.
@@ -34,6 +77,8 @@ class Settings(BaseSettings):
         2. project_root/.daem0nmcp/storage (if project_root is set)
         3. <cwd>/.daem0nmcp/storage (current working directory)
         4. ./storage (fallback for centralized storage)
+
+        Also handles automatic migration from legacy .devilmcp storage.
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -54,6 +99,10 @@ class Settings(BaseSettings):
         else:
             # Use project-specific storage
             storage = project_path / ".daem0nmcp" / "storage"
+
+            # Check for and migrate legacy .devilmcp storage
+            self._migrate_legacy_storage(project_path, storage)
+
             logger.info(f"Project detected: {project_path.name}")
             logger.info(f"Using project-specific storage: {storage}")
 

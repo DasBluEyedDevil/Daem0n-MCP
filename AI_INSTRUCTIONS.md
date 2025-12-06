@@ -299,6 +299,16 @@ Per-project storage at:
 <project_root>/.daem0nmcp/storage/daem0nmcp.db
 ```
 
+### Legacy Migration (from DevilMCP)
+If upgrading from DevilMCP, your data is automatically migrated:
+- Old location: `.devilmcp/storage/devilmcp.db`
+- New location: `.daem0nmcp/storage/daem0nmcp.db`
+
+Migration happens automatically on first startup. After migration completes, you can safely delete:
+- `.devilmcp/` directory
+- `devilmcp.egg-info/` directory (will regenerate as `daem0nmcp.egg-info`)
+- `devilmcp/` source directory (replaced by `daem0nmcp/`)
+
 ---
 
 ## WORKFLOW CHEAT SHEET
