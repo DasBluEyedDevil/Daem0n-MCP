@@ -1,6 +1,8 @@
 """
 Daem0nMCP Server - AI Memory System with Semantic Understanding
 
+NOTE: On Windows, stdio may hang. Set PYTHONUNBUFFERED=1 or run with -u flag.
+
 A smarter MCP server that provides:
 1. Semantic memory storage and retrieval (TF-IDF + optional vectors)
 2. Time-weighted recall (recent memories matter more, but patterns/warnings are permanent)
@@ -1181,20 +1183,46 @@ atexit.register(cleanup)
 # ============================================================================
 def main():
     """Run the MCP server."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Daem0nMCP Server")
+    parser.add_argument(
+        "--transport", "-t",
+        choices=["stdio", "sse"],
+        default="stdio",
+        help="Transport type: stdio (default) or sse (HTTP server)"
+    )
+    parser.add_argument(
+        "--port", "-p",
+        type=int,
+        default=8765,
+        help="Port for SSE transport (default: 8765)"
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host for SSE transport (default: 127.0.0.1)"
+    )
+    args = parser.parse_args()
+
     logger.info("Starting Daem0nMCP server...")
     logger.info(f"Storage: {storage_path}")
+    logger.info(f"Transport: {args.transport}")
 
     # NOTE: Database initialization is now lazy and happens on first tool call.
     # This ensures the async engine is created within the correct event loop
     # context (the one that FastMCP creates and manages).
-    #
-    # Previously, calling asyncio.run(db_manager.init_db()) here created an
-    # event loop, initialized the engine, then CLOSED that loop. When mcp.run()
-    # created a new loop, database operations would hang waiting on the dead loop.
 
     # Run MCP server - this creates and manages its own event loop
     try:
-        mcp.run(transport="stdio")
+        if args.transport == "sse":
+            # Configure SSE settings
+            mcp.settings.host = args.host
+            mcp.settings.port = args.port
+            logger.info(f"SSE server at http://{args.host}:{args.port}/sse")
+            mcp.run(transport="sse")
+        else:
+            mcp.run(transport="stdio")
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")
     except Exception as e:
