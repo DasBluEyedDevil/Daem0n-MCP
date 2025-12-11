@@ -23,64 +23,140 @@ Check your available tools list for `mcp__daem0nmcp__get_briefing`.
 
 ### STEP 2: INSTALL DAEM0NMCP (Execute If Tools Missing)
 
-You do not have Daem0nMCP connected. Execute the following commands in order:
+You do not have Daem0nMCP connected. **Execute these commands in sequence.** All commands use bash (Claude Code's shell).
 
-#### 2A: Clone/Download the Repository
+#### 2A: Detect Environment
+
+Run this first to understand the system:
+```bash
+echo "=== Environment Detection ===" && \
+echo "OS: $(uname -s 2>/dev/null || echo 'Windows')" && \
+echo "Home: $HOME" && \
+echo "User: $USER" && \
+python3 --version 2>/dev/null || python --version 2>/dev/null || echo "Python not found"
+```
+
+Save the detected values mentally - you'll need them for the next steps.
+
+#### 2B: Check if Daem0nMCP Repository Exists
 
 ```bash
-# Clone to a persistent location (choose one):
+# Check if already cloned
+if [ -d "$HOME/Daem0nMCP" ]; then
+  echo "FOUND: $HOME/Daem0nMCP"
+elif [ -d "$USERPROFILE/Daem0nMCP" ]; then
+  echo "FOUND: $USERPROFILE/Daem0nMCP"
+else
+  echo "NOT FOUND - needs cloning"
+fi
+```
 
-# Option A: Clone to user's home directory (recommended)
+#### 2C: Clone Repository (Skip if Found Above)
+
+```bash
+git clone https://github.com/DasBluEyedDevil/Daem0nMCP.git "$HOME/Daem0nMCP"
+```
+
+If `$HOME` doesn't work (Windows edge case), use:
+```bash
 git clone https://github.com/DasBluEyedDevil/Daem0nMCP.git ~/Daem0nMCP
-
-# Option B: Clone to a custom location
-# git clone https://github.com/DasBluEyedDevil/Daem0nMCP.git /path/to/Daem0nMCP
 ```
 
-**Windows users:** Use `%USERPROFILE%\Daem0nMCP` or `C:\Users\<username>\Daem0nMCP`
-
-#### 2B: Install Python Dependencies
+#### 2D: Install Python Package
 
 ```bash
-# Navigate to the cloned directory and install
-cd ~/Daem0nMCP
-pip install -e .
+pip install -e "$HOME/Daem0nMCP" || pip install -e ~/Daem0nMCP
 ```
 
-This installs Daem0nMCP in editable mode with all dependencies.
+Verify installation succeeded:
+```bash
+pip show daem0nmcp | grep -E "^(Name|Version|Location)"
+```
 
-#### 2C: Register the MCP Server with Claude Code
+You should see `Name: daem0nmcp` and a version number.
+
+#### 2E: Find Python Executable Path (CRITICAL)
+
+**You MUST get the absolute path to Python.** Run this:
+```bash
+# This finds the Python that has daem0nmcp installed
+python3 -c "import sys; print(sys.executable)" 2>/dev/null || python -c "import sys; print(sys.executable)"
+```
+
+**SAVE THIS OUTPUT** - you need the exact path for the next step (e.g., `/usr/bin/python3` or `C:\Users\name\AppData\Local\Programs\Python\Python313\python.exe`)
+
+#### 2F: Register MCP Server with Absolute Python Path
+
+**Replace `<PYTHON_PATH>` below with the path from step 2E:**
 
 ```bash
-# Add the MCP server to your current project (project scope)
-claude mcp add daem0nmcp --scope project -- python -m daem0nmcp.server
+claude mcp add daem0nmcp --scope project -- <PYTHON_PATH> -m daem0nmcp.server
 ```
 
-**Alternative: User-wide installation (available in ALL projects):**
+**Examples:**
+- Linux: `claude mcp add daem0nmcp --scope project -- /usr/bin/python3 -m daem0nmcp.server`
+- macOS: `claude mcp add daem0nmcp --scope project -- /opt/homebrew/bin/python3 -m daem0nmcp.server`
+- Windows: `claude mcp add daem0nmcp --scope project -- "C:\Users\name\AppData\Local\Programs\Python\Python313\python.exe" -m daem0nmcp.server`
+
+#### 2G: Verify MCP Configuration
 
 ```bash
-claude mcp add daem0nmcp --scope user -- python -m daem0nmcp.server
+cat .mcp.json
 ```
 
-#### 2D: Verify Installation
+**CRITICAL CHECK:** The `"command"` field MUST be an absolute path, NOT just `"python"`.
+
+✅ Correct: `"command": "/usr/bin/python3"` or `"command": "C:\\Users\\name\\...\\python.exe"`
+❌ Wrong: `"command": "python"`
+
+**If it shows just `"python"`, fix it manually using the Edit tool to replace with the absolute path from step 2E.**
+
+#### 2H: Test Server Starts
 
 ```bash
-# Test that the server can start
-python -m daem0nmcp.server --help
+timeout 2 python -m daem0nmcp.server 2>&1 || true
 ```
 
-#### 2E: Restart Claude Code
+You should see log lines like `Daem0nMCP Server initialized`. If you see import errors, the installation failed - go back to step 2D.
 
-**CRITICAL:** The MCP server only loads on startup. You MUST restart Claude Code:
+#### 2I: Instruct User to Restart
 
-1. Exit the current Claude Code session (type `/exit` or close terminal)
-2. Start a new Claude Code session in your project directory
-3. The tools `mcp__daem0nmcp__*` will now be available
+Tell the user exactly this:
 
-After restarting, inform the user:
-> "Daem0nMCP has been installed and configured. The memory system is now active. Loading project context..."
+> **Daem0nMCP is now configured for this project.**
+>
+> **You must restart Claude Code for the memory system to activate:**
+> 1. Type `/exit` or close this terminal
+> 2. Run `claude` again in this project directory
+> 3. After restart, I will automatically load your project memory
+>
+> The restart is required because MCP servers only connect at startup.
 
-Then immediately proceed to STEP 3.
+**STOP HERE.** Do not proceed until the user restarts and you have `mcp__daem0nmcp__*` tools available.
+
+---
+
+### TROUBLESHOOTING (If Tools Still Missing After Restart)
+
+Run these diagnostics:
+
+```bash
+echo "=== Daem0nMCP Diagnostics ===" && \
+echo "1. MCP Config:" && cat .mcp.json 2>/dev/null || echo "   .mcp.json NOT FOUND" && \
+echo "2. Package installed:" && pip show daem0nmcp | grep -E "^(Name|Version)" 2>/dev/null || echo "   NOT INSTALLED" && \
+echo "3. Python path:" && python3 -c "import sys; print(sys.executable)" 2>/dev/null || python -c "import sys; print(sys.executable)" && \
+echo "4. Server test:" && python -c "import daem0nmcp.server; print('   OK')" 2>&1
+```
+
+**Common fixes:**
+
+| Problem | Solution |
+|---------|----------|
+| `.mcp.json` not found | Run step 2F again from the project directory |
+| `"command": "python"` in config | Edit `.mcp.json` to use absolute Python path |
+| Package not installed | Run `pip install -e ~/Daem0nMCP` |
+| Import error | Check Python version (need 3.9+): `python --version` |
+| Wrong Python | The Python in `.mcp.json` must be the one with daem0nmcp installed |
 
 **STOP HERE** if you just installed. The user must restart for tools to become available.
 
