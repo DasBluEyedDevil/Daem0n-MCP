@@ -231,24 +231,26 @@ If other servers exist, add alongside them:
 
 **YOU (Claude) must light the Altar yourself.** Do not ask the summoner to do this.
 
-**Light the Altar** by starting the server in a new window. Use `cmd /c start` with the full Windows path:
+**Light the Altar** by starting the server as a background process:
 
 ```bash
-cmd /c start "" "%USERPROFILE%\\Daem0nMCP\\start_daem0nmcp_server.bat"
+cd "$USERPROFILE/Daem0nMCP" && python start_server.py --port 9876 > /tmp/daem0nmcp_server.log 2>&1 &
 ```
 
 Wait 3 seconds for the Altar to ignite, then verify it burns:
 
 ```bash
-sleep 3 && curl -s http://localhost:9876/mcp --max-time 3 && echo "Altar is lit!" || echo "Altar failed to ignite"
+sleep 3 && curl -s http://localhost:9876/mcp --max-time 3 >/dev/null 2>&1 && echo "Altar is lit!" || echo "Altar failed - check /tmp/daem0nmcp_server.log"
 ```
 
-If the batch file fails, try direct Python invocation:
+If the server fails to start, check the log for errors:
 ```bash
-cmd /c start "" python "%USERPROFILE%\\Daem0nMCP\\start_server.py" --port 9876
+cat /tmp/daem0nmcp_server.log
 ```
 
-**Note:** The Grimoire is cloned to `%USERPROFILE%\Daem0nMCP` during installation. If installed elsewhere, adjust the path accordingly.
+**Note:** The server runs in the background. It will stop when you close this Claude Code session. For future sessions, the summoner can either:
+- Start the server manually before Claude Code: `%USERPROFILE%\Daem0nMCP\start_daem0nmcp_server.bat`
+- Or add it to Windows Startup folder for automatic ignition
 
 #### Incantation II-WIN-F: Instruct the Summoner (After Lighting the Altar)
 
