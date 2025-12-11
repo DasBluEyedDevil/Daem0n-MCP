@@ -54,12 +54,12 @@ fi
 #### 2C: Clone Repository (Skip if Found Above)
 
 ```bash
-git clone https://github.com/DasBluEyedDevil/Daem0nMCP.git "$HOME/Daem0nMCP"
+git clone https://github.com/DasBluEyedDevil/Daem0n-MCP.git "$HOME/Daem0nMCP"
 ```
 
 If `$HOME` doesn't work (Windows edge case), use:
 ```bash
-git clone https://github.com/DasBluEyedDevil/Daem0nMCP.git ~/Daem0nMCP
+git clone https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
 ```
 
 #### 2D: Install Python Package
