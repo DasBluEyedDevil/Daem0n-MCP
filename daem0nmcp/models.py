@@ -65,6 +65,12 @@ class Memory(Base):
     outcome = Column(Text, nullable=True)  # What actually happened
     worked = Column(Boolean, nullable=True)  # Did it work out?
 
+    # Pinned memories are never pruned and have boosted relevance
+    pinned = Column(Boolean, default=False)
+
+    # Archived memories are hidden from normal recall but kept for history
+    archived = Column(Boolean, default=False)
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),

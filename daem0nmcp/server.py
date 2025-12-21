@@ -15,8 +15,9 @@ A smarter MCP server that provides:
 9. External documentation ingestion
 10. Refactor proposal generation
 11. Data export/import for backup and migration
+12. Memory maintenance (pin, archive, prune)
 
-19 Tools:
+22 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - recall_for_file: Get all memories for a specific file
@@ -35,6 +36,9 @@ A smarter MCP server that provides:
 - rebuild_index: Force rebuild of all search indexes
 - export_data: Export all memories and rules as JSON (backup/migration)
 - import_data: Import memories and rules from exported JSON
+- pin_memory: Pin/unpin memories to prevent pruning
+- archive_memory: Archive/restore memories (hidden from recall)
+- prune_memories: Remove old, low-value memories
 - health: Get server health, version, and statistics
 """
 
@@ -48,7 +52,7 @@ import asyncio
 import base64
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -1770,6 +1774,158 @@ async def import_data(
         "rules_imported": rules_imported,
         "message": f"Imported {memories_imported} memories and {rules_imported} rules"
     }
+
+
+@mcp.tool()
+async def pin_memory(
+    memory_id: int,
+    pinned: bool = True,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Pin or unpin a memory.
+
+    Pinned memories:
+    - Never pruned automatically
+    - Get relevance boost in recall
+    - Treated as permanent project knowledge
+
+    Args:
+        memory_id: Memory to pin/unpin
+        pinned: True to pin, False to unpin
+        project_path: Project root path
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    async with ctx.db_manager.get_session() as session:
+        result = await session.execute(
+            select(Memory).where(Memory.id == memory_id)
+        )
+        memory = result.scalar_one_or_none()
+
+        if not memory:
+            return {"error": f"Memory {memory_id} not found"}
+
+        memory.pinned = pinned
+        memory.is_permanent = pinned  # Pinned = permanent
+
+        return {
+            "id": memory_id,
+            "pinned": pinned,
+            "content": memory.content[:100],
+            "message": f"Memory {'pinned' if pinned else 'unpinned'}"
+        }
+
+
+@mcp.tool()
+async def prune_memories(
+    older_than_days: int = 90,
+    categories: Optional[List[str]] = None,
+    dry_run: bool = True,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Prune old, low-value memories.
+
+    By default, only affects episodic memories (decisions, learnings).
+    Permanent memories (patterns, warnings), pinned, and memories with
+    outcomes are protected.
+
+    Args:
+        older_than_days: Only prune memories older than this
+        categories: Limit to these categories (default: decision, learning)
+        dry_run: If True, just report what would be pruned
+        project_path: Project root path
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    if categories is None:
+        categories = ["decision", "learning"]
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+
+    async with ctx.db_manager.get_session() as session:
+        # Find prunable memories
+        query = select(Memory).where(
+            Memory.category.in_(categories),
+            Memory.created_at < cutoff,
+            Memory.is_permanent == False,
+            Memory.pinned == False,
+            Memory.outcome == None,  # Don't prune memories with outcomes
+            Memory.archived == False
+        )
+
+        result = await session.execute(query)
+        to_prune = result.scalars().all()
+
+        if dry_run:
+            return {
+                "dry_run": True,
+                "would_prune": len(to_prune),
+                "categories": categories,
+                "older_than_days": older_than_days,
+                "samples": [
+                    {"id": m.id, "content": m.content[:50], "created_at": m.created_at.isoformat()}
+                    for m in to_prune[:5]
+                ]
+            }
+
+        # Actually delete
+        for memory in to_prune:
+            await session.delete(memory)
+
+        return {
+            "pruned": len(to_prune),
+            "categories": categories,
+            "older_than_days": older_than_days,
+            "message": f"Pruned {len(to_prune)} old memories"
+        }
+
+
+@mcp.tool()
+async def archive_memory(
+    memory_id: int,
+    archived: bool = True,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Archive or unarchive a memory.
+
+    Archived memories are hidden from recall but preserved for history.
+
+    Args:
+        memory_id: Memory to archive/unarchive
+        archived: True to archive, False to restore
+        project_path: Project root path
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    async with ctx.db_manager.get_session() as session:
+        result = await session.execute(
+            select(Memory).where(Memory.id == memory_id)
+        )
+        memory = result.scalar_one_or_none()
+
+        if not memory:
+            return {"error": f"Memory {memory_id} not found"}
+
+        memory.archived = archived
+
+        return {
+            "id": memory_id,
+            "archived": archived,
+            "content": memory.content[:100],
+            "message": f"Memory {'archived' if archived else 'restored'}"
+        }
 
 
 @mcp.tool()

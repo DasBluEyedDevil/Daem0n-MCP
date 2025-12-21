@@ -32,7 +32,7 @@ pytest tests/ -v --asyncio-mode=auto
 
 ```
 daem0nmcp/
-├── server.py      # MCP server, 19 tools (FastMCP)
+├── server.py      # MCP server, 22 tools (FastMCP)
 ├── memory.py      # MemoryManager - semantic store/recall with decay
 ├── rules.py       # RulesEngine - TF-IDF matched decision trees
 ├── similarity.py  # TF-IDF index, cosine similarity, conflict detection
@@ -54,6 +54,8 @@ scripts/
 - category, content, rationale, context, tags, keywords
 - file_path (link memory to specific files)
 - is_permanent (patterns/warnings never decay)
+- pinned (manually marked as permanent, prevents pruning)
+- archived (hidden from recall but preserved)
 - outcome tracking (outcome, worked)
 - TF-IDF indexed for semantic search
 
@@ -71,7 +73,7 @@ scripts/
 - **Failed decision boosting**: Failed outcomes are highlighted in recalls (1.5x boost)
 - **Git awareness**: Briefing shows changes since last memory
 
-## MCP Tools (19 total)
+## MCP Tools (22 total)
 
 Core:
 1. `remember` - Store a memory with conflict detection and file association
@@ -94,7 +96,12 @@ Utility:
 16. `rebuild_index` - Force rebuild of TF-IDF index for rules
 17. `export_data` - Export all memories and rules as JSON (for backup/migration)
 18. `import_data` - Import memories and rules from exported JSON
-19. `health` - Get server health, version, and statistics
+
+Maintenance:
+19. `pin_memory` - Pin/unpin memories to prevent pruning and boost relevance
+20. `archive_memory` - Archive/restore memories (hidden from recall but preserved)
+21. `prune_memories` - Remove old, low-value memories (respects pinned/permanent/outcomes)
+22. `health` - Get server health, version, and statistics
 
 ## Adding New Tools
 

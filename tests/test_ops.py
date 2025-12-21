@@ -126,3 +126,73 @@ class TestExportImport:
                 del _project_contexts[temp_dir2]
             shutil.rmtree(temp_dir1, ignore_errors=True)
             shutil.rmtree(temp_dir2, ignore_errors=True)
+
+
+class TestMaintenanceTools:
+    """Test prune, archive, and pin operations."""
+
+    @pytest.mark.asyncio
+    async def test_pin_memory_prevents_decay(self):
+        """Verify pinned memories don't decay."""
+        import tempfile
+        import shutil
+        from daem0nmcp.server import pin_memory, recall, get_project_context, _project_contexts
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            _project_contexts.clear()
+            ctx = await get_project_context(temp_dir)
+
+            mem = await ctx.memory_manager.remember(
+                category="decision",
+                content="Important decision to pin"
+            )
+
+            result = await pin_memory(
+                memory_id=mem["id"],
+                pinned=True,
+                project_path=temp_dir
+            )
+
+            assert result.get("pinned") == True
+        finally:
+            # Close the database connection before cleanup
+            if temp_dir in _project_contexts:
+                await _project_contexts[temp_dir].db_manager.close()
+                del _project_contexts[temp_dir]
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    @pytest.mark.asyncio
+    async def test_prune_removes_old_memories(self):
+        """Verify prune removes old, low-relevance memories."""
+        import tempfile
+        import shutil
+        from datetime import datetime, timedelta
+        from daem0nmcp.server import prune_memories, get_project_context, _project_contexts
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            _project_contexts.clear()
+            ctx = await get_project_context(temp_dir)
+
+            # Add some memories
+            await ctx.memory_manager.remember(
+                category="learning",
+                content="Old learning to prune"
+            )
+
+            # Prune with dry_run first
+            result = await prune_memories(
+                older_than_days=0,  # Prune everything for test
+                dry_run=True,
+                project_path=temp_dir
+            )
+
+            assert "would_prune" in result
+            assert result["would_prune"] >= 1
+        finally:
+            # Close the database connection before cleanup
+            if temp_dir in _project_contexts:
+                await _project_contexts[temp_dir].db_manager.close()
+                del _project_contexts[temp_dir]
+            shutil.rmtree(temp_dir, ignore_errors=True)

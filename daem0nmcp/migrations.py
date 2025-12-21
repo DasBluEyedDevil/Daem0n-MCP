@@ -62,6 +62,10 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         END;
         """
     ]),
+    (3, "Add pinned and archived columns to memories", [
+        "ALTER TABLE memories ADD COLUMN pinned BOOLEAN DEFAULT 0;",
+        "ALTER TABLE memories ADD COLUMN archived BOOLEAN DEFAULT 0;"
+    ]),
 ]
 
 
