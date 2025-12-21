@@ -414,3 +414,25 @@ class RulesEngine:
                 }
                 for r in rules
             ]
+
+    async def rebuild_index(self) -> Dict[str, Any]:
+        """Force rebuild of TF-IDF index for rules."""
+        self._index = TFIDFIndex()
+        self._index_loaded = False
+
+        async with self.db.get_session() as session:
+            result = await session.execute(
+                select(Rule).where(Rule.enabled == True)  # noqa: E712
+            )
+            rules = result.scalars().all()
+
+            for rule in rules:
+                self._index.add_document(rule.id, rule.trigger)
+
+        self._index_loaded = True
+        self._index_built_at = datetime.now(timezone.utc)
+
+        return {
+            "rules_indexed": len(rules),
+            "built_at": self._index_built_at.isoformat()
+        }

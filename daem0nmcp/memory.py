@@ -658,3 +658,37 @@ class MemoryManager:
             ),
             **by_category
         }
+
+    async def rebuild_index(self) -> Dict[str, Any]:
+        """
+        Force rebuild of TF-IDF and vector indexes.
+
+        Returns statistics about the rebuild.
+        """
+        # Clear existing index
+        self._index = TFIDFIndex()
+        self._vector_index = vectors.VectorIndex() if self._vectors_enabled else None
+        self._index_loaded = False
+
+        # Rebuild
+        async with self.db.get_session() as session:
+            result = await session.execute(select(Memory))
+            memories = result.scalars().all()
+
+            for mem in memories:
+                text = mem.content
+                if mem.rationale:
+                    text += " " + mem.rationale
+                self._index.add_document(mem.id, text, mem.tags)
+
+                if self._vectors_enabled and self._vector_index and mem.vector_embedding:
+                    self._vector_index.add_from_bytes(mem.id, mem.vector_embedding)
+
+        self._index_loaded = True
+        self._index_built_at = datetime.now(timezone.utc)
+
+        return {
+            "memories_indexed": len(memories),
+            "vectors_indexed": len(self._vector_index) if self._vector_index else 0,
+            "built_at": self._index_built_at.isoformat()
+        }

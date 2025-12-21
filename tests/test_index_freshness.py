@@ -3,6 +3,7 @@
 import pytest
 import tempfile
 import shutil
+import time
 from datetime import datetime, timezone
 
 
@@ -60,6 +61,39 @@ class TestIndexFreshness:
 
         finally:
             # Ensure database is properly closed
+            await db.close()
+            # Give Windows time to release file handles
+            time.sleep(0.1)
+
+    @pytest.mark.asyncio
+    async def test_rebuild_index_tool(self, temp_storage):
+        """Test the rebuild_index MCP tool."""
+        from daem0nmcp.database import DatabaseManager
+        from daem0nmcp.memory import MemoryManager
+        from daem0nmcp.rules import RulesEngine
+
+        db = DatabaseManager(temp_storage)
+        await db.init_db()
+        memory = MemoryManager(db)
+        rules = RulesEngine(db)
+
+        try:
+            # Add some data
+            await memory.remember(category="decision", content="Test memory")
+            await rules.add_rule(trigger="test trigger", must_do=["test action"])
+
+            # Force index build
+            await memory.recall("test")
+            await rules.check_rules("test")
+
+            # Rebuild should work
+            result = await memory.rebuild_index()
+            assert result["memories_indexed"] >= 1
+
+            result = await rules.rebuild_index()
+            assert result["rules_indexed"] >= 1
+
+        finally:
             await db.close()
             # Give Windows time to release file handles
             time.sleep(0.1)

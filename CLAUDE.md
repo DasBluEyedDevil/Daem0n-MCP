@@ -71,7 +71,7 @@ scripts/
 - **Failed decision boosting**: Failed outcomes are highlighted in recalls (1.5x boost)
 - **Git awareness**: Briefing shows changes since last memory
 
-## MCP Tools (15 total)
+## MCP Tools (16 total)
 
 Core:
 1. `remember` - Store a memory with conflict detection and file association
@@ -91,6 +91,7 @@ Utility:
 13. `scan_todos` - Find TODO/FIXME/HACK comments in codebase
 14. `ingest_doc` - Fetch and store external documentation as learnings
 15. `propose_refactor` - Generate refactor context from memory + todos
+16. `rebuild_index` - Force rebuild of TF-IDF index for rules
 
 ## Adding New Tools
 

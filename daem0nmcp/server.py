@@ -1467,6 +1467,41 @@ async def propose_refactor(
 
 
 # ============================================================================
+# Tool 16: REBUILD_INDEX - Force rebuild of search indexes
+# ============================================================================
+@mcp.tool()
+async def rebuild_index(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Force rebuild of all search indexes.
+
+    Use this if search results seem stale or after bulk database operations.
+    Rebuilds both memory TF-IDF/vector indexes and rule indexes.
+
+    Args:
+        project_path: Project root path
+
+    Returns:
+        Statistics about the rebuild
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    memory_stats = await ctx.memory_manager.rebuild_index()
+    rules_stats = await ctx.rules_engine.rebuild_index()
+
+    return {
+        "status": "rebuilt",
+        "memories": memory_stats,
+        "rules": rules_stats,
+        "message": f"Rebuilt indexes: {memory_stats['memories_indexed']} memories, {rules_stats['rules_indexed']} rules"
+    }
+
+
+# ============================================================================
 # Cleanup
 # ============================================================================
 async def _cleanup_all_contexts():
