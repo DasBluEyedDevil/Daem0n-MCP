@@ -4,15 +4,23 @@ Daem0nMCP CLI - Command-line interface for memory checks.
 Used by pre-commit hooks and direct invocation.
 
 Usage:
+    python -m daem0nmcp.cli [--json] [--project-path PATH] <command>
+
     python -m daem0nmcp.cli check <filepath>
     python -m daem0nmcp.cli briefing
-    python -m daem0nmcp.cli scan-todos [--auto-remember]
+    python -m daem0nmcp.cli scan-todos [--auto-remember] [--path PATH]
     python -m daem0nmcp.cli migrate [--backfill-vectors]
+
+Global Options:
+    --json              Output as JSON for automation/scripting
+    --project-path PATH Specify project root path (sets DAEM0NMCP_PROJECT_ROOT)
 """
 
 import sys
+import os
 import asyncio
 import argparse
+import json
 from pathlib import Path
 
 from .config import settings
@@ -105,6 +113,11 @@ def format_check_result(result: dict) -> str:
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="Daem0nMCP CLI")
+
+    # Global options
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument("--project-path", help="Project root path")
+
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # check command
@@ -130,6 +143,10 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    # Set project path if provided
+    if args.project_path:
+        os.environ['DAEM0NMCP_PROJECT_ROOT'] = args.project_path
+
     # Initialize components
     storage_path = settings.get_storage_path()
     db = DatabaseManager(storage_path)
@@ -138,49 +155,76 @@ def main():
 
     if args.command == "check":
         result = asyncio.run(check_file(args.filepath, db, memory, rules))
-        print(format_check_result(result))
+        if args.json:
+            print(json.dumps(result, default=str))
+        else:
+            print(format_check_result(result))
 
     elif args.command == "briefing":
         result = asyncio.run(get_briefing(db, memory))
-        print(f"Total memories: {result.get('total_memories', 0)}")
-        print(f"By category: {result.get('by_category', {})}")
-        if result.get('learning_insights', {}).get('suggestion'):
-            print(f"Suggestion: {result['learning_insights']['suggestion']}")
+        if args.json:
+            print(json.dumps(result, default=str))
+        else:
+            print(f"Total memories: {result.get('total_memories', 0)}")
+            print(f"By category: {result.get('by_category', {})}")
+            if result.get('learning_insights', {}).get('suggestion'):
+                print(f"Suggestion: {result['learning_insights']['suggestion']}")
 
     elif args.command == "scan-todos":
         # Import here to avoid circular imports
         from .server import _scan_for_todos
 
         todos = _scan_for_todos(args.path)
-        print(f"Found {len(todos)} TODO/FIXME items:")
-        for todo in todos[:20]:  # Limit output
-            print(f"  [{todo['type']}] {todo['file']}:{todo['line']} - {todo['content'][:60]}")
-        if len(todos) > 20:
-            print(f"  ... and {len(todos) - 20} more")
+        if args.json:
+            result = {
+                "total": len(todos),
+                "todos": todos
+            }
+            print(json.dumps(result, default=str))
+        else:
+            print(f"Found {len(todos)} TODO/FIXME items:")
+            for todo in todos[:20]:  # Limit output
+                print(f"  [{todo['type']}] {todo['file']}:{todo['line']} - {todo['content'][:60]}")
+            if len(todos) > 20:
+                print(f"  ... and {len(todos) - 20} more")
 
     elif args.command == "migrate":
         from .migrations import run_migrations, migrate_and_backfill_vectors
 
         db_path = str(Path(storage_path) / "daem0nmcp.db")
-        print(f"Database: {db_path}")
 
         if args.backfill_vectors:
             result = migrate_and_backfill_vectors(db_path)
-            print(f"\nMigration complete:")
-            print(f"  Schema migrations: {result['schema_migrations']}")
-            for m in result.get('applied', []):
-                print(f"    - {m}")
-            print(f"  Vectors backfilled: {result['vectors_backfilled']}")
-            print(f"  Vectors available: {result['vectors_available']}")
-            print(f"\n{result['message']}")
+            if args.json:
+                result['database'] = db_path
+                print(json.dumps(result, default=str))
+            else:
+                print(f"Database: {db_path}")
+                print(f"\nMigration complete:")
+                print(f"  Schema migrations: {result['schema_migrations']}")
+                for m in result.get('applied', []):
+                    print(f"    - {m}")
+                print(f"  Vectors backfilled: {result['vectors_backfilled']}")
+                print(f"  Vectors available: {result['vectors_available']}")
+                print(f"\n{result['message']}")
         else:
             count, applied = run_migrations(db_path)
-            print(f"\nSchema migrations applied: {count}")
-            for m in applied:
-                print(f"  - {m}")
-            if count == 0:
-                print("Database is up to date.")
-            print("\nTo also backfill vectors, run: python -m daem0nmcp.cli migrate --backfill-vectors")
+            if args.json:
+                result = {
+                    "database": db_path,
+                    "schema_migrations": count,
+                    "applied": applied,
+                    "up_to_date": count == 0
+                }
+                print(json.dumps(result, default=str))
+            else:
+                print(f"Database: {db_path}")
+                print(f"\nSchema migrations applied: {count}")
+                for m in applied:
+                    print(f"  - {m}")
+                if count == 0:
+                    print("Database is up to date.")
+                print("\nTo also backfill vectors, run: python -m daem0nmcp.cli migrate --backfill-vectors")
 
 
 if __name__ == "__main__":
