@@ -4,6 +4,7 @@ Database Manager - Simplified for the focused memory system.
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
+from sqlalchemy import event
 from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import datetime
@@ -46,6 +47,25 @@ class DatabaseManager:
                 poolclass=StaticPool,
                 pool_pre_ping=True,
             )
+
+            # Configure SQLite PRAGMAs for performance and reliability
+            @event.listens_for(self._engine.sync_engine, "connect")
+            def set_sqlite_pragmas(dbapi_conn, connection_record):
+                cursor = dbapi_conn.cursor()
+                # WAL mode for better concurrent access
+                cursor.execute("PRAGMA journal_mode=WAL")
+                # Faster syncs (still safe with WAL)
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                # 30 second busy timeout
+                cursor.execute("PRAGMA busy_timeout=30000")
+                # Enable foreign keys
+                cursor.execute("PRAGMA foreign_keys=ON")
+                # Use memory for temp tables
+                cursor.execute("PRAGMA temp_store=MEMORY")
+                # Larger cache (64MB)
+                cursor.execute("PRAGMA cache_size=-64000")
+                cursor.close()
+
             self._session_factory = async_sessionmaker(
                 bind=self._engine,
                 expire_on_commit=False,
