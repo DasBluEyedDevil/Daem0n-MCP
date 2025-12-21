@@ -39,6 +39,7 @@ import re
 import logging
 import atexit
 import subprocess
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
@@ -88,10 +89,13 @@ class ProjectContext:
     memory_manager: MemoryManager
     rules_engine: RulesEngine
     initialized: bool = False
+    last_accessed: float = 0.0  # For LRU tracking
 
 
 # Cache of project contexts by normalized path
 _project_contexts: Dict[str, ProjectContext] = {}
+_context_locks: Dict[str, asyncio.Lock] = {}
+_contexts_lock = asyncio.Lock()  # Lock for modifying the dicts themselves
 
 # Default project path (ONLY used if DAEM0NMCP_PROJECT_ROOT is explicitly set)
 _default_project_path: Optional[str] = os.environ.get('DAEM0NMCP_PROJECT_ROOT')
@@ -126,6 +130,7 @@ def _get_storage_for_project(project_path: str) -> str:
 async def get_project_context(project_path: Optional[str] = None) -> ProjectContext:
     """
     Get or create a ProjectContext for the given project path.
+    Thread-safe with per-project locking to prevent race conditions.
 
     This enables the HTTP server to handle multiple projects simultaneously,
     each with its own isolated database.
@@ -136,6 +141,8 @@ async def get_project_context(project_path: Optional[str] = None) -> ProjectCont
     Returns:
         ProjectContext with initialized managers for that project.
     """
+    import time
+
     # Use default if not specified
     if not project_path:
         project_path = _default_project_path
@@ -145,45 +152,52 @@ async def get_project_context(project_path: Optional[str] = None) -> ProjectCont
         raise ValueError("project_path is required when DAEM0NMCP_PROJECT_ROOT is not set")
     normalized = _normalize_path(project_path)
 
-    # Return cached context if exists
+    # Fast path: context exists and is initialized
     if normalized in _project_contexts:
         ctx = _project_contexts[normalized]
-        # Ensure it's initialized
-        if not ctx.initialized:
-            try:
-                await ctx.db_manager.init_db()
-                ctx.initialized = True
-            except Exception:
-                raise
-        return ctx
+        if ctx.initialized:
+            ctx.last_accessed = time.time()
+            return ctx
 
-    # Create new context for this project
-    storage_path = _get_storage_for_project(normalized)
-    db_mgr = DatabaseManager(storage_path)
-    mem_mgr = MemoryManager(db_mgr)
-    rules_eng = RulesEngine(db_mgr)
+    # Get or create lock for this project
+    async with _contexts_lock:
+        if normalized not in _context_locks:
+            _context_locks[normalized] = asyncio.Lock()
+        lock = _context_locks[normalized]
 
-    ctx = ProjectContext(
-        project_path=normalized,
-        storage_path=storage_path,
-        db_manager=db_mgr,
-        memory_manager=mem_mgr,
-        rules_engine=rules_eng,
-        initialized=False
-    )
+    # Initialize under project-specific lock
+    async with lock:
+        # Double-check after acquiring lock
+        if normalized in _project_contexts:
+            ctx = _project_contexts[normalized]
+            if ctx.initialized:
+                ctx.last_accessed = time.time()
+                return ctx
 
-    # Initialize the database
-    try:
+        # Create new context
+        storage_path = _get_storage_for_project(normalized)
+        db_mgr = DatabaseManager(storage_path)
+        mem_mgr = MemoryManager(db_mgr)
+        rules_eng = RulesEngine(db_mgr)
+
+        ctx = ProjectContext(
+            project_path=normalized,
+            storage_path=storage_path,
+            db_manager=db_mgr,
+            memory_manager=mem_mgr,
+            rules_engine=rules_eng,
+            initialized=False,
+            last_accessed=time.time()
+        )
+
+        # Initialize database
         await db_mgr.init_db()
         ctx.initialized = True
-    except Exception:
-        raise
 
-    # Cache it
-    _project_contexts[normalized] = ctx
-    logger.info(f"Created project context for: {normalized} (storage: {storage_path})")
+        _project_contexts[normalized] = ctx
+        logger.info(f"Created project context for: {normalized} (storage: {storage_path})")
 
-    return ctx
+        return ctx
 
 
 async def cleanup_all_contexts():
@@ -480,15 +494,24 @@ async def record_outcome(
 # ============================================================================
 # Helper: Git awareness
 # ============================================================================
-def _get_git_changes(since_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
-    """Get git changes since a given date."""
+def _get_git_changes(since_date: Optional[datetime] = None, project_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Get git changes since a given date.
+
+    Args:
+        since_date: Only show commits since this date
+        project_path: Directory to run git commands in (defaults to CWD)
+    """
     try:
+        # Use project_path as working directory for git commands
+        cwd = project_path if project_path else None
+
         # Check if we're in a git repo
         result = subprocess.run(
             ["git", "rev-parse", "--git-dir"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
+            cwd=cwd
         )
         if result.returncode != 0:
             return None
@@ -502,7 +525,7 @@ def _get_git_changes(since_date: Optional[datetime] = None) -> Optional[Dict[str
         else:
             cmd = ["git", "log", "--oneline", "-5"]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5, cwd=cwd)
         if result.returncode == 0 and result.stdout.strip():
             git_info["recent_commits"] = result.stdout.strip().split("\n")
 
@@ -511,7 +534,8 @@ def _get_git_changes(since_date: Optional[datetime] = None) -> Optional[Dict[str
             ["git", "status", "--porcelain"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
+            cwd=cwd
         )
         if result.returncode == 0 and result.stdout.strip():
             changes = result.stdout.strip().split("\n")
@@ -525,7 +549,8 @@ def _get_git_changes(since_date: Optional[datetime] = None) -> Optional[Dict[str
             ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
+            cwd=cwd
         )
         if result.returncode == 0:
             git_info["branch"] = result.stdout.strip()
@@ -655,8 +680,8 @@ async def get_briefing(
             for r in result.scalars().all()
         ]
 
-    # Get git changes since last memory
-    git_changes = _get_git_changes(last_memory_date)
+    # Get git changes since last memory (run in project directory)
+    git_changes = _get_git_changes(last_memory_date, project_path=ctx.project_path)
 
     # Pre-fetch memories for focus areas if specified
     focus_memories = {}
@@ -1321,10 +1346,18 @@ async def propose_refactor(
     file_memories = await ctx.memory_manager.recall_for_file(file_path)
     result["memories"] = file_memories
 
+    # Resolve file path relative to project directory
+    absolute_file_path = Path(ctx.project_path) / file_path
+    if not absolute_file_path.is_absolute():
+        absolute_file_path = absolute_file_path.resolve()
+
     # Scan for TODOs in this specific file
-    if os.path.exists(file_path):
-        file_todos = _scan_for_todos(os.path.dirname(file_path) or ".", max_files=1)
-        result["todos"] = [t for t in file_todos if t['file'].endswith(os.path.basename(file_path))]
+    if absolute_file_path.exists():
+        # Scan the file's directory and filter to just this file
+        scan_dir = str(absolute_file_path.parent)
+        file_todos = _scan_for_todos(scan_dir, max_files=100)
+        target_filename = absolute_file_path.name
+        result["todos"] = [t for t in file_todos if t['file'] == target_filename or t['file'].endswith(os.sep + target_filename)]
 
     # Check relevant rules
     filename = os.path.basename(file_path)
