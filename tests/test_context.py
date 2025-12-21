@@ -114,3 +114,52 @@ class TestProjectContextEviction:
 
         # Old context should be gone, new one should remain
         assert len(_project_contexts) == 1
+
+
+class TestPathResolution:
+    """Test path normalization and resolution."""
+
+    def test_normalize_path_handles_windows_paths(self):
+        """Verify Windows-style paths are normalized."""
+        from daem0nmcp.server import _normalize_path
+
+        # Test various path formats
+        paths = [
+            "C:\\Users\\test\\project",
+            "C:/Users/test/project",
+            "/home/user/project",
+        ]
+
+        for path in paths:
+            result = _normalize_path(path)
+            assert result is not None
+            assert len(result) > 0
+
+    def test_normalize_path_resolves_relative(self):
+        """Verify relative paths are resolved."""
+        from daem0nmcp.server import _normalize_path
+        import os
+
+        result = _normalize_path(".")
+        assert os.path.isabs(result)
+
+    @pytest.mark.asyncio
+    async def test_different_projects_get_different_contexts(self):
+        """Verify each project gets its own context."""
+        import tempfile
+        from daem0nmcp.server import get_project_context, _project_contexts
+
+        _project_contexts.clear()
+
+        with tempfile.TemporaryDirectory() as dir1:
+            with tempfile.TemporaryDirectory() as dir2:
+                ctx1 = await get_project_context(dir1)
+                ctx2 = await get_project_context(dir2)
+
+                assert ctx1 is not ctx2
+                assert ctx1.project_path != ctx2.project_path
+                assert len(_project_contexts) == 2
+
+                # Clean up database connections
+                await ctx1.db_manager.close()
+                await ctx2.db_manager.close()
