@@ -44,6 +44,7 @@ class RulesEngine:
         self.db = db_manager
         self._index: Optional[TFIDFIndex] = None
         self._index_loaded = False
+        self._index_built_at: Optional[datetime] = None
 
     async def _ensure_index(self) -> TFIDFIndex:
         """Ensure the TF-IDF index is loaded with all rules."""
@@ -62,9 +63,27 @@ class RulesEngine:
                     self._index.add_document(rule.id, rule.trigger)
 
                 self._index_loaded = True
+                self._index_built_at = datetime.now(timezone.utc)
                 logger.info(f"Loaded {len(rules)} rules into TF-IDF index")
 
         return self._index
+
+    async def _check_index_freshness(self) -> bool:
+        """
+        Check if index needs rebuilding due to external DB changes.
+        Returns True if index was rebuilt.
+        """
+        if not self._index_loaded:
+            return False
+
+        if await self.db.has_changes_since(self._index_built_at):
+            logger.info("Database changed since index was built, rebuilding...")
+            self._index_loaded = False
+            self._index = None
+            await self._ensure_index()
+            return True
+
+        return False
 
     def _invalidate_index(self) -> None:
         """Invalidate the index when rules change."""

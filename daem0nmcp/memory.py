@@ -58,6 +58,25 @@ class MemoryManager:
         self._vector_index: Optional[vectors.VectorIndex] = None
         self._index_loaded = False
         self._vectors_enabled = vectors.is_available()
+        self._index_built_at: Optional[datetime] = None
+
+    async def _check_index_freshness(self) -> bool:
+        """
+        Check if index needs rebuilding due to external DB changes.
+        Returns True if index was rebuilt.
+        """
+        if not self._index_loaded:
+            return False
+
+        if await self.db.has_changes_since(self._index_built_at):
+            logger.info("Database changed since index was built, rebuilding...")
+            self._index_loaded = False
+            self._index = None
+            self._vector_index = None
+            await self._ensure_index()
+            return True
+
+        return False
 
     async def _ensure_index(self) -> TFIDFIndex:
         """Ensure the TF-IDF index is loaded with all memories."""
@@ -83,6 +102,7 @@ class MemoryManager:
                         self._vector_index.add_from_bytes(mem.id, mem.vector_embedding)
 
                 self._index_loaded = True
+                self._index_built_at = datetime.now(timezone.utc)
                 vector_count = len(self._vector_index) if self._vector_index else 0
                 logger.info(f"Loaded {len(memories)} memories into TF-IDF index ({vector_count} with vectors)")
 
@@ -235,6 +255,7 @@ class MemoryManager:
         Returns:
             Dict with categorized memories and relevance scores
         """
+        await self._check_index_freshness()
         index = await self._ensure_index()
 
         # Use hybrid search if vectors available, otherwise TF-IDF only

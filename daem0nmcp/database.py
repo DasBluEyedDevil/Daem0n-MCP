@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.pool import StaticPool
 from contextlib import asynccontextmanager
 from pathlib import Path
+from datetime import datetime
+from typing import Optional
 import logging
 
 from .models import Base
@@ -107,6 +109,48 @@ class DatabaseManager:
             raise
         finally:
             await session.close()
+
+    async def get_last_update_time(self) -> Optional[datetime]:
+        """Get the most recent updated_at from memories and rules."""
+        from datetime import timezone as tz
+
+        async with self.get_session() as session:
+            from sqlalchemy import select, func
+            from .models import Memory, Rule
+
+            # Get max updated_at from memories
+            mem_result = await session.execute(
+                select(func.max(Memory.updated_at))
+            )
+            mem_time = mem_result.scalar()
+
+            # Get max created_at from rules (rules don't have updated_at)
+            rule_result = await session.execute(
+                select(func.max(Rule.created_at))
+            )
+            rule_time = rule_result.scalar()
+
+            # Return the most recent, ensuring timezone awareness
+            times = []
+            for t in [mem_time, rule_time]:
+                if t is not None:
+                    # SQLite returns naive datetimes, make them UTC-aware
+                    if t.tzinfo is None:
+                        t = t.replace(tzinfo=tz.utc)
+                    times.append(t)
+
+            return max(times) if times else None
+
+    async def has_changes_since(self, since: Optional[datetime]) -> bool:
+        """Check if database has changes since the given timestamp."""
+        if since is None:
+            return True
+
+        current = await self.get_last_update_time()
+        if current is None:
+            return False
+
+        return current > since
 
     async def close(self):
         """Dispose of the engine."""
