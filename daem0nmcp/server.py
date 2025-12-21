@@ -15,7 +15,7 @@ A smarter MCP server that provides:
 9. External documentation ingestion
 10. Refactor proposal generation
 
-15 Tools:
+17 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - recall_for_file: Get all memories for a specific file
@@ -31,6 +31,8 @@ A smarter MCP server that provides:
 - scan_todos: Find TODO/FIXME/HACK comments and track as tech debt
 - ingest_doc: Fetch and store external documentation as learnings
 - propose_refactor: Generate refactor suggestions based on memory context
+- rebuild_index: Force rebuild of all search indexes
+- health: Get server health, version, and statistics
 """
 
 import sys
@@ -56,6 +58,8 @@ try:
     from .memory import MemoryManager
     from .rules import RulesEngine
     from .models import Memory, Rule
+    from . import __version__
+    from . import vectors
 except ImportError:
     # For fastmcp run which executes server.py directly
     from daem0nmcp.config import settings
@@ -63,6 +67,8 @@ except ImportError:
     from daem0nmcp.memory import MemoryManager
     from daem0nmcp.rules import RulesEngine
     from daem0nmcp.models import Memory, Rule
+    from daem0nmcp import __version__
+    from daem0nmcp import vectors
 from sqlalchemy import select, desc
 from dataclasses import dataclass
 
@@ -1601,6 +1607,47 @@ async def rebuild_index(
         "memories": memory_stats,
         "rules": rules_stats,
         "message": f"Rebuilt indexes: {memory_stats['memories_indexed']} memories, {rules_stats['rules_indexed']} rules"
+    }
+
+
+@mcp.tool()
+async def health(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get server health and version information.
+
+    Returns version, statistics, and configuration info.
+    Useful for debugging and monitoring.
+
+    Args:
+        project_path: Project root path
+
+    Returns:
+        Health status with version and statistics
+    """
+    import time
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    stats = await ctx.memory_manager.get_statistics()
+
+    # Get rule count
+    rules = await ctx.rules_engine.list_rules(enabled_only=False, limit=1000)
+
+    return {
+        "status": "healthy",
+        "version": __version__,
+        "project_path": ctx.project_path,
+        "storage_path": ctx.storage_path,
+        "memories_count": stats.get("total_memories", 0),
+        "rules_count": len(rules),
+        "by_category": stats.get("by_category", {}),
+        "contexts_cached": len(_project_contexts),
+        "vectors_enabled": vectors.is_available(),
+        "timestamp": time.time()
     }
 
 
