@@ -64,9 +64,9 @@ class DatabaseManager:
         self._get_engine()  # Ensure engine is created
         return self._session_factory
 
-    def _run_migrations(self):
+    def _run_migrations(self, force: bool = False):
         """Run schema migrations (sync, before async engine starts)."""
-        if self._migrated:
+        if self._migrated and not force:
             return
 
         if self.db_path.exists():
@@ -86,13 +86,21 @@ class DatabaseManager:
         if self._initialized:
             return
 
-        # Run migrations first (sync operation on existing DB)
+        # Check if this is a fresh database
+        is_new_db = not self.db_path.exists()
+
+        # Run migrations first for existing databases (sync operation)
         # This happens BEFORE we create the async engine to avoid lock conflicts
-        self._run_migrations()
+        if not is_new_db:
+            self._run_migrations()
 
         # Then create any new tables
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+        # For fresh databases, run migrations after tables are created
+        if is_new_db:
+            self._run_migrations(force=True)
 
         self._initialized = True
         logger.info(f"Database initialized at {self.db_path}")

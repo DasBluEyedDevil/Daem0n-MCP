@@ -692,3 +692,80 @@ class MemoryManager:
             "vectors_indexed": len(self._vector_index) if self._vector_index else 0,
             "built_at": self._index_built_at.isoformat()
         }
+
+    async def fts_search(
+        self,
+        query: str,
+        tags: Optional[List[str]] = None,
+        file_path: Optional[str] = None,
+        limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """
+        Fast full-text search using SQLite FTS5.
+
+        Falls back to LIKE search if FTS5 is not available.
+
+        Args:
+            query: Search query (supports FTS5 syntax)
+            tags: Optional tag filter
+            file_path: Optional file path filter
+            limit: Maximum results
+
+        Returns:
+            List of matching memories with relevance info
+        """
+        async with self.db.get_session() as session:
+            try:
+                # Try FTS5 search
+                from sqlalchemy import text
+
+                sql = """
+                    SELECT m.*, bm25(memories_fts) as rank
+                    FROM memories m
+                    JOIN memories_fts ON m.id = memories_fts.rowid
+                    WHERE memories_fts MATCH :query
+                """
+                params = {"query": query}
+
+                # Add tag filter
+                if tags:
+                    # Use EXISTS with json_each to check if any tag in the filter list exists in the memory's tags
+                    tag_placeholders = ", ".join(f":tag{i}" for i in range(len(tags)))
+                    sql += f"""
+                    AND EXISTS (
+                        SELECT 1 FROM json_each(m.tags)
+                        WHERE json_each.value IN ({tag_placeholders})
+                    )
+                    """
+                    for i, tag in enumerate(tags):
+                        params[f"tag{i}"] = tag
+
+                # Add file path filter
+                if file_path:
+                    sql += " AND m.file_path = :file_path"
+                    params["file_path"] = file_path
+
+                sql += " ORDER BY rank LIMIT :limit"
+                params["limit"] = limit
+
+                result = await session.execute(text(sql), params)
+                rows = result.fetchall()
+
+                return [
+                    {
+                        "id": row.id,
+                        "category": row.category,
+                        "content": row.content,
+                        "rationale": row.rationale,
+                        "tags": row.tags,
+                        "file_path": row.file_path,
+                        "relevance": abs(row.rank),  # bm25 returns negative scores
+                        "created_at": row.created_at if isinstance(row.created_at, str) else (row.created_at.isoformat() if row.created_at else None)
+                    }
+                    for row in rows
+                ]
+
+            except Exception as e:
+                # FTS5 not available, fall back to LIKE search
+                logger.debug(f"FTS5 not available, using LIKE search: {e}")
+                return await self.search(query, limit=limit)

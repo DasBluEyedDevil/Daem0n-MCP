@@ -18,6 +18,50 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         ALTER TABLE memories ADD COLUMN vector_embedding BLOB;
         """
     ]),
+    (2, "Create FTS5 virtual table for full-text search", [
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+            content,
+            rationale,
+            tags,
+            content='memories',
+            content_rowid='id'
+        );
+        """,
+        """
+        INSERT OR IGNORE INTO memories_fts(rowid, content, rationale, tags)
+        SELECT
+            id,
+            content,
+            COALESCE(rationale, ''),
+            COALESCE((SELECT group_concat(value, ' ') FROM json_each(tags)), '')
+        FROM memories;
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+            INSERT INTO memories_fts(rowid, content, rationale, tags)
+            SELECT new.id, new.content, COALESCE(new.rationale, ''),
+                   COALESCE((SELECT group_concat(value, ' ') FROM json_each(new.tags)), '');
+        END;
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+            INSERT INTO memories_fts(memories_fts, rowid, content, rationale, tags)
+            SELECT 'delete', old.id, old.content, COALESCE(old.rationale, ''),
+                   COALESCE((SELECT group_concat(value, ' ') FROM json_each(old.tags)), '');
+        END;
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+            INSERT INTO memories_fts(memories_fts, rowid, content, rationale, tags)
+            SELECT 'delete', old.id, old.content, COALESCE(old.rationale, ''),
+                   COALESCE((SELECT group_concat(value, ' ') FROM json_each(old.tags)), '');
+            INSERT INTO memories_fts(rowid, content, rationale, tags)
+            SELECT new.id, new.content, COALESCE(new.rationale, ''),
+                   COALESCE((SELECT group_concat(value, ' ') FROM json_each(new.tags)), '');
+        END;
+        """
+    ]),
 ]
 
 
