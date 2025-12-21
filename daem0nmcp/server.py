@@ -15,9 +15,9 @@ A smarter MCP server that provides:
 9. External documentation ingestion
 10. Refactor proposal generation
 11. Data export/import for backup and migration
-12. Memory maintenance (pin, archive, prune)
+12. Memory maintenance (pin, archive, prune, cleanup)
 
-22 Tools:
+23 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - recall_for_file: Get all memories for a specific file
@@ -39,6 +39,7 @@ A smarter MCP server that provides:
 - pin_memory: Pin/unpin memories to prevent pruning
 - archive_memory: Archive/restore memories (hidden from recall)
 - prune_memories: Remove old, low-value memories
+- cleanup_memories: Deduplicate and merge duplicate memories
 - health: Get server health, version, and statistics
 """
 
@@ -2022,6 +2023,118 @@ async def archive_memory(
             "archived": archived,
             "content": memory.content[:100],
             "message": f"Memory {'archived' if archived else 'restored'}"
+        }
+
+
+@mcp.tool()
+async def cleanup_memories(
+    dry_run: bool = True,
+    merge_duplicates: bool = True,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Clean up stale and duplicate memories.
+
+    Identifies duplicates by:
+    - Same category + normalized content + file_path
+
+    In dry_run mode: returns preview of what would be cleaned
+    When merging: keeps newest, preserves outcomes from others
+
+    Args:
+        dry_run: Preview what would be cleaned (default: True)
+        merge_duplicates: Merge duplicate memories (keep newest, preserve outcomes)
+        project_path: Project root path
+
+    Returns:
+        Preview of duplicates (dry_run=True) or merge results (dry_run=False)
+
+    Examples:
+        cleanup_memories()  # Preview duplicates
+        cleanup_memories(dry_run=False)  # Actually merge duplicates
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    async with ctx.db_manager.get_session() as session:
+        result = await session.execute(select(Memory))
+        all_memories = result.scalars().all()
+
+        # Group by (category, normalized_content, file_path)
+        groups = {}
+        for mem in all_memories:
+            # Normalize content for comparison (lowercase, collapse whitespace)
+            normalized = ' '.join(mem.content.lower().split())
+            key = (mem.category, normalized, mem.file_path or '')
+
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(mem)
+
+        # Find duplicates (groups with more than 1 memory)
+        duplicates = {k: v for k, v in groups.items() if len(v) > 1}
+
+        if dry_run:
+            return {
+                "dry_run": True,
+                "duplicate_groups": len(duplicates),
+                "total_duplicates": sum(len(v) - 1 for v in duplicates.values()),
+                "samples": [
+                    {
+                        "content": mems[0].content[:50],
+                        "count": len(mems),
+                        "ids": [m.id for m in mems]
+                    }
+                    for mems in list(duplicates.values())[:5]
+                ]
+            }
+
+        # Merge duplicates: keep newest, preserve outcomes
+        merged = 0
+        if merge_duplicates:
+            for key, mems in duplicates.items():
+                # Sort by created_at descending (newest first)
+                mems.sort(key=lambda m: m.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+                keeper = mems[0]
+
+                # Merge outcomes, tags, and metadata from others
+                for dupe in mems[1:]:
+                    # Preserve outcome if keeper doesn't have one
+                    if dupe.outcome and not keeper.outcome:
+                        keeper.outcome = dupe.outcome
+                        keeper.worked = dupe.worked
+
+                    # Preserve pinned status (if any duplicate is pinned, keep pinned)
+                    if dupe.pinned and not keeper.pinned:
+                        keeper.pinned = True
+
+                    # If keeper is archived but duplicate isn't, unarchive
+                    if dupe.archived == False and keeper.archived == True:
+                        keeper.archived = False
+
+                    # Merge tags (union of all tags)
+                    if dupe.tags:
+                        keeper_tags = set(keeper.tags or [])
+                        keeper_tags.update(dupe.tags or [])
+                        keeper.tags = list(keeper_tags)
+
+                # Update keeper's updated_at timestamp
+                keeper.updated_at = datetime.now(timezone.utc)
+
+                # Flush changes to keeper before deleting duplicates
+                await session.flush()
+
+                # Delete duplicates
+                for dupe in mems[1:]:
+                    await session.delete(dupe)
+                    merged += 1
+
+        return {
+            "merged": merged,
+            "duplicate_groups": len(duplicates),
+            "message": f"Merged {merged} duplicate memories"
         }
 
 
