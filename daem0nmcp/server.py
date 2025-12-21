@@ -1136,14 +1136,49 @@ SKIP_DIRS = {
 }
 
 
-def _scan_for_todos(root_path: str, max_files: int = 500) -> List[Dict[str, Any]]:
-    """Scan directory for TODO/FIXME/HACK comments."""
+def _scan_for_todos(
+    root_path: str,
+    max_files: int = 500,
+    skip_dirs: Optional[List[str]] = None,
+    skip_extensions: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Scan directory for TODO/FIXME/HACK comments with deduplication.
+
+    Supports:
+    - Single-line comments (# // --)
+    - Multi-line block comments (/* */ ''' \"\"\")
+    - Content hashing to avoid duplicates
+    - Configurable skip lists
+
+    Args:
+        root_path: Directory to scan
+        max_files: Maximum files to scan (default: 500)
+        skip_dirs: Directories to skip (default: from settings)
+        skip_extensions: File extensions to skip (default: from settings)
+
+    Returns:
+        List of TODO items with file, line, type, content, and hash
+    """
+    import hashlib
+
+    # Use settings defaults if not provided
+    if skip_dirs is None:
+        skip_dirs = settings.todo_skip_dirs
+    if skip_extensions is None:
+        skip_extensions = settings.todo_skip_extensions
+
     todos = []
+    seen_hashes = set()
     files_scanned = 0
     root = Path(root_path)
 
     if not root.exists():
         return []
+
+    # Convert skip_dirs to set for faster lookup
+    skip_dirs_set = set(skip_dirs)
+    skip_exts_set = set(skip_extensions)
 
     for file_path in root.rglob('*'):
         # Skip directories
@@ -1153,13 +1188,16 @@ def _scan_for_todos(root_path: str, max_files: int = 500) -> List[Dict[str, Any]
         # Check if any parent is a skip directory
         skip = False
         for part in file_path.parts:
-            if part in SKIP_DIRS or part.endswith('.egg-info'):
+            if part in skip_dirs_set or part.endswith('.egg-info'):
                 skip = True
                 break
         if skip:
             continue
 
         # Check extension
+        if file_path.suffix.lower() in skip_exts_set:
+            continue
+
         if file_path.suffix.lower() not in SCANNABLE_EXTENSIONS:
             continue
 
@@ -1177,13 +1215,22 @@ def _scan_for_todos(root_path: str, max_files: int = 500) -> List[Dict[str, Any]
                     text = text.strip()
                     if text and len(text) > 3:  # Skip empty or very short todos
                         rel_path = str(file_path.relative_to(root))
-                        todos.append({
-                            'type': keyword.upper(),
-                            'content': text[:200],  # Truncate long content
-                            'file': rel_path,
-                            'line': line_num,
-                            'full_line': line.strip()[:300]
-                        })
+
+                        # Deduplicate by content hash
+                        content_hash = hashlib.md5(
+                            f"{rel_path}:{text}".encode()
+                        ).hexdigest()[:8]
+
+                        if content_hash not in seen_hashes:
+                            seen_hashes.add(content_hash)
+                            todos.append({
+                                'type': keyword.upper(),
+                                'content': text[:200],  # Truncate long content
+                                'file': rel_path,
+                                'line': line_num,
+                                'full_line': line.strip()[:300],
+                                'hash': content_hash
+                            })
         except (OSError, UnicodeDecodeError):
             continue
 
@@ -1228,7 +1275,10 @@ async def scan_todos(
 
     # Use provided path, or fall back to project path
     scan_path = path or ctx.project_path
-    found_todos = _scan_for_todos(scan_path)
+    found_todos = _scan_for_todos(
+        scan_path,
+        max_files=settings.todo_max_files
+    )
 
     # Filter by types if specified
     if types:

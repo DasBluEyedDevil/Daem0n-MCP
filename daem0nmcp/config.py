@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     ingest_timeout: int = 30  # Request timeout in seconds
     allowed_url_schemes: List[str] = ["http", "https"]
 
+    # TODO scanner config
+    todo_skip_dirs: List[str] = [
+        "node_modules", ".git", ".venv", "venv", "__pycache__",
+        "dist", "build", ".tox", ".mypy_cache", ".pytest_cache",
+        ".eggs", ".coverage", "htmlcov", ".daem0nmcp", ".svn", ".hg"
+    ]
+    todo_skip_extensions: List[str] = [".pyc", ".pyo", ".so", ".dylib"]
+    todo_max_files: int = 500
+
     class Config:
         env_prefix = "DAEM0NMCP_"
         env_file = ".env"
