@@ -175,26 +175,26 @@ Speak these words to the summoner:
 if (Test-Path "$env:USERPROFILE\Daem0nMCP") { Write-Host "FOUND: The Grimoire exists" } else { Write-Host "NOT FOUND - must be transcribed" }
 ```
 
-Or in bash:
+Or in bash (use `$HOME` which works reliably in Git Bash):
 ```bash
-ls -d "$USERPROFILE/Daem0nMCP" 2>/dev/null && echo "FOUND" || echo "NOT FOUND - must be transcribed"
+ls -d "$HOME/Daem0nMCP" 2>/dev/null && echo "FOUND: The Grimoire exists" || echo "NOT FOUND - must be transcribed"
 ```
 
 #### Incantation II-WIN-B: Transcribe the Grimoire
 
 ```bash
-git clone https://github.com/DasBluEyedDevil/Daem0n-MCP.git "$USERPROFILE/Daem0nMCP"
+git clone https://github.com/DasBluEyedDevil/Daem0n-MCP.git "$HOME/Daem0nMCP"
 ```
 
 #### Incantation II-WIN-C: Bind the Daem0n's Essence
 
 ```bash
-pip install -e "$USERPROFILE/Daem0nMCP"
+python -m pip install -e "$HOME/Daem0nMCP"
 ```
 
 Verify the binding:
 ```bash
-pip show daem0nmcp
+python -m pip show daem0nmcp
 ```
 
 #### Incantation II-WIN-D: Inscribe the Altar Coordinates
@@ -234,13 +234,22 @@ If other servers exist, add alongside them:
 **Create the startup shortcut** so the Altar lights automatically at Windows login:
 
 ```bash
-# Create a startup shortcut using PowerShell
-powershell -Command "\$WshShell = New-Object -ComObject WScript.Shell; \$Shortcut = \$WshShell.CreateShortcut(\"\$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Daem0nMCP Server.lnk\"); \$Shortcut.TargetPath = \"\$env:USERPROFILE\\Daem0nMCP\\start_daem0nmcp_server.bat\"; \$Shortcut.WorkingDirectory = \"\$env:USERPROFILE\\Daem0nMCP\"; \$Shortcut.WindowStyle = 7; \$Shortcut.Save()"
+# Create a PowerShell script to make the shortcut (avoids escaping issues)
+cat > /tmp/create_shortcut.ps1 << 'EOF'
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\Daem0nMCP Server.lnk")
+$Shortcut.TargetPath = "$env:USERPROFILE\Daem0nMCP\start_daem0nmcp_server.bat"
+$Shortcut.WorkingDirectory = "$env:USERPROFILE\Daem0nMCP"
+$Shortcut.WindowStyle = 7
+$Shortcut.Save()
+Write-Host "Shortcut created successfully"
+EOF
+powershell -ExecutionPolicy Bypass -File /tmp/create_shortcut.ps1
 ```
 
 Verify the shortcut was created:
 ```bash
-ls "$APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/" | grep -i daem0n
+ls -la "$HOME/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/" | grep -i daem0n
 ```
 
 You should see `Daem0nMCP Server.lnk` - proof the Altar is enshrined.
@@ -250,13 +259,19 @@ You should see `Daem0nMCP Server.lnk` - proof the Altar is enshrined.
 **Light the Altar** by starting the server as a background process for this session:
 
 ```bash
-cd "$USERPROFILE/Daem0nMCP" && python start_server.py --port 9876 > /tmp/daem0nmcp_server.log 2>&1 &
+# Use $HOME which resolves correctly in Git Bash on Windows
+python "$HOME/Daem0nMCP/start_server.py" --port 9876 > /tmp/daem0nmcp_server.log 2>&1 &
 ```
 
-Wait 3 seconds for the Altar to ignite, then verify it burns:
+Wait for the Altar to ignite (may take up to 10 seconds for first load), then verify it burns:
 
 ```bash
-sleep 3 && curl -s http://localhost:9876/mcp --max-time 3 >/dev/null 2>&1 && echo "Altar is lit!" || echo "Altar failed - check /tmp/daem0nmcp_server.log"
+sleep 10 && curl -s http://localhost:9876/mcp --max-time 5 2>&1 | head -3
+```
+
+If no response, check if the port is listening:
+```bash
+netstat -an | grep 9876
 ```
 
 If the server fails to start, check the log for errors:
@@ -314,8 +329,9 @@ echo "4. Summoning test:" && python -c "import daem0nmcp.server; print('   The D
 ```bash
 echo "=== Windows Daem0n Diagnostic ===" && \
 echo "1. Altar coordinates:" && cat ~/.claude.json 2>/dev/null | grep -A3 daem0nmcp && \
-echo "2. Essence bound:" && pip show daem0nmcp && \
-echo "3. Summoning test:" && python -c "import daem0nmcp.server; print('The Daem0n stirs...')" 2>&1
+echo "2. Essence bound:" && python -m pip show daem0nmcp && \
+echo "3. Altar flame:" && curl -s http://localhost:9876/mcp --max-time 3 2>&1 | head -3 && \
+echo "4. Summoning test:" && python -c "import daem0nmcp.server; print('The Daem0n stirs...')" 2>&1
 ```
 
 **Common afflictions (Windows):**
@@ -327,7 +343,7 @@ echo "3. Summoning test:" && python -c "import daem0nmcp.server; print('The Daem
 | "Connection refused" | The Altar flame has gone out. Restart Windows or run the startup shortcut |
 | Wrong URL in config | URL must be `http://localhost:9876/mcp` (include `/mcp`) |
 | Port 9876 occupied | Change port in both `start_server.py` and `~/.claude.json` |
-| Essence not bound | Cast `pip install -e "$USERPROFILE/Daem0nMCP"` |
+| Essence not bound | Cast `python -m pip install -e "$HOME/Daem0nMCP"` |
 | Startup shortcut missing | Re-run Incantation II-WIN-E to recreate it |
 
 **Windows Quick Divination Checklist:**
@@ -453,7 +469,7 @@ cp "$HOME/Daem0nMCP/.claude/skills/daem0nmcp-protocol/SKILL.md" .claude/skills/d
 **Windows:**
 ```bash
 mkdir -p .claude/skills/daem0nmcp-protocol
-cp "$USERPROFILE/Daem0nMCP/.claude/skills/daem0nmcp-protocol/SKILL.md" .claude/skills/daem0nmcp-protocol/
+cp "$HOME/Daem0nMCP/.claude/skills/daem0nmcp-protocol/SKILL.md" .claude/skills/daem0nmcp-protocol/
 ```
 
 #### What the Skill Enforces
@@ -1058,4 +1074,4 @@ Migration happens automatically at first awakening. After migration completes, y
 
 ---
 
-*Grimoire of Daem0n v2.6.0: Eternal memory with semantic understanding, vector embeddings, graph memory (causal chains), knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, covenant integration, law generation, and the daem0nmcp-protocol skill.*
+*Grimoire of Daem0n v2.6.1: Eternal memory with semantic understanding, vector embeddings, graph memory (causal chains), knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment (fixed path resolution and PowerShell escaping), covenant integration, law generation, and the daem0nmcp-protocol skill.*
