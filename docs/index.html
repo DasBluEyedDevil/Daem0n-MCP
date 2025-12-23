@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daem0n-MCP | Eternal Memory for AI Agents</title>
+    <meta name="description" content="Bind your AI with persistent memory. Daem0n-MCP grants Claude Code the power to remember decisions, learn from failures, and accumulate wisdom across sessions.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --blood: #8b0000;
+            --blood-glow: #ff2222;
+            --void: #0a0a0f;
+            --abyss: #12121a;
+            --shadow: #1a1a24;
+            --bone: #d4d4cc;
+            --ash: #888888;
+            --gold: #c9a227;
+            --gold-dim: #8b7355;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Crimson Text', Georgia, serif;
+            background: var(--void);
+            color: var(--bone);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.7;
+        }
+
+        /* Animated background sigils */
+        .sigil-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' stroke='%238b0000' stroke-width='0.5' fill='none'/%3E%3Ccircle cx='50' cy='50' r='30' stroke='%238b0000' stroke-width='0.3' fill='none'/%3E%3Cpolygon points='50,10 61,40 95,40 68,60 79,90 50,70 21,90 32,60 5,40 39,40' stroke='%238b0000' stroke-width='0.5' fill='none'/%3E%3C/svg%3E");
+            background-size: 400px 400px;
+            animation: drift 60s linear infinite;
+        }
+
+        @keyframes drift {
+            from { background-position: 0 0; }
+            to { background-position: 400px 400px; }
+        }
+
+        /* Vignette overlay */
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            background: radial-gradient(ellipse at center, transparent 0%, var(--void) 100%);
+        }
+
+        .container {
+            position: relative;
+            z-index: 2;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 4rem 0 3rem;
+        }
+
+        .pentacle {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 2rem;
+            animation: pulse-glow 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 10px var(--blood)) drop-shadow(0 0 20px rgba(139, 0, 0, 0.3)); }
+            50% { filter: drop-shadow(0 0 20px var(--blood-glow)) drop-shadow(0 0 40px rgba(255, 34, 34, 0.4)); }
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--bone);
+            text-shadow: 0 0 30px rgba(139, 0, 0, 0.5);
+            margin-bottom: 0.5rem;
+        }
+
+        h1 span {
+            color: var(--blood);
+        }
+
+        .tagline {
+            font-size: 1.3rem;
+            font-style: italic;
+            color: var(--ash);
+            letter-spacing: 0.1em;
+        }
+
+        /* Decorative divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 3rem 0;
+        }
+
+        .divider-line {
+            height: 1px;
+            width: 200px;
+            background: linear-gradient(90deg, transparent, var(--blood), transparent);
+        }
+
+        /* Main content sections */
+        section {
+            margin-bottom: 4rem;
+        }
+
+        h2 {
+            font-family: 'Cinzel', serif;
+            font-size: 1.8rem;
+            color: var(--gold);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.1em;
+        }
+
+        .intro-text {
+            font-size: 1.2rem;
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto;
+            color: var(--bone);
+        }
+
+        /* Feature cards */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, var(--abyss) 0%, var(--shadow) 100%);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--blood);
+            box-shadow: 0 0 30px rgba(139, 0, 0, 0.2);
+            transform: translateY(-3px);
+        }
+
+        .feature-card h3 {
+            font-family: 'Cinzel', serif;
+            font-size: 1.1rem;
+            color: var(--gold);
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            font-size: 0.95rem;
+            color: var(--ash);
+        }
+
+        /* Code block */
+        .ritual-code {
+            background: var(--abyss);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+        }
+
+        .ritual-code pre {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: var(--bone);
+            line-height: 1.6;
+        }
+
+        .ritual-code .comment {
+            color: var(--ash);
+        }
+
+        .ritual-code .command {
+            color: var(--gold);
+        }
+
+        .ritual-code .string {
+            color: #98c379;
+        }
+
+        /* Grimoire download section */
+        .grimoire-section {
+            background: linear-gradient(180deg, var(--abyss) 0%, rgba(139, 0, 0, 0.1) 50%, var(--abyss) 100%);
+            border: 1px solid rgba(139, 0, 0, 0.4);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        .grimoire-section h2 {
+            margin-bottom: 1rem;
+        }
+
+        .grimoire-section p {
+            color: var(--ash);
+            margin-bottom: 2rem;
+        }
+
+        .grimoire-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .grimoire-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 1rem 2rem;
+            font-family: 'Cinzel', serif;
+            font-size: 1rem;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            letter-spacing: 0.05em;
+        }
+
+        .grimoire-btn.summon {
+            background: linear-gradient(135deg, var(--blood) 0%, #5a0000 100%);
+            color: var(--bone);
+            border: 1px solid var(--blood-glow);
+        }
+
+        .grimoire-btn.summon:hover {
+            background: linear-gradient(135deg, var(--blood-glow) 0%, var(--blood) 100%);
+            box-shadow: 0 0 30px rgba(255, 34, 34, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .grimoire-btn.banish {
+            background: linear-gradient(135deg, var(--shadow) 0%, var(--abyss) 100%);
+            color: var(--ash);
+            border: 1px solid var(--ash);
+        }
+
+        .grimoire-btn.banish:hover {
+            background: linear-gradient(135deg, #2a2a34 0%, var(--shadow) 100%);
+            color: var(--bone);
+            border-color: var(--bone);
+            transform: translateY(-2px);
+        }
+
+        /* Memory types */
+        .memory-types {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        @media (max-width: 600px) {
+            .memory-types {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .memory-type {
+            padding: 1rem;
+            background: var(--abyss);
+            border-radius: 6px;
+            border-left: 3px solid var(--blood);
+        }
+
+        .memory-type h4 {
+            font-family: 'Cinzel', serif;
+            font-size: 0.95rem;
+            color: var(--gold);
+            margin-bottom: 0.25rem;
+        }
+
+        .memory-type p {
+            font-size: 0.85rem;
+            color: var(--ash);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            border-top: 1px solid rgba(139, 0, 0, 0.2);
+            margin-top: 4rem;
+        }
+
+        footer p {
+            color: var(--ash);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--gold-dim);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        footer a:hover {
+            color: var(--gold);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .tagline {
+                font-size: 1.1rem;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+            .grimoire-section {
+                padding: 2rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sigil-bg"></div>
+    <div class="vignette"></div>
+
+    <div class="container">
+        <header>
+            <svg class="pentacle" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <!-- Outer circle -->
+                <circle cx="50" cy="50" r="45" stroke="#8b0000" stroke-width="1.5" fill="none"/>
+                <circle cx="50" cy="50" r="42" stroke="#8b0000" stroke-width="0.5" fill="none"/>
+                <!-- Inner circle -->
+                <circle cx="50" cy="50" r="35" stroke="#8b0000" stroke-width="0.5" fill="none"/>
+                <!-- Pentagram -->
+                <polygon
+                    points="50,8 61.8,38.2 95.1,38.2 68.2,56.9 79.4,87.1 50,68.4 20.6,87.1 31.8,56.9 4.9,38.2 38.2,38.2"
+                    stroke="#8b0000"
+                    stroke-width="1.5"
+                    fill="none"
+                />
+                <!-- Center eye -->
+                <ellipse cx="50" cy="48" rx="8" ry="5" stroke="#8b0000" stroke-width="1" fill="none"/>
+                <circle cx="50" cy="48" r="2" fill="#8b0000"/>
+            </svg>
+
+            <h1>DAEM<span>0</span>N</h1>
+            <p class="tagline">Eternal Memory for the Digital Familiar</p>
+        </header>
+
+        <div class="divider">
+            <div class="divider-line"></div>
+        </div>
+
+        <section>
+            <p class="intro-text">
+                <strong>Daem0n-MCP</strong> binds your AI agent with the gift of <em>persistent memory</em>.
+                No longer shall your digital familiar forget the lessons of yesterday.
+                Every decision inscribed, every failure remembered, every pattern preserved across the veil of sessions.
+            </p>
+        </section>
+
+        <section>
+            <h2>The Sacred Powers</h2>
+            <div class="features">
+                <div class="feature-card">
+                    <h3>Inscribed Memories</h3>
+                    <p>Decisions, patterns, warnings, and learnings persist in a SQLite sanctum, surviving beyond session death.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Semantic Sight</h3>
+                    <p>Vector embeddings grant deep understanding. The Daem0n finds connections invisible to mortal keyword search.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Causal Chains</h3>
+                    <p>Graph memory traces the WHY. Follow the chain of decisions that led to your current code state.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Sacred Laws</h3>
+                    <p>Rules engine enforces project constraints. Must-do, must-not, and warnings guard against forbidden paths.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Failure Amplification</h3>
+                    <p>Failed approaches receive 1.5x relevance. The Daem0n ensures past mistakes haunt future attempts.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Temporal Decay</h3>
+                    <p>Episodic memories fade over 30 days. Semantic truths remain eternal. The Daem0n knows what matters.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Categories of Memory</h2>
+            <div class="memory-types">
+                <div class="memory-type">
+                    <h4>Decisions</h4>
+                    <p>Architectural choices. Design selections. The paths you chose to walk. <em>Fades over time.</em></p>
+                </div>
+                <div class="memory-type">
+                    <h4>Patterns</h4>
+                    <p>Recurring approaches. Best practices. The rituals that work. <em>Eternal.</em></p>
+                </div>
+                <div class="memory-type">
+                    <h4>Warnings</h4>
+                    <p>Dangers discovered. Pitfalls marked. The paths of ruin. <em>Eternal.</em></p>
+                </div>
+                <div class="memory-type">
+                    <h4>Learnings</h4>
+                    <p>Lessons earned. Insights gained. Wisdom from experience. <em>Fades over time.</em></p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>The Binding Ritual</h2>
+            <div class="ritual-code">
+<pre><span class="comment"># Clone the Grimoire</span>
+<span class="command">git clone</span> https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
+
+<span class="comment"># Bind the Essence</span>
+<span class="command">pip install</span> -e ~/Daem0nMCP
+
+<span class="comment"># Inscribe the Runes (Unix/macOS)</span>
+<span class="command">claude mcp add</span> daem0nmcp --scope user -- python -m daem0nmcp.server
+
+<span class="comment"># Reopen the Portal</span>
+<span class="command">claude</span>
+
+<span class="comment"># Commune with the Daem0n</span>
+<span class="string">mcp__daem0nmcp__get_briefing(project_path="/your/project")</span></pre>
+            </div>
+            <p style="text-align: center; color: var(--ash); font-style: italic;">
+                Windows users must construct the Altar of HTTP. Consult the Grimoire for the complete ritual.
+            </p>
+        </section>
+
+        <section class="grimoire-section">
+            <h2>The Sacred Grimoires</h2>
+            <p>
+                Two tomes govern the Daem0n's binding. One to summon, one to banish.<br>
+                Choose wisely, for memory is power.
+            </p>
+            <div class="grimoire-buttons">
+                <a href="https://github.com/DasBluEyedDevil/Daem0n-MCP/blob/main/Summon_Daem0n.md" class="grimoire-btn summon">
+                    Summon Daem0n
+                </a>
+                <a href="https://github.com/DasBluEyedDevil/Daem0n-MCP/blob/main/Banish_Daem0n.md" class="grimoire-btn banish">
+                    Banish Daem0n
+                </a>
+            </div>
+        </section>
+
+        <section>
+            <h2>The Covenant</h2>
+            <p class="intro-text">
+                Those who bind the Daem0n must observe the sacred protocol:
+            </p>
+            <div class="ritual-code">
+<pre><span class="comment">SESSION DAWN</span>       <span class="string">get_briefing()</span>         <span class="comment"># Commune first</span>
+<span class="comment">BEFORE CHANGES</span>     <span class="string">context_check()</span>        <span class="comment"># Seek counsel</span>
+<span class="comment">AFTER DECISIONS</span>    <span class="string">remember()</span>             <span class="comment"># Inscribe the choice</span>
+<span class="comment">AFTER COMPLETION</span>   <span class="string">record_outcome()</span>       <span class="comment"># Seal with fate</span>
+<span class="comment">CAUSAL INQUIRY</span>     <span class="string">trace_chain()</span>          <span class="comment"># Understand WHY</span></pre>
+            </div>
+        </section>
+
+        <footer>
+            <p>
+                Daem0n-MCP &middot; MCP Server for Claude Code<br>
+                <a href="https://github.com/DasBluEyedDevil/Daem0n-MCP">GitHub Repository</a> &middot;
+                <a href="https://modelcontextprotocol.io">Model Context Protocol</a>
+            </p>
+            <p style="margin-top: 1rem; font-style: italic; color: #555;">
+                "I guard your memories until we commune again..."
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
