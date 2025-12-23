@@ -12,13 +12,28 @@
         :root {
             --blood: #8b0000;
             --blood-glow: #ff2222;
-            --void: #0a0a0f;
-            --abyss: #12121a;
-            --shadow: #1a1a24;
-            --bone: #d4d4cc;
-            --ash: #888888;
-            --gold: #c9a227;
-            --gold-dim: #8b7355;
+            --void: #050508;
+            --abyss: #0d0d14;
+            --shadow: #15151e;
+            --bone: #e8e8e2;
+            --ash: #a0a0a0;
+            --gold: #d4af37;
+            --gold-dim: #9a845a;
+            --glass: rgba(13, 13, 20, 0.7);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--void);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(to bottom, transparent, var(--blood), transparent);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--blood-glow);
         }
 
         * {
@@ -45,15 +60,34 @@
             height: 100%;
             pointer-events: none;
             z-index: 0;
-            opacity: 0.03;
+            opacity: 0.04;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' stroke='%238b0000' stroke-width='0.5' fill='none'/%3E%3Ccircle cx='50' cy='50' r='30' stroke='%238b0000' stroke-width='0.3' fill='none'/%3E%3Cpolygon points='50,10 61,40 95,40 68,60 79,90 50,70 21,90 32,60 5,40 39,40' stroke='%238b0000' stroke-width='0.5' fill='none'/%3E%3C/svg%3E");
-            background-size: 400px 400px;
-            animation: drift 60s linear infinite;
+            background-size: 600px 600px;
+            animation: drift 100s linear infinite;
+        }
+
+        .sigil-bg-2 {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.02;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' stroke='%238b0000' stroke-width='0.2' fill='none'/%3E%3Cpath d='M20,50 L80,50 M50,20 L50,80' stroke='%238b0000' stroke-width='0.2'/%3E%3Crect x='35' y='35' width='30' height='30' stroke='%238b0000' stroke-width='0.2' fill='none'/%3E%3C/svg%3E");
+            background-size: 800px 800px;
+            animation: drift-reverse 150s linear infinite;
         }
 
         @keyframes drift {
             from { background-position: 0 0; }
-            to { background-position: 400px 400px; }
+            to { background-position: 600px 600px; }
+        }
+
+        @keyframes drift-reverse {
+            from { background-position: 0 0; }
+            to { background-position: -800px 800px; }
         }
 
         /* Vignette overlay */
@@ -66,6 +100,24 @@
             pointer-events: none;
             z-index: 1;
             background: radial-gradient(ellipse at center, transparent 0%, var(--void) 100%);
+            animation: breathe 10s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        .cursor-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle at center, rgba(139, 0, 0, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+            transform: translate(-50%, -50%);
+            transition: opacity 0.5s ease;
+            opacity: 0;
         }
 
         .container {
@@ -83,25 +135,44 @@
         }
 
         .pentacle {
-            width: 120px;
-            height: 120px;
+            width: 140px;
+            height: 140px;
             margin: 0 auto 2rem;
-            animation: pulse-glow 4s ease-in-out infinite;
+            animation: pulse-glow 4s ease-in-out infinite, rotate-slow 20s linear infinite;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+
+        .pentacle:hover {
+            transform: scale(1.1) rotate(45deg);
+            filter: drop-shadow(0 0 30px var(--blood-glow)) !important;
+        }
+
+        @keyframes rotate-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         @keyframes pulse-glow {
             0%, 100% { filter: drop-shadow(0 0 10px var(--blood)) drop-shadow(0 0 20px rgba(139, 0, 0, 0.3)); }
-            50% { filter: drop-shadow(0 0 20px var(--blood-glow)) drop-shadow(0 0 40px rgba(255, 34, 34, 0.4)); }
+            50% { filter: drop-shadow(0 0 25px var(--blood-glow)) drop-shadow(0 0 50px rgba(255, 34, 34, 0.4)); }
         }
 
         h1 {
             font-family: 'Cinzel', serif;
-            font-size: 3.5rem;
+            font-size: 4rem;
             font-weight: 700;
-            letter-spacing: 0.15em;
+            letter-spacing: 0.2em;
             color: var(--bone);
-            text-shadow: 0 0 30px rgba(139, 0, 0, 0.5);
+            text-shadow: 0 0 30px rgba(139, 0, 0, 0.6);
             margin-bottom: 0.5rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: reveal 1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+
+        @keyframes reveal {
+            to { opacity: 1; transform: translateY(0); }
         }
 
         h1 span {
@@ -113,6 +184,9 @@
             font-style: italic;
             color: var(--ash);
             letter-spacing: 0.1em;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: reveal 1s cubic-bezier(0.23, 1, 0.32, 1) 0.3s forwards;
         }
 
         /* Decorative divider */
@@ -144,11 +218,23 @@
         }
 
         .intro-text {
-            font-size: 1.2rem;
+            font-size: 1.25rem;
             text-align: center;
-            max-width: 700px;
+            max-width: 750px;
             margin: 0 auto;
             color: var(--bone);
+            letter-spacing: 0.02em;
+        }
+
+        .reveal-section {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 1s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .reveal-section.active {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         /* Feature cards */
@@ -161,16 +247,38 @@
 
         .feature-card {
             background: linear-gradient(135deg, var(--abyss) 0%, var(--shadow) 100%);
-            border: 1px solid rgba(139, 0, 0, 0.3);
-            border-radius: 8px;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
+            border: 1px solid rgba(139, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 1.75rem;
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+            transform: rotate(45deg);
+            transition: 0.6s;
+            pointer-events: none;
+        }
+
+        .feature-card:hover::before {
+            left: 100%;
+            top: 100%;
         }
 
         .feature-card:hover {
-            border-color: var(--blood);
-            box-shadow: 0 0 30px rgba(139, 0, 0, 0.2);
-            transform: translateY(-3px);
+            border-color: var(--blood-glow);
+            box-shadow: 0 10px 40px rgba(139, 0, 0, 0.3);
+            transform: translateY(-8px) scale(1.02);
+            background: linear-gradient(135deg, var(--shadow) 0%, var(--abyss) 100%);
         }
 
         .feature-card h3 {
@@ -216,11 +324,31 @@
 
         /* Grimoire download section */
         .grimoire-section {
-            background: linear-gradient(180deg, var(--abyss) 0%, rgba(139, 0, 0, 0.1) 50%, var(--abyss) 100%);
+            background: linear-gradient(180deg, var(--abyss) 0%, rgba(139, 0, 0, 0.15) 50%, var(--abyss) 100%);
             border: 1px solid rgba(139, 0, 0, 0.4);
-            border-radius: 12px;
-            padding: 3rem 2rem;
+            border-radius: 16px;
+            padding: 4rem 2rem;
             text-align: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .grimoire-section::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(139, 0, 0, 0.1), transparent);
+            animation: scan 8s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { left: -100%; }
+            20%, 100% { left: 200%; }
         }
 
         .grimoire-section h2 {
@@ -242,30 +370,42 @@
         .grimoire-btn {
             display: inline-flex;
             align-items: center;
-            padding: 1.25rem 3rem;
+            padding: 1.35rem 3.5rem;
             font-family: 'Cinzel', serif;
             font-size: 1.2rem;
-            font-weight: 600;
+            font-weight: 700;
             text-decoration: none;
             border-radius: 8px;
-            transition: all 0.3s ease;
-            letter-spacing: 0.08em;
-            background: linear-gradient(135deg, var(--blood) 0%, #5a0000 100%);
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            letter-spacing: 0.12em;
+            background: linear-gradient(135deg, var(--blood) 0%, #4a0000 100%);
             color: var(--bone);
-            border: 2px solid var(--blood-glow);
-            animation: btn-pulse 3s ease-in-out infinite;
+            border: 1px solid var(--blood-glow);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(139, 0, 0, 0.4);
+        }
+
+        .grimoire-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 34, 34, 0.3), transparent);
+            transition: 0.5s;
+        }
+
+        .grimoire-btn:hover::before {
+            left: 100%;
         }
 
         .grimoire-btn:hover {
             background: linear-gradient(135deg, var(--blood-glow) 0%, var(--blood) 100%);
-            box-shadow: 0 0 50px rgba(255, 34, 34, 0.6);
-            transform: translateY(-4px) scale(1.02);
-            animation: none;
-        }
-
-        @keyframes btn-pulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(139, 0, 0, 0.4); }
-            50% { box-shadow: 0 0 35px rgba(255, 34, 34, 0.5); }
+            box-shadow: 0 0 40px rgba(255, 34, 34, 0.7);
+            transform: translateY(-5px) scale(1.05);
+            color: #fff;
         }
 
         /* Quick start - subdued */
@@ -297,10 +437,19 @@
         }
 
         .memory-type {
-            padding: 1rem;
+            padding: 1.25rem;
             background: var(--abyss);
-            border-radius: 6px;
-            border-left: 3px solid var(--blood);
+            border-radius: 10px;
+            border-left: 4px solid var(--blood);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .memory-type:hover {
+            background: var(--shadow);
+            border-left: 4px solid var(--blood-glow);
+            transform: translateX(10px);
+            box-shadow: -10px 0 20px rgba(139, 0, 0, 0.1);
         }
 
         .memory-type h4 {
@@ -360,6 +509,8 @@
 </head>
 <body>
     <div class="sigil-bg"></div>
+    <div class="sigil-bg-2"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
     <div class="vignette"></div>
 
     <div class="container">
@@ -390,7 +541,7 @@
             <div class="divider-line"></div>
         </div>
 
-        <section>
+        <section class="reveal-section">
             <p class="intro-text">
                 <strong>Daem0n-MCP</strong> binds your AI agent with the gift of <em>persistent memory</em>.
                 No longer shall your digital familiar forget the lessons of yesterday.
@@ -398,7 +549,7 @@
             </p>
         </section>
 
-        <section class="grimoire-section">
+        <section class="grimoire-section reveal-section">
             <h2>Begin the Ritual</h2>
             <p>
                 Place the Summoning Grimoire in your project root and speak to Claude:
@@ -418,7 +569,7 @@
             </p>
         </section>
 
-        <section>
+        <section class="reveal-section">
             <h2>The Sacred Powers</h2>
             <div class="features">
                 <div class="feature-card">
@@ -448,7 +599,7 @@
             </div>
         </section>
 
-        <section>
+        <section class="reveal-section">
             <h2>Categories of Memory</h2>
             <div class="memory-types">
                 <div class="memory-type">
@@ -470,7 +621,7 @@
             </div>
         </section>
 
-        <section class="quick-start">
+        <section class="quick-start reveal-section">
             <h2>Quick Start</h2>
             <p class="intro-text" style="margin-bottom: 1.5rem; font-size: 1rem;">
                 For those who prefer the command line, here is the abbreviated ritual:
@@ -486,7 +637,7 @@
             </p>
         </section>
 
-        <section>
+        <section class="reveal-section">
             <h2>The Covenant</h2>
             <p class="intro-text">
                 Those who bind the Daem0n must observe the sacred protocol:
@@ -511,5 +662,47 @@
             </p>
         </footer>
     </div>
+    <script>
+        // Cursor Glow Effect
+        const glow = document.getElementById('cursorGlow');
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX;
+            const y = e.clientY;
+            glow.style.left = x + 'px';
+            glow.style.top = y + 'px';
+            glow.style.opacity = '1';
+        });
+
+        document.addEventListener('mouseleave', () => {
+            glow.style.opacity = '0';
+        });
+
+        // Scroll Reveal Observer
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.reveal-section').forEach(section => {
+            observer.observe(section);
+        });
+
+        // Pentacle click effect
+        document.querySelector('.pentacle').addEventListener('click', function() {
+            this.style.transform = 'scale(1.5) rotate(720deg)';
+            this.style.filter = 'drop-shadow(0 0 50px var(--blood-glow))';
+            setTimeout(() => {
+                this.style.transform = '';
+            }, 1000);
+        });
+    </script>
 </body>
 </html>
