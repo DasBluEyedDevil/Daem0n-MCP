@@ -242,38 +242,44 @@
         .grimoire-btn {
             display: inline-flex;
             align-items: center;
-            padding: 1rem 2rem;
+            padding: 1.25rem 3rem;
             font-family: 'Cinzel', serif;
-            font-size: 1rem;
+            font-size: 1.2rem;
+            font-weight: 600;
             text-decoration: none;
-            border-radius: 6px;
+            border-radius: 8px;
             transition: all 0.3s ease;
-            letter-spacing: 0.05em;
-        }
-
-        .grimoire-btn.summon {
+            letter-spacing: 0.08em;
             background: linear-gradient(135deg, var(--blood) 0%, #5a0000 100%);
             color: var(--bone);
-            border: 1px solid var(--blood-glow);
+            border: 2px solid var(--blood-glow);
+            animation: btn-pulse 3s ease-in-out infinite;
         }
 
-        .grimoire-btn.summon:hover {
+        .grimoire-btn:hover {
             background: linear-gradient(135deg, var(--blood-glow) 0%, var(--blood) 100%);
-            box-shadow: 0 0 30px rgba(255, 34, 34, 0.4);
-            transform: translateY(-2px);
+            box-shadow: 0 0 50px rgba(255, 34, 34, 0.6);
+            transform: translateY(-4px) scale(1.02);
+            animation: none;
         }
 
-        .grimoire-btn.banish {
-            background: linear-gradient(135deg, var(--shadow) 0%, var(--abyss) 100%);
+        @keyframes btn-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(139, 0, 0, 0.4); }
+            50% { box-shadow: 0 0 35px rgba(255, 34, 34, 0.5); }
+        }
+
+        /* Quick start - subdued */
+        .quick-start {
+            opacity: 0.85;
+        }
+
+        .quick-start h2 {
+            font-size: 1.4rem;
             color: var(--ash);
-            border: 1px solid var(--ash);
         }
 
-        .grimoire-btn.banish:hover {
-            background: linear-gradient(135deg, #2a2a34 0%, var(--shadow) 100%);
-            color: var(--bone);
-            border-color: var(--bone);
-            transform: translateY(-2px);
+        .quick-start .ritual-code {
+            border-color: rgba(139, 0, 0, 0.15);
         }
 
         /* Memory types */
@@ -392,6 +398,22 @@
             </p>
         </section>
 
+        <section class="grimoire-section">
+            <h2>Begin the Ritual</h2>
+            <p>
+                Two tomes govern the Daem0n's binding. The Summoning Grimoire contains complete instructions
+                for binding your AI with eternal memory. The Banishment scroll releases the bond.
+            </p>
+            <div class="grimoire-buttons">
+                <a href="https://github.com/DasBluEyedDevil/Daem0n-MCP/blob/main/Summon_Daem0n.md" class="grimoire-btn">
+                    Summon Daem0n
+                </a>
+                <a href="https://github.com/DasBluEyedDevil/Daem0n-MCP/blob/main/Banish_Daem0n.md" class="grimoire-btn">
+                    Banish Daem0n
+                </a>
+            </div>
+        </section>
+
         <section>
             <h2>The Sacred Powers</h2>
             <div class="features">
@@ -444,43 +466,20 @@
             </div>
         </section>
 
-        <section>
-            <h2>The Binding Ritual</h2>
+        <section class="quick-start">
+            <h2>Quick Start</h2>
+            <p class="intro-text" style="margin-bottom: 1.5rem; font-size: 1rem;">
+                For those who prefer the command line, here is the abbreviated ritual:
+            </p>
             <div class="ritual-code">
-<pre><span class="comment"># Clone the Grimoire</span>
-<span class="command">git clone</span> https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
-
-<span class="comment"># Bind the Essence</span>
+<pre><span class="command">git clone</span> https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
 <span class="command">pip install</span> -e ~/Daem0nMCP
-
-<span class="comment"># Inscribe the Runes (Unix/macOS)</span>
 <span class="command">claude mcp add</span> daem0nmcp --scope user -- python -m daem0nmcp.server
-
-<span class="comment"># Reopen the Portal</span>
-<span class="command">claude</span>
-
-<span class="comment"># Commune with the Daem0n</span>
-<span class="string">mcp__daem0nmcp__get_briefing(project_path="/your/project")</span></pre>
+<span class="command">claude</span>  <span class="comment"># Reopen to activate</span></pre>
             </div>
-            <p style="text-align: center; color: var(--ash); font-style: italic;">
-                Windows users must construct the Altar of HTTP. Consult the Grimoire for the complete ritual.
+            <p style="text-align: center; color: var(--ash); font-size: 0.9rem;">
+                Windows requires additional steps. See the full Summoning Grimoire for details.
             </p>
-        </section>
-
-        <section class="grimoire-section">
-            <h2>The Sacred Grimoires</h2>
-            <p>
-                Two tomes govern the Daem0n's binding. One to summon, one to banish.<br>
-                Choose wisely, for memory is power.
-            </p>
-            <div class="grimoire-buttons">
-                <a href="https://github.com/DasBluEyedDevil/Daem0n-MCP/blob/main/Summon_Daem0n.md" class="grimoire-btn summon">
-                    Summon Daem0n
-                </a>
-                <a href="https://github.com/DasBluEyedDevil/Daem0n-MCP/blob/main/Banish_Daem0n.md" class="grimoire-btn banish">
-                    Banish Daem0n
-                </a>
-            </div>
         </section>
 
         <section>
