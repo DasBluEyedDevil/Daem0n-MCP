@@ -51,3 +51,4 @@ logs/
 
 # Worktrees
 .worktrees/
+CLAUDE.md

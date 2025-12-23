@@ -29,7 +29,7 @@
 - **Conflict Detection**: Warns when new decisions contradict past failures
 - **Failed Decision Boosting**: Past mistakes surface prominently in recalls
 - **File-Level Memories**: Associate memories with specific files
-- **Optional Vector Embeddings**: sentence-transformers for even better semantic matching
+- **Vector Embeddings**: sentence-transformers for enhanced semantic matching (included by default)
 
 ## Why Daem0nMCP?
 
@@ -306,7 +306,7 @@ daem0nmcp/
 ├── memory.py      # Memory storage & semantic retrieval
 ├── rules.py       # Rule engine with TF-IDF matching
 ├── similarity.py  # TF-IDF index, decay, conflict detection
-├── vectors.py     # Optional vector embeddings
+├── vectors.py     # Vector embeddings (sentence-transformers)
 ├── database.py    # SQLite async database
 ├── models.py      # 2 tables: memories, rules
 ├── cli.py         # Command-line interface

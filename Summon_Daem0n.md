@@ -898,7 +898,7 @@ Daem0n: "The memory is sealed with success."
 
 ### Semantic Sight
 - Uses TF-IDF for keyword matching (always available)
-- Optional vector embeddings for deeper semantic understanding
+- Vector embeddings for deeper semantic understanding (included by default)
 - "blocking database calls" can match "synchronous queries" with vectors
 
 ### Conflict Sensing
@@ -1002,4 +1002,4 @@ Migration happens automatically at first awakening. After migration completes, y
 
 ---
 
-*Grimoire of Daem0n v2.6.0: Eternal memory with semantic understanding, optional vector embeddings, knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, covenant integration, law generation, and the daem0nmcp-protocol skill.*
+*Grimoire of Daem0n v2.5.0: Eternal memory with semantic understanding, vector embeddings, knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, covenant integration, law generation, and the daem0nmcp-protocol skill.*

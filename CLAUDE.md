@@ -36,7 +36,7 @@ daem0nmcp/
 ├── memory.py      # MemoryManager - semantic store/recall with decay
 ├── rules.py       # RulesEngine - TF-IDF matched decision trees
 ├── similarity.py  # TF-IDF index, cosine similarity, conflict detection
-├── vectors.py     # Optional vector embeddings (sentence-transformers)
+├── vectors.py     # Vector embeddings (sentence-transformers)
 ├── database.py    # DatabaseManager - async SQLite
 ├── models.py      # SQLAlchemy models (2 tables)
 ├── cli.py         # Command-line interface for pre-commit hooks
@@ -77,7 +77,7 @@ scripts/
 
 Core:
 1. `remember` - Store a memory with conflict detection and file association
-2. `recall` - Semantic retrieval with decay weighting (TF-IDF + optional vectors)
+2. `recall` - Semantic retrieval with decay weighting (TF-IDF + vector embeddings)
 3. `recall_for_file` - Get memories for a specific file
 4. `add_rule` - Create decision tree node
 5. `check_rules` - Semantic matching against rules

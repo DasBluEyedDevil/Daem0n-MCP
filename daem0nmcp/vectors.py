@@ -1,42 +1,33 @@
 """
-Vector Embeddings - Optional semantic understanding with sentence-transformers.
+Vector Embeddings - Semantic understanding with sentence-transformers.
 
 This module provides:
-- Vector embeddings for memories (optional, graceful fallback to TF-IDF)
+- Vector embeddings for memories (enhances TF-IDF semantic matching)
 - Hybrid search combining TF-IDF + vector similarity
 - Efficient storage of vectors in SQLite
-
-Install with: pip install daem0nmcp[vectors]
 """
 
 import logging
 import struct
 from typing import Dict, List, Optional, Tuple, Any
 
+from sentence_transformers import SentenceTransformer
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
-# Check if sentence-transformers is available
-_VECTORS_AVAILABLE = False
-_model = None
-
-try:
-    from sentence_transformers import SentenceTransformer
-    import numpy as np
-    _VECTORS_AVAILABLE = True
-except ImportError:
-    logger.debug("sentence-transformers not installed. Using TF-IDF only.")
+# Global model instance (lazy loaded, shared across all contexts)
+_model: Optional[SentenceTransformer] = None
 
 
 def is_available() -> bool:
-    """Check if vector embeddings are available."""
-    return _VECTORS_AVAILABLE
+    """Check if vector embeddings are available. Always True since deps are core."""
+    return True
 
 
-def _get_model() -> Optional[Any]:
-    """Get or create the embedding model (lazy loading)."""
+def _get_model() -> SentenceTransformer:
+    """Get or create the embedding model (lazy loading, shared across contexts)."""
     global _model
-    if not _VECTORS_AVAILABLE:
-        return None
 
     if _model is None:
         logger.info("Loading embedding model (all-MiniLM-L6-v2)...")
@@ -75,9 +66,6 @@ def decode(data: bytes) -> Optional[List[float]]:
 
 def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     """Compute cosine similarity between two vectors."""
-    if not _VECTORS_AVAILABLE:
-        return 0.0
-
     a = np.array(vec1)
     b = np.array(vec2)
 
@@ -103,13 +91,7 @@ class VectorIndex:
 
     def add(self, doc_id: int, text: str) -> bool:
         """Add a document to the index."""
-        if not _VECTORS_AVAILABLE:
-            return False
-
         model = _get_model()
-        if model is None:
-            return False
-
         embedding = model.encode(text, convert_to_numpy=True)
         self.vectors[doc_id] = embedding.tolist()
         return True
@@ -138,12 +120,10 @@ class VectorIndex:
         Returns:
             List of (doc_id, similarity) tuples, sorted by similarity descending.
         """
-        if not _VECTORS_AVAILABLE or not self.vectors:
+        if not self.vectors:
             return []
 
         model = _get_model()
-        if model is None:
-            return []
 
         # Encode query
         query_vec = model.encode(query, convert_to_numpy=True)
@@ -168,8 +148,7 @@ class HybridSearch:
     """
     Hybrid search combining TF-IDF and vector similarity.
 
-    Uses TF-IDF as primary (fast, no dependencies) with optional
-    vector boosting when available.
+    Uses TF-IDF as primary with vector boosting for enhanced semantic matching.
     """
 
     def __init__(self, tfidf_index, vector_index: Optional[VectorIndex] = None):
@@ -187,17 +166,15 @@ class HybridSearch:
         """
         Hybrid search combining TF-IDF and vector similarity.
 
-        If vectors are available, combines scores:
-        final_score = (1 - weight) * tfidf_score + weight * vector_score
-
-        If vectors are not available, falls back to TF-IDF only.
+        Combines scores: final_score = (1 - weight) * tfidf_score + weight * vector_score
+        Falls back to TF-IDF only if vector index is empty.
         """
         # Get TF-IDF results
         tfidf_results = self.tfidf.search(query, top_k=top_k * 2, threshold=tfidf_threshold)
         tfidf_scores = {doc_id: score for doc_id, score in tfidf_results}
 
         # If vectors available, get vector results
-        if _VECTORS_AVAILABLE and len(self.vectors) > 0:
+        if len(self.vectors) > 0:
             vector_results = self.vectors.search(query, top_k=top_k * 2, threshold=vector_threshold)
             vector_scores = {doc_id: score for doc_id, score in vector_results}
 
@@ -220,7 +197,7 @@ class HybridSearch:
             combined.sort(key=lambda x: x[1], reverse=True)
             return combined[:top_k]
 
-        # Fall back to TF-IDF only
+        # Fall back to TF-IDF only if no vectors indexed
         return tfidf_results[:top_k]
 
 
