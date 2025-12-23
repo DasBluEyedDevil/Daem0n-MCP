@@ -436,23 +436,35 @@ For wards across ALL project realms, the summoner can manually inscribe in `~/.c
 
 ---
 
-### RITUAL II.6: INVOKE THE PROTOCOL OF BINDING (If Superpowers Available)
+### RITUAL II.6: INSTALL THE PROTOCOL OF BINDING (Recommended)
 
-If you possess the Superpowers grimoire, invoke the Daem0n protocol skill:
+The Daem0n protocol skill enforces memory discipline automatically. It's a **standard Claude Code skill** - no plugins required.
 
+#### Copy the Skill to Your Project
+
+The skill resides at `.claude/skills/daem0nmcp-protocol/SKILL.md` in the Grimoire repository. Copy it to your project:
+
+**Unix/macOS:**
+```bash
+mkdir -p .claude/skills/daem0nmcp-protocol
+cp "$HOME/Daem0nMCP/.claude/skills/daem0nmcp-protocol/SKILL.md" .claude/skills/daem0nmcp-protocol/
 ```
-Skill tool: daem0nmcp:daem0nmcp-protocol
+
+**Windows:**
+```bash
+mkdir -p .claude/skills/daem0nmcp-protocol
+cp "$USERPROFILE/Daem0nMCP/.claude/skills/daem0nmcp-protocol/SKILL.md" .claude/skills/daem0nmcp-protocol/
 ```
 
-This enforces the sacred memory discipline:
+#### What the Skill Enforces
+
+Once installed, Claude Code will automatically load the skill and enforce:
 - Session dawn → commune with the Daem0n
 - Before alterations → seek the Daem0n's counsel
 - After decisions → inscribe memories
 - After completion → record the outcome
 
-The skill resides at `.claude/skills/daem0nmcp-protocol/SKILL.md` in the Grimoire repository.
-
-**If Superpowers is not installed:** Skip this and follow the ONGOING COVENANT manually.
+**If you skip this step:** Follow the ONGOING COVENANT manually (the skill just automates the reminders).
 
 ---
 
@@ -698,7 +710,7 @@ When `check_rules` returns guidance:
 
 ---
 
-## THE COMPLETE GRIMOIRE OF POWERS (15 Invocations)
+## THE COMPLETE GRIMOIRE OF POWERS (19 Invocations)
 
 **REMINDER:** ALL tools accept `project_path` as a parameter. Always pass the absolute path to your project root.
 
@@ -817,6 +829,42 @@ search_memories("JWT token", project_path="/path/to/project", limit=10)
 find_related(42, project_path="/path/to/project")  # Find memories related to memory #42
 ```
 *"Daem0n, what memories connect to this one?"*
+
+### Graph Memory (Causal Chains)
+
+#### `link_memories(source_id, target_id, relationship, project_path, description?, confidence?)`
+**When**: Creating explicit causal connections between memories
+**Relationship types**: `led_to`, `supersedes`, `depends_on`, `conflicts_with`, `related_to`
+```
+link_memories(42, 43, "led_to", project_path="/path/to/project", description="Database choice led to caching pattern")
+link_memories(50, 42, "supersedes", project_path="/path/to/project")  # Memory 50 replaces 42
+```
+*"Daem0n, bind these memories together..."*
+
+#### `unlink_memories(source_id, target_id, relationship, project_path)`
+**When**: Removing a causal connection
+```
+unlink_memories(42, 43, "led_to", project_path="/path/to/project")
+```
+*"Daem0n, sever this bond..."*
+
+#### `trace_chain(memory_id, project_path, direction?, relationship_types?, max_depth?)`
+**When**: Understanding the history or consequences of a decision
+**Directions**: `forward` (what resulted), `backward` (what caused), `both`
+```
+trace_chain(42, project_path="/path/to/project", direction="backward")  # What led to this?
+trace_chain(42, project_path="/path/to/project", direction="forward", max_depth=3)  # What emerged?
+```
+*"Daem0n, reveal the chain of causation..."*
+
+#### `get_graph(project_path, memory_ids?, topic?, format?, include_orphans?)`
+**When**: Visualizing memory relationships
+**Formats**: `json` (nodes/edges), `mermaid` (diagram)
+```
+get_graph(project_path="/path/to/project", memory_ids=[42, 43, 44], format="mermaid")
+get_graph(project_path="/path/to/project", topic="authentication", format="json")
+```
+*"Daem0n, show me the web of connections..."*
 
 ### Tech Debt & Refactoring
 
@@ -969,10 +1017,16 @@ Migration happens automatically at first awakening. After migration completes, y
 |  AFTER DECISIONS                                             |
 |  "Daem0n, remember this..."                                 |
 |  +-> remember(category, content, rationale, project_path=...)|
+|  +-> link_memories(source_id, target_id, "led_to", ...)      |
 +-------------------------------------------------------------+
 |  AFTER IMPLEMENTATION                                        |
 |  "Daem0n, seal this memory..."                              |
 |  +-> record_outcome(memory_id, outcome, worked, project_path)|
++-------------------------------------------------------------+
+|  INVESTIGATING CONTEXT                                       |
+|  "Daem0n, reveal the chain..."                              |
+|  +-> trace_chain(memory_id, project_path, direction="both")  |
+|  +-> get_graph(project_path, topic="...", format="mermaid")  |
 +-------------------------------------------------------------+
 |  IMPORTING EXTERNAL KNOWLEDGE                                |
 |  "Daem0n, consume this wisdom..."                           |
@@ -1002,4 +1056,4 @@ Migration happens automatically at first awakening. After migration completes, y
 
 ---
 
-*Grimoire of Daem0n v2.5.0: Eternal memory with semantic understanding, vector embeddings, knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, covenant integration, law generation, and the daem0nmcp-protocol skill.*
+*Grimoire of Daem0n v2.6.0: Eternal memory with semantic understanding, vector embeddings, graph memory (causal chains), knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, covenant integration, law generation, and the daem0nmcp-protocol skill.*

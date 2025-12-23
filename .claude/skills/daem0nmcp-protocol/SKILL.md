@@ -21,6 +21,9 @@ Look for these tools in your available tools:
 - mcp__daem0nmcp__context_check
 - mcp__daem0nmcp__remember
 - mcp__daem0nmcp__record_outcome
+- mcp__daem0nmcp__link_memories
+- mcp__daem0nmcp__trace_chain
+- mcp__daem0nmcp__get_graph
 ```
 
 **If tools are NOT available:** This skill does not apply. Proceed normally.
@@ -138,9 +141,14 @@ BEFORE CHANGES
 AFTER DECISIONS
     └─> remember(category, content, rationale)
     └─> SAVE the memory_id
+    └─> link_memories() if causally related to other decisions
 
 AFTER IMPLEMENTATION
     └─> record_outcome(memory_id, outcome, worked)
+
+INVESTIGATING CONTEXT
+    └─> trace_chain() to understand decision history
+    └─> get_graph() to visualize relationships
 ```
 
 ## Why This Matters
@@ -159,10 +167,77 @@ With protocol discipline:
 - Failures become learning opportunities
 - The AI actually gets smarter over time
 
+## Graph Memory Tools
+
+Memories can be explicitly linked to create a knowledge graph. Use these when decisions are causally related.
+
+### Relationship Types
+
+| Type | Meaning | Example |
+|------|---------|---------|
+| `led_to` | A caused/resulted in B | "PostgreSQL choice led to connection pooling pattern" |
+| `supersedes` | A replaces B (B is outdated) | "New auth flow supersedes old JWT approach" |
+| `depends_on` | A requires B to be valid | "Caching strategy depends on database choice" |
+| `conflicts_with` | A contradicts B | "Sync processing conflicts with async pattern" |
+| `related_to` | General association | "Both relate to authentication" |
+
+### Link Memories
+
+```
+mcp__daem0nmcp__link_memories(
+    source_id=<memory_id>,
+    target_id=<other_memory_id>,
+    relationship="led_to",
+    description="Optional context for the link"
+)
+```
+
+**When to link:**
+- A decision directly caused another decision
+- A pattern emerged from a specific choice
+- An approach supersedes a previous one
+
+### Trace Causal Chains
+
+```
+mcp__daem0nmcp__trace_chain(
+    memory_id=<id>,
+    direction="backward",  # "forward", "backward", or "both"
+    max_depth=5
+)
+```
+
+**Use cases:**
+- "What decisions led to this pattern?" → trace backward
+- "What emerged from this architectural choice?" → trace forward
+- "Show me the full context around this decision" → trace both
+
+### Visualize the Graph
+
+```
+mcp__daem0nmcp__get_graph(
+    memory_ids=[1, 2, 3],  # OR
+    topic="authentication",
+    format="mermaid"  # or "json"
+)
+```
+
+Returns a mermaid diagram or JSON structure showing nodes and edges.
+
+### Remove Links
+
+```
+mcp__daem0nmcp__unlink_memories(
+    source_id=<id>,
+    target_id=<id>,
+    relationship="led_to"
+)
+```
+
 ## The Bottom Line
 
 **Memory tools exist. Use them correctly.**
 
-Check context. Record decisions. Track outcomes.
+Check context. Record decisions. Track outcomes. Link related memories.
 
 This is non-negotiable when Daem0nMCP tools are available.

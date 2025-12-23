@@ -18,7 +18,16 @@ from pathlib import Path
 from sqlalchemy import select, or_, func, desc
 
 from .database import DatabaseManager
-from .models import Memory
+from .models import Memory, MemoryRelationship
+
+# Valid relationship types for graph edges
+VALID_RELATIONSHIPS = frozenset({
+    "led_to",         # A caused or resulted in B
+    "supersedes",     # A replaces B (B is now outdated)
+    "depends_on",     # A requires B to be valid
+    "conflicts_with", # A contradicts B
+    "related_to",     # General association (weaker)
+})
 from .similarity import (
     TFIDFIndex,
     tokenize,
@@ -269,14 +278,41 @@ class MemoryManager:
         content: str,
         tags: Optional[List[str]] = None
     ) -> List[Dict]:
-        """Check for conflicts with existing memories."""
+        """
+        Check for conflicts with existing memories using deep semantic search.
+
+        Uses VectorIndex (if available) or TF-IDF to find semantically similar
+        memories across the ENTIRE database, not just recent ones. This catches
+        conflicts with decisions made long ago that might still be relevant.
+        """
+        await self._check_index_freshness()
+        index = await self._ensure_index()
+
+        # Use hybrid search if vectors available, otherwise TF-IDF only
+        # Search for semantically similar memories across ALL memories
+        if self._vectors_enabled and self._vector_index and len(self._vector_index) > 0:
+            hybrid = vectors.HybridSearch(index, self._vector_index)
+            search_results = hybrid.search(content, top_k=50)  # Top 50 most similar
+        else:
+            search_results = index.search(content, top_k=50, threshold=0.3)
+
+        if not search_results:
+            return []
+
+        # Get IDs of similar memories
+        similar_ids = [doc_id for doc_id, score in search_results if score >= 0.4]
+
+        if not similar_ids:
+            return []
+
+        # Fetch full memory details only for similar ones
         async with self.db.get_session() as session:
-            # Get recent memories that might conflict
             result = await session.execute(
                 select(Memory)
-                .where(_not_archived_condition())
-                .order_by(desc(Memory.created_at))
-                .limit(100)  # Check against recent memories
+                .where(
+                    Memory.id.in_(similar_ids),
+                    _not_archived_condition()
+                )
             )
             existing = [
                 {
@@ -291,6 +327,18 @@ class MemoryManager:
             ]
 
         return detect_conflict(content, existing, similarity_threshold=0.5)
+
+    async def _increment_recall_counts(self, memory_ids: List[int]) -> None:
+        """Increment recall_count for accessed memories (for saliency-based pruning)."""
+        if not memory_ids:
+            return
+
+        async with self.db.get_session() as session:
+            await session.execute(
+                Memory.__table__.update()
+                .where(Memory.id.in_(memory_ids))
+                .values(recall_count=Memory.recall_count + 1)
+            )
 
     async def recall(
         self,
@@ -499,6 +547,10 @@ class MemoryManager:
             summary_parts.append(f"{failed_count} failed approaches to avoid")
         if by_category['patterns']:
             summary_parts.append(f"{len(by_category['patterns'])} patterns to follow")
+
+        # Increment recall_count for accessed memories (saliency tracking)
+        recalled_ids = [m['id'] for cat in by_category.values() for m in cat]
+        await self._increment_recall_counts(recalled_ids)
 
         return {
             'topic': topic,
@@ -832,6 +884,10 @@ class MemoryManager:
 
         total = sum(len(v) for v in by_category.values())
 
+        # Increment recall_count for accessed memories (saliency tracking)
+        recalled_ids = [m['id'] for cat in by_category.values() for m in cat]
+        await self._increment_recall_counts(recalled_ids)
+
         return {
             'file_path': file_path,
             'found': total,
@@ -876,6 +932,424 @@ class MemoryManager:
             "vectors_indexed": len(self._vector_index) if self._vector_index else 0,
             "built_at": self._index_built_at.isoformat()
         }
+
+    # =========================================================================
+    # Graph Memory Methods - Explicit relationship edges between memories
+    # =========================================================================
+
+    async def link_memories(
+        self,
+        source_id: int,
+        target_id: int,
+        relationship: str,
+        description: Optional[str] = None,
+        confidence: float = 1.0
+    ) -> Dict[str, Any]:
+        """
+        Create an explicit relationship edge between two memories.
+
+        Args:
+            source_id: The "from" memory ID
+            target_id: The "to" memory ID
+            relationship: Type of relationship (led_to, supersedes, depends_on, conflicts_with, related_to)
+            description: Optional context explaining this relationship
+            confidence: Strength of relationship (0.0-1.0, default 1.0)
+
+        Returns:
+            Status of the link operation
+        """
+        # Validate relationship type
+        if relationship not in VALID_RELATIONSHIPS:
+            return {
+                "error": f"Invalid relationship type '{relationship}'. Valid types: {', '.join(sorted(VALID_RELATIONSHIPS))}"
+            }
+
+        # Prevent self-reference
+        if source_id == target_id:
+            return {"error": "Cannot link a memory to itself"}
+
+        from sqlalchemy import and_
+
+        async with self.db.get_session() as session:
+            # Verify both memories exist
+            source = await session.get(Memory, source_id)
+            target = await session.get(Memory, target_id)
+
+            if not source:
+                return {"error": f"Source memory {source_id} not found"}
+            if not target:
+                return {"error": f"Target memory {target_id} not found"}
+
+            # Check for existing relationship
+            existing = await session.execute(
+                select(MemoryRelationship).where(
+                    and_(
+                        MemoryRelationship.source_id == source_id,
+                        MemoryRelationship.target_id == target_id,
+                        MemoryRelationship.relationship == relationship
+                    )
+                )
+            )
+            if existing.scalar_one_or_none():
+                return {
+                    "status": "already_exists",
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "relationship": relationship
+                }
+
+            # Create the relationship
+            rel = MemoryRelationship(
+                source_id=source_id,
+                target_id=target_id,
+                relationship=relationship,
+                description=description,
+                confidence=confidence
+            )
+            session.add(rel)
+            await session.flush()  # Get the ID
+
+            logger.info(f"Created relationship: {source_id} --{relationship}--> {target_id}")
+
+            return {
+                "status": "linked",
+                "id": rel.id,
+                "source_id": source_id,
+                "target_id": target_id,
+                "relationship": relationship,
+                "description": description,
+                "message": f"Linked memory {source_id} --{relationship}--> {target_id}"
+            }
+
+    async def unlink_memories(
+        self,
+        source_id: int,
+        target_id: int,
+        relationship: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Remove a relationship edge between two memories.
+
+        Args:
+            source_id: The "from" memory ID
+            target_id: The "to" memory ID
+            relationship: Specific relationship to remove (if None, removes all between the pair)
+
+        Returns:
+            Status of the unlink operation
+        """
+        from sqlalchemy import and_, delete
+
+        async with self.db.get_session() as session:
+            # Build conditions
+            conditions = [
+                MemoryRelationship.source_id == source_id,
+                MemoryRelationship.target_id == target_id
+            ]
+            if relationship:
+                conditions.append(MemoryRelationship.relationship == relationship)
+
+            # Find existing relationships
+            result = await session.execute(
+                select(MemoryRelationship).where(and_(*conditions))
+            )
+            existing = result.scalars().all()
+
+            if not existing:
+                return {
+                    "status": "not_found",
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "relationship": relationship
+                }
+
+            # Delete the relationships
+            await session.execute(
+                delete(MemoryRelationship).where(and_(*conditions))
+            )
+
+            logger.info(f"Removed {len(existing)} relationship(s) between {source_id} and {target_id}")
+
+            return {
+                "status": "unlinked",
+                "source_id": source_id,
+                "target_id": target_id,
+                "relationship": relationship,
+                "removed_count": len(existing),
+                "message": f"Removed {len(existing)} relationship(s)"
+            }
+
+    async def trace_chain(
+        self,
+        memory_id: int,
+        direction: str = "both",
+        relationship_types: Optional[List[str]] = None,
+        max_depth: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Traverse the memory graph from a starting point using recursive CTE.
+
+        Args:
+            memory_id: Starting memory ID
+            direction: "forward" (descendants), "backward" (ancestors), or "both"
+            relationship_types: Filter to specific relationship types (default: all)
+            max_depth: Maximum traversal depth (default: 10)
+
+        Returns:
+            Chain of connected memories with relationship info
+        """
+        if direction not in ("forward", "backward", "both"):
+            return {"error": f"Invalid direction '{direction}'. Use: forward, backward, both"}
+
+        from sqlalchemy import text
+
+        async with self.db.get_session() as session:
+            # Verify starting memory exists
+            start_memory = await session.get(Memory, memory_id)
+            if not start_memory:
+                return {"error": f"Memory {memory_id} not found"}
+
+            # Build recursive CTE based on direction
+            if direction == "forward":
+                cte_sql = """
+                    WITH RECURSIVE chain AS (
+                        SELECT r.target_id as id, r.relationship, r.source_id as from_id, 1 as depth
+                        FROM memory_relationships r
+                        WHERE r.source_id = :start_id
+
+                        UNION ALL
+
+                        SELECT r.target_id, r.relationship, r.source_id, c.depth + 1
+                        FROM memory_relationships r
+                        JOIN chain c ON r.source_id = c.id
+                        WHERE c.depth < :max_depth
+                    )
+                    SELECT DISTINCT c.id, c.relationship, c.from_id, c.depth, m.content, m.category
+                    FROM chain c
+                    JOIN memories m ON c.id = m.id
+                    ORDER BY c.depth
+                """
+            elif direction == "backward":
+                cte_sql = """
+                    WITH RECURSIVE chain AS (
+                        SELECT r.source_id as id, r.relationship, r.target_id as from_id, 1 as depth
+                        FROM memory_relationships r
+                        WHERE r.target_id = :start_id
+
+                        UNION ALL
+
+                        SELECT r.source_id, r.relationship, r.target_id, c.depth + 1
+                        FROM memory_relationships r
+                        JOIN chain c ON r.target_id = c.id
+                        WHERE c.depth < :max_depth
+                    )
+                    SELECT DISTINCT c.id, c.relationship, c.from_id, c.depth, m.content, m.category
+                    FROM chain c
+                    JOIN memories m ON c.id = m.id
+                    ORDER BY c.depth
+                """
+            else:  # both
+                cte_sql = """
+                    WITH RECURSIVE chain AS (
+                        -- Forward edges
+                        SELECT r.target_id as id, r.relationship, r.source_id as from_id, 1 as depth
+                        FROM memory_relationships r
+                        WHERE r.source_id = :start_id
+
+                        UNION
+
+                        -- Backward edges
+                        SELECT r.source_id as id, r.relationship, r.target_id as from_id, 1 as depth
+                        FROM memory_relationships r
+                        WHERE r.target_id = :start_id
+
+                        UNION ALL
+
+                        -- Recursive forward
+                        SELECT r.target_id, r.relationship, r.source_id, c.depth + 1
+                        FROM memory_relationships r
+                        JOIN chain c ON r.source_id = c.id
+                        WHERE c.depth < :max_depth
+
+                        UNION ALL
+
+                        -- Recursive backward
+                        SELECT r.source_id, r.relationship, r.target_id, c.depth + 1
+                        FROM memory_relationships r
+                        JOIN chain c ON r.target_id = c.id
+                        WHERE c.depth < :max_depth
+                    )
+                    SELECT DISTINCT c.id, c.relationship, c.from_id, c.depth, m.content, m.category
+                    FROM chain c
+                    JOIN memories m ON c.id = m.id
+                    ORDER BY c.depth
+                """
+
+            result = await session.execute(
+                text(cte_sql),
+                {"start_id": memory_id, "max_depth": max_depth}
+            )
+            rows = result.fetchall()
+
+            # Filter by relationship types if specified
+            chain = []
+            for row in rows:
+                if relationship_types and row[1] not in relationship_types:
+                    continue
+                chain.append({
+                    "id": row[0],
+                    "relationship": row[1],
+                    "from_id": row[2],
+                    "depth": row[3],
+                    "content": row[4],
+                    "category": row[5]
+                })
+
+            return {
+                "memory_id": memory_id,
+                "direction": direction,
+                "max_depth": max_depth,
+                "chain": chain,
+                "total_found": len(chain),
+                "message": f"Found {len(chain)} connected memories"
+            }
+
+    async def get_graph(
+        self,
+        memory_ids: Optional[List[int]] = None,
+        topic: Optional[str] = None,
+        format: str = "json",
+        include_orphans: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Get a subgraph of memories and their relationships.
+
+        Args:
+            memory_ids: Specific memory IDs to include (if None, uses topic search)
+            topic: Topic to search for memories (alternative to memory_ids)
+            format: Output format - "json" or "mermaid"
+            include_orphans: Include memories with no relationships
+
+        Returns:
+            Graph structure with nodes and edges
+        """
+        async with self.db.get_session() as session:
+            # Determine which memories to include
+            if memory_ids:
+                result = await session.execute(
+                    select(Memory).where(Memory.id.in_(memory_ids))
+                )
+                memories = result.scalars().all()
+            elif topic:
+                # Use recall to find relevant memories
+                recall_result = await self.recall(topic, limit=20)
+                all_mems = []
+                for cat in ["decisions", "patterns", "warnings", "learnings"]:
+                    all_mems.extend(recall_result.get(cat, []))
+                if not all_mems:
+                    return {"nodes": [], "edges": [], "message": "No memories found for topic"}
+                memory_ids = [m["id"] for m in all_mems]
+                result = await session.execute(
+                    select(Memory).where(Memory.id.in_(memory_ids))
+                )
+                memories = result.scalars().all()
+            else:
+                return {"error": "Must provide either memory_ids or topic"}
+
+            if not memories:
+                return {"nodes": [], "edges": [], "message": "No memories found"}
+
+            mem_ids = [m.id for m in memories]
+
+            # Get all edges between these memories
+            result = await session.execute(
+                select(MemoryRelationship).where(
+                    or_(
+                        MemoryRelationship.source_id.in_(mem_ids),
+                        MemoryRelationship.target_id.in_(mem_ids)
+                    )
+                )
+            )
+            edges = result.scalars().all()
+
+            # Filter orphans if requested
+            if not include_orphans and edges:
+                connected_ids = set()
+                for edge in edges:
+                    connected_ids.add(edge.source_id)
+                    connected_ids.add(edge.target_id)
+                memories = [m for m in memories if m.id in connected_ids]
+
+            # Build output
+            nodes = [
+                {
+                    "id": m.id,
+                    "content": m.content[:100] if len(m.content) > 100 else m.content,
+                    "category": m.category,
+                    "tags": m.tags or []
+                }
+                for m in memories
+            ]
+
+            edge_list = [
+                {
+                    "source_id": e.source_id,
+                    "target_id": e.target_id,
+                    "relationship": e.relationship,
+                    "description": e.description,
+                    "confidence": e.confidence
+                }
+                for e in edges
+                if e.source_id in mem_ids and e.target_id in mem_ids
+            ]
+
+            result_dict = {
+                "nodes": nodes,
+                "edges": edge_list,
+                "node_count": len(nodes),
+                "edge_count": len(edge_list)
+            }
+
+            # Generate mermaid if requested
+            if format == "mermaid":
+                result_dict["mermaid"] = self._generate_mermaid(nodes, edge_list)
+
+            return result_dict
+
+    def _generate_mermaid(self, nodes: List[Dict], edges: List[Dict]) -> str:
+        """Generate a Mermaid flowchart from graph data."""
+        lines = ["flowchart TD"]
+
+        # Map category to node shape
+        category_shapes = {
+            "decision": ("[[", "]]"),      # Stadium shape
+            "pattern": ("((", "))"),       # Circle
+            "warning": (">", "]"),         # Flag
+            "learning": ("(", ")")         # Rounded
+        }
+
+        # Add nodes
+        for node in nodes:
+            shape = category_shapes.get(node["category"], ("[", "]"))
+            # Escape special chars and truncate
+            label = node["content"][:30].replace('"', "'").replace("\n", " ")
+            lines.append(f'    {node["id"]}{shape[0]}"{label}"{shape[1]}')
+
+        # Arrow styles by relationship type
+        arrow_styles = {
+            "led_to": "-->",
+            "supersedes": "-.->",
+            "depends_on": "==>",
+            "conflicts_with": "--x",
+            "related_to": "---"
+        }
+
+        # Add edges
+        for edge in edges:
+            arrow = arrow_styles.get(edge["relationship"], "-->")
+            lines.append(f'    {edge["source_id"]} {arrow}|{edge["relationship"]}| {edge["target_id"]}')
+
+        return "\n".join(lines)
 
     async def fts_search(
         self,

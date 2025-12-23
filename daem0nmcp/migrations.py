@@ -110,6 +110,27 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         END;
         """
     ]),
+    (6, "Add recall_count column for saliency-based pruning", [
+        "ALTER TABLE memories ADD COLUMN recall_count INTEGER DEFAULT 0;"
+    ]),
+    (7, "Add memory_relationships table for graph edges", [
+        """
+        CREATE TABLE IF NOT EXISTS memory_relationships (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id INTEGER NOT NULL,
+            target_id INTEGER NOT NULL,
+            relationship TEXT NOT NULL,
+            description TEXT,
+            confidence REAL DEFAULT 1.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (source_id) REFERENCES memories(id) ON DELETE CASCADE,
+            FOREIGN KEY (target_id) REFERENCES memories(id) ON DELETE CASCADE
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_relationships_source ON memory_relationships(source_id);",
+        "CREATE INDEX IF NOT EXISTS idx_relationships_target ON memory_relationships(target_id);",
+        "CREATE INDEX IF NOT EXISTS idx_relationships_type ON memory_relationships(relationship);"
+    ]),
 ]
 
 

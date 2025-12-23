@@ -730,6 +730,56 @@ async def record_outcome(
 # ============================================================================
 # Helper: Git awareness
 # ============================================================================
+def _get_git_history_summary(project_path: str, limit: int = 30) -> Optional[str]:
+    """Get a summary of git history for bootstrapping context.
+
+    Args:
+        project_path: Directory to run git commands in
+        limit: Maximum number of commits to include
+
+    Returns:
+        Formatted string summary of git history, or None if not a git repo
+    """
+    try:
+        # Check if we're in a git repo
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=project_path
+        )
+        if result.returncode != 0:
+            return None
+
+        # Get commit history with more detail
+        result = subprocess.run(
+            ["git", "log", f"-{limit}", "--format=%h|%s|%an|%ar"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=project_path
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        lines = result.stdout.strip().split("\n")
+        summary_parts = []
+        for line in lines:
+            parts = line.split("|", 3)
+            if len(parts) >= 2:
+                commit_hash, message = parts[0], parts[1]
+                summary_parts.append(f"- {commit_hash}: {message}")
+
+        if not summary_parts:
+            return None
+
+        return "\n".join(summary_parts)
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return None
+
+
 def _get_git_changes(since_date: Optional[datetime] = None, project_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Get git changes since a given date.
 
@@ -798,6 +848,73 @@ def _get_git_changes(since_date: Optional[datetime] = None, project_path: Option
 
 
 # ============================================================================
+# Helper: Bootstrap project context on first run
+# ============================================================================
+async def _bootstrap_project_context(ctx: ProjectContext) -> Dict[str, Any]:
+    """
+    Bootstrap initial context on first run.
+
+    Called automatically when get_briefing() detects no memories exist.
+    Ingests:
+    1. CLAUDE.md project instructions (if exists)
+    2. Git history baseline for project context
+
+    Args:
+        ctx: The project context to bootstrap
+
+    Returns:
+        Dictionary with bootstrap results
+    """
+    results = {
+        "bootstrapped": True,
+        "claude_md": None,
+        "git_history": None,
+        "memories_created": 0
+    }
+
+    # 1. Ingest CLAUDE.md if exists
+    claude_md_path = Path(ctx.project_path) / "CLAUDE.md"
+    if claude_md_path.exists():
+        try:
+            content = claude_md_path.read_text(encoding='utf-8', errors='ignore')
+            if content.strip():
+                # Store as a permanent pattern (project instructions)
+                await ctx.memory_manager.remember(
+                    category="pattern",
+                    content=f"Project instructions from CLAUDE.md:\n{content[:3000]}",
+                    rationale="Auto-ingested from CLAUDE.md on first run - these are project-specific instructions",
+                    tags=["bootstrap", "project-config", "claude-md"],
+                    project_path=ctx.project_path
+                )
+                results["claude_md"] = "ingested"
+                results["memories_created"] += 1
+                logger.info(f"Bootstrapped CLAUDE.md for {ctx.project_path}")
+        except Exception as e:
+            logger.warning(f"Failed to ingest CLAUDE.md: {e}")
+            results["claude_md"] = f"error: {e}"
+
+    # 2. Ingest git history baseline
+    git_summary = _get_git_history_summary(ctx.project_path, limit=30)
+    if git_summary:
+        try:
+            await ctx.memory_manager.remember(
+                category="learning",
+                content=f"Project git history baseline (recent commits):\n{git_summary}",
+                rationale="Auto-ingested git history on first run - provides context about project evolution",
+                tags=["bootstrap", "git-history", "project-context"],
+                project_path=ctx.project_path
+            )
+            results["git_history"] = "ingested"
+            results["memories_created"] += 1
+            logger.info(f"Bootstrapped git history for {ctx.project_path}")
+        except Exception as e:
+            logger.warning(f"Failed to ingest git history: {e}")
+            results["git_history"] = f"error: {e}"
+
+    return results
+
+
+# ============================================================================
 # Tool 6: GET_BRIEFING - Smart session start summary
 # ============================================================================
 @mcp.tool()
@@ -839,6 +956,14 @@ async def get_briefing(
 
     # Get statistics with learning insights
     stats = await ctx.memory_manager.get_statistics()
+
+    # AUTO-BOOTSTRAP: First run detection
+    # If no memories exist, bootstrap with CLAUDE.md and git history
+    bootstrap_result = None
+    if stats.get('total_memories', 0) == 0:
+        bootstrap_result = await _bootstrap_project_context(ctx)
+        # Re-fetch stats after bootstrap
+        stats = await ctx.memory_manager.get_statistics()
 
     # Get most recent memory timestamp for git awareness
     last_memory_date = None
@@ -939,6 +1064,16 @@ async def get_briefing(
     # Build actionable message
     message_parts = [f"Daem0nMCP ready. {stats['total_memories']} memories stored."]
 
+    # Add bootstrap notification if this was first run
+    if bootstrap_result:
+        bootstrap_items = []
+        if bootstrap_result.get("claude_md") == "ingested":
+            bootstrap_items.append("CLAUDE.md")
+        if bootstrap_result.get("git_history") == "ingested":
+            bootstrap_items.append("git history")
+        if bootstrap_items:
+            message_parts.append(f"[BOOTSTRAP] First run - ingested: {', '.join(bootstrap_items)}.")
+
     if failed_approaches:
         message_parts.append(f"[WARNING] {len(failed_approaches)} failed approaches to avoid!")
 
@@ -960,6 +1095,7 @@ async def get_briefing(
         "top_rules": top_rules,
         "git_changes": git_changes,
         "focus_areas": focus_memories if focus_memories else None,
+        "bootstrap": bootstrap_result,
         "message": " ".join(message_parts)
     }
 
@@ -1645,6 +1781,94 @@ async def _fetch_and_extract(url: str, allowed_ips: Optional[Set[str]] = None) -
         return None
 
 
+def _chunk_markdown_content(content: str, chunk_size: int, max_chunks: int) -> List[str]:
+    """
+    Chunk content with markdown awareness.
+
+    Splits at markdown headers first (##, ###, etc.) to keep related content together,
+    then further splits oversized sections by size. This ensures that function
+    descriptions, API endpoints, etc. aren't split across chunks.
+
+    Args:
+        content: The text content to chunk
+        chunk_size: Maximum characters per chunk
+        max_chunks: Maximum number of chunks to create
+
+    Returns:
+        List of content chunks
+    """
+    # First, split at markdown headers (# ## ### #### etc.)
+    # Pattern matches newline followed by 1-6 # characters and a space
+    header_pattern = re.compile(r'\n(?=#{1,6}\s)')
+    sections = header_pattern.split(content)
+
+    chunks = []
+
+    for section in sections:
+        section = section.strip()
+        if not section:
+            continue
+
+        # If section fits in chunk_size, add it directly
+        if len(section) <= chunk_size:
+            chunks.append(section)
+        else:
+            # Section is too large - split by paragraphs first
+            paragraphs = re.split(r'\n\n+', section)
+            current_chunk = []
+            current_size = 0
+
+            for para in paragraphs:
+                para = para.strip()
+                if not para:
+                    continue
+
+                para_len = len(para) + 2  # +2 for paragraph separator
+
+                if current_size + para_len > chunk_size and current_chunk:
+                    # Flush current chunk
+                    chunks.append('\n\n'.join(current_chunk))
+                    current_chunk = []
+                    current_size = 0
+
+                # If single paragraph is too large, split by words
+                if para_len > chunk_size:
+                    words = para.split()
+                    word_chunk = []
+                    word_size = 0
+
+                    for word in words:
+                        word_len = len(word) + 1
+                        if word_size + word_len > chunk_size and word_chunk:
+                            if current_chunk:
+                                chunks.append('\n\n'.join(current_chunk))
+                                current_chunk = []
+                                current_size = 0
+                            chunks.append(' '.join(word_chunk))
+                            word_chunk = [word]
+                            word_size = word_len
+                        else:
+                            word_chunk.append(word)
+                            word_size += word_len
+
+                    if word_chunk:
+                        current_chunk.append(' '.join(word_chunk))
+                        current_size += word_size
+                else:
+                    current_chunk.append(para)
+                    current_size += para_len
+
+            if current_chunk:
+                chunks.append('\n\n'.join(current_chunk))
+
+        # Check max chunks limit
+        if len(chunks) >= max_chunks:
+            logger.warning(f"Reached max chunks ({max_chunks}), stopping")
+            break
+
+    return chunks[:max_chunks]
+
+
 # ============================================================================
 # Tool 14: INGEST_DOC - Import external documentation
 # ============================================================================
@@ -1717,27 +1941,16 @@ async def ingest_doc(
             "url": url
         }
 
-    # Chunk the content with limit
-    chunks = []
-    words = content.split()
-    current_chunk = []
-    current_size = 0
+    # Chunk the content with markdown-aware splitting
+    # This preserves document structure by splitting at headers first,
+    # ensuring function descriptions, API endpoints, etc. stay together
+    chunks = _chunk_markdown_content(content, chunk_size, MAX_CHUNKS)
 
-    for word in words:
-        word_len = len(word) + 1  # +1 for space
-        if current_size + word_len > chunk_size and current_chunk:
-            chunks.append(' '.join(current_chunk))
-            if len(chunks) >= MAX_CHUNKS:
-                logger.warning(f"Reached max chunks ({MAX_CHUNKS}), stopping")
-                break
-            current_chunk = [word]
-            current_size = word_len
-        else:
-            current_chunk.append(word)
-            current_size += word_len
-
-    if current_chunk and len(chunks) < MAX_CHUNKS:
-        chunks.append(' '.join(current_chunk))
+    if not chunks:
+        return {
+            "error": "Failed to chunk content",
+            "url": url
+        }
 
     # Store each chunk as a learning
     memories_created = []
@@ -2147,24 +2360,193 @@ async def pin_memory(
         }
 
 
+# ============================================================================
+# Graph Memory Tools - Explicit relationship edges between memories
+# ============================================================================
+
+@mcp.tool()
+@with_request_id
+async def link_memories(
+    source_id: int,
+    target_id: int,
+    relationship: str,
+    description: Optional[str] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Create an explicit relationship between two memories.
+
+    Use this to build a knowledge graph of how decisions connect:
+    - "led_to": Decision A caused or resulted in Pattern B
+    - "supersedes": New approach replaces an old one
+    - "depends_on": Pattern A requires Decision B to be valid
+    - "conflicts_with": Warning contradicts a decision
+    - "related_to": General association
+
+    Args:
+        source_id: The "from" memory ID
+        target_id: The "to" memory ID
+        relationship: One of: led_to, supersedes, depends_on, conflicts_with, related_to
+        description: Optional context explaining this relationship
+        project_path: Project root path
+
+    Returns:
+        Status of the link operation
+
+    Examples:
+        link_memories(42, 58, "led_to", "Database choice led to this caching pattern")
+        link_memories(99, 42, "supersedes", "New auth approach replaces old one")
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    return await ctx.memory_manager.link_memories(
+        source_id=source_id,
+        target_id=target_id,
+        relationship=relationship,
+        description=description
+    )
+
+
+@mcp.tool()
+@with_request_id
+async def unlink_memories(
+    source_id: int,
+    target_id: int,
+    relationship: Optional[str] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Remove a relationship between two memories.
+
+    Args:
+        source_id: The "from" memory ID
+        target_id: The "to" memory ID
+        relationship: Specific relationship to remove (if None, removes all between the pair)
+        project_path: Project root path
+
+    Returns:
+        Status of the unlink operation
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    return await ctx.memory_manager.unlink_memories(
+        source_id=source_id,
+        target_id=target_id,
+        relationship=relationship
+    )
+
+
+@mcp.tool()
+@with_request_id
+async def trace_chain(
+    memory_id: int,
+    direction: str = "both",
+    relationship_types: Optional[List[str]] = None,
+    max_depth: int = 10,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Traverse the memory graph from a starting point.
+
+    Use this to understand causal chains and dependencies:
+    - "What decisions led to this pattern?"
+    - "What depends on this library choice?"
+    - "What's the full context around this warning?"
+
+    Args:
+        memory_id: Starting memory ID
+        direction: "forward" (descendants), "backward" (ancestors), or "both"
+        relationship_types: Filter to specific types (default: all)
+        max_depth: How far to traverse (default: 10)
+        project_path: Project root path
+
+    Returns:
+        Chain of connected memories with relationship info
+
+    Examples:
+        trace_chain(42, direction="backward")  # What led to this?
+        trace_chain(42, direction="forward", relationship_types=["depends_on"])
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    return await ctx.memory_manager.trace_chain(
+        memory_id=memory_id,
+        direction=direction,
+        relationship_types=relationship_types,
+        max_depth=max_depth
+    )
+
+
+@mcp.tool()
+@with_request_id
+async def get_graph(
+    memory_ids: Optional[List[int]] = None,
+    topic: Optional[str] = None,
+    format: str = "json",
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get a subgraph of memories and their relationships.
+
+    Returns nodes (memories) and edges (relationships) for visualization
+    or analysis. Can output as JSON or Mermaid diagram.
+
+    Args:
+        memory_ids: Specific memory IDs to include
+        topic: Topic to search for (alternative to memory_ids)
+        format: "json" or "mermaid" for diagram output
+        project_path: Project root path
+
+    Returns:
+        Graph structure with nodes, edges, and optional mermaid diagram
+
+    Examples:
+        get_graph(memory_ids=[42, 58, 99])
+        get_graph(topic="authentication", format="mermaid")
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    return await ctx.memory_manager.get_graph(
+        memory_ids=memory_ids,
+        topic=topic,
+        format=format
+    )
+
+
 @mcp.tool()
 @with_request_id
 async def prune_memories(
     older_than_days: int = 90,
     categories: Optional[List[str]] = None,
+    min_recall_count: int = 5,
+    protect_successful: bool = True,
     dry_run: bool = True,
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Prune old, low-value memories.
+    Prune old, low-value memories with saliency-based protection.
 
     By default, only affects episodic memories (decisions, learnings).
-    Permanent memories (patterns, warnings), pinned, and memories with
-    outcomes are protected.
+    Protected memories (never pruned):
+    - Permanent memories (patterns, warnings)
+    - Pinned memories
+    - Memories with outcomes recorded
+    - Frequently accessed memories (recall_count >= min_recall_count)
+    - Successful decisions (worked=True) if protect_successful is True
 
     Args:
         older_than_days: Only prune memories older than this
         categories: Limit to these categories (default: decision, learning)
+        min_recall_count: Protect memories accessed at least this many times (default: 5)
+        protect_successful: Protect memories with worked=True (default: True)
         dry_run: If True, just report what would be pruned
         project_path: Project root path
     """
@@ -2179,15 +2561,20 @@ async def prune_memories(
     cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
 
     async with ctx.db_manager.get_session() as session:
-        # Find prunable memories
+        # Find prunable memories with saliency-based protection
         query = select(Memory).where(
             Memory.category.in_(categories),
             Memory.created_at < cutoff,
-            Memory.is_permanent == False,
-            Memory.pinned == False,
+            Memory.is_permanent == False,  # noqa: E712
+            Memory.pinned == False,  # noqa: E712
             Memory.outcome == None,  # Don't prune memories with outcomes
-            or_(Memory.archived == False, Memory.archived.is_(None))  # noqa: E712
+            or_(Memory.archived == False, Memory.archived.is_(None)),  # noqa: E712
+            or_(Memory.recall_count < min_recall_count, Memory.recall_count.is_(None))  # Saliency protection
         )
+
+        # Optionally protect successful decisions
+        if protect_successful:
+            query = query.where(or_(Memory.worked != True, Memory.worked.is_(None)))  # noqa: E712
 
         result = await session.execute(query)
         to_prune = result.scalars().all()
@@ -2198,8 +2585,15 @@ async def prune_memories(
                 "would_prune": len(to_prune),
                 "categories": categories,
                 "older_than_days": older_than_days,
+                "min_recall_count": min_recall_count,
+                "protect_successful": protect_successful,
                 "samples": [
-                    {"id": m.id, "content": m.content[:50], "created_at": m.created_at.isoformat()}
+                    {
+                        "id": m.id,
+                        "content": m.content[:50],
+                        "recall_count": getattr(m, 'recall_count', 0) or 0,
+                        "created_at": m.created_at.isoformat()
+                    }
                     for m in to_prune[:5]
                 ]
             }
@@ -2215,7 +2609,8 @@ async def prune_memories(
         "pruned": len(to_prune),
         "categories": categories,
         "older_than_days": older_than_days,
-        "message": f"Pruned {len(to_prune)} old memories"
+        "min_recall_count": min_recall_count,
+        "message": f"Pruned {len(to_prune)} old memories (protected: pinned, outcomes, recall_count>={min_recall_count}, successful)"
     }
 
 
