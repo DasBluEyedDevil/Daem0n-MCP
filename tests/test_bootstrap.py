@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from daem0nmcp.server import _extract_project_identity, _extract_architecture, _extract_conventions, _extract_entry_points
+from daem0nmcp.server import _extract_project_identity, _extract_architecture, _extract_conventions, _extract_entry_points, _scan_todos_for_bootstrap
 
 
 class TestExtractProjectIdentity:
@@ -187,5 +187,46 @@ class TestExtractEntryPoints:
         (tmp_path / "utils.py").write_text("# utils")
 
         result = _extract_entry_points(str(tmp_path))
+
+        assert result is None
+
+
+class TestScanTodosForBootstrap:
+    """Tests for _scan_todos_for_bootstrap extractor."""
+
+    def test_finds_todo_comments(self, tmp_path):
+        """Should find TODO comments in code files."""
+        (tmp_path / "code.py").write_text("# TODO: Fix this later\nx = 1")
+
+        result = _scan_todos_for_bootstrap(str(tmp_path))
+
+        assert result is not None
+        assert "TODO" in result
+        assert "Fix this later" in result
+
+    def test_finds_fixme_comments(self, tmp_path):
+        """Should find FIXME comments."""
+        (tmp_path / "code.py").write_text("# FIXME: This is broken\nx = 1")
+
+        result = _scan_todos_for_bootstrap(str(tmp_path))
+
+        assert result is not None
+        assert "FIXME" in result
+
+    def test_limits_results(self, tmp_path):
+        """Should limit to 20 items."""
+        code = "\n".join(f"# TODO: Item {i}" for i in range(30))
+        (tmp_path / "code.py").write_text(code)
+
+        result = _scan_todos_for_bootstrap(str(tmp_path), limit=20)
+
+        # Count TODOs in result
+        assert result.count("TODO:") <= 20
+
+    def test_returns_none_when_no_todos(self, tmp_path):
+        """Should return None when no TODOs found."""
+        (tmp_path / "code.py").write_text("x = 1\ny = 2")
+
+        result = _scan_todos_for_bootstrap(str(tmp_path))
 
         assert result is None

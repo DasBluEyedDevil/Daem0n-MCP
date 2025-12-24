@@ -1043,6 +1043,54 @@ def _extract_entry_points(project_path: str) -> Optional[str]:
     return "Entry points identified:\n" + "\n".join(f"  - {f}" for f in sorted(found)[:15])
 
 
+def _scan_todos_for_bootstrap(project_path: str, limit: int = 20) -> Optional[str]:
+    """
+    Scan for TODO/FIXME/HACK comments during bootstrap.
+
+    Uses the existing _scan_for_todos helper but formats results
+    for bootstrap memory storage.
+
+    Args:
+        project_path: Directory to scan
+        limit: Maximum items to include (default: 20)
+
+    Returns:
+        Formatted string with TODO summary, or None if none found.
+    """
+    todos = _scan_for_todos(project_path, max_files=200)
+
+    if not todos:
+        return None
+
+    # Limit and format
+    limited = todos[:limit]
+
+    # Group by type
+    by_type: Dict[str, int] = {}
+    for todo in todos:
+        todo_type = todo.get('type', 'TODO')
+        by_type[todo_type] = by_type.get(todo_type, 0) + 1
+
+    summary_parts = []
+
+    # Add counts summary
+    counts = ", ".join(f"{count} {t}" for t, count in sorted(by_type.items()))
+    summary_parts.append(f"Found: {counts}")
+
+    # Add individual items
+    for todo in limited:
+        file_path = todo.get('file', 'unknown')
+        line = todo.get('line', 0)
+        todo_type = todo.get('type', 'TODO')
+        content = todo.get('content', '')[:80]
+        summary_parts.append(f"  [{todo_type}] {file_path}:{line} - {content}")
+
+    if len(todos) > limit:
+        summary_parts.append(f"  ... and {len(todos) - limit} more")
+
+    return "Known issues from code comments:\n" + "\n".join(summary_parts)
+
+
 # ============================================================================
 # Helper: Git awareness
 # ============================================================================
