@@ -1505,13 +1505,14 @@ async def get_briefing(
 
     # Add bootstrap notification if this was first run
     if bootstrap_result:
-        bootstrap_items = []
-        if bootstrap_result.get("claude_md") == "ingested":
-            bootstrap_items.append("CLAUDE.md")
-        if bootstrap_result.get("git_history") == "ingested":
-            bootstrap_items.append("git history")
-        if bootstrap_items:
-            message_parts.append(f"[BOOTSTRAP] First run - ingested: {', '.join(bootstrap_items)}.")
+        sources = bootstrap_result.get("sources", {})
+        ingested = [k for k, v in sources.items() if v == "ingested"]
+
+        if ingested:
+            source_summary = ", ".join(ingested)
+            message_parts.append(f"[BOOTSTRAP] First run - ingested: {source_summary}.")
+        else:
+            message_parts.append("[BOOTSTRAP] First run - no sources found.")
 
     if failed_approaches:
         message_parts.append(f"[WARNING] {len(failed_approaches)} failed approaches to avoid!")
