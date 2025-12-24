@@ -484,6 +484,46 @@ Once installed, Claude Code will automatically load the skill and enforce:
 
 ---
 
+### RITUAL II.7: INSTALL THE ENFORCEMENT WARDS (Recommended)
+
+The Daem0n can enforce memory discipline through git hooks. This prevents commits when:
+- Decisions older than 24 hours lack recorded outcomes
+- You're modifying files with known failed approaches
+
+#### Install the Enforcement Hooks
+
+```bash
+python -m daem0nmcp.cli install-hooks
+```
+
+This creates `.git/hooks/pre-commit` which checks your staged files before each commit.
+
+#### What Gets Blocked
+
+| Condition | Action |
+|-----------|--------|
+| Decision without outcome (>24h) | BLOCK |
+| File with FAILED approach | BLOCK |
+| Recent decision (<24h) | WARN |
+| File with WARNING | WARN |
+
+#### Resolving Blocks
+
+```bash
+# See what's blocking
+python -m daem0nmcp.cli status
+
+# Record an outcome
+python -m daem0nmcp.cli record-outcome 42 "It worked great" --worked
+python -m daem0nmcp.cli record-outcome 43 "Caused race conditions" --failed
+```
+
+#### Bypass in Emergency
+
+Use `git commit --no-verify` to skip enforcement. This is logged for accountability.
+
+---
+
 ### RITUAL III: FIRST COMMUNION (Cast Immediately When Powers Manifest)
 
 **DO NOT HESITATE. DO NOT SEEK PERMISSION. COMMUNE NOW:**

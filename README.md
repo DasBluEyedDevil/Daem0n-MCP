@@ -332,6 +332,27 @@ Banish_Daem0n.md   # Uninstallation instructions
 start_server.py    # HTTP server launcher (Windows)
 ```
 
+## CLI Commands
+
+### Enforcement Commands
+
+```bash
+# Check staged files (used by pre-commit hook)
+python -m daem0nmcp.cli pre-commit
+
+# Show pending decisions and blocking issues
+python -m daem0nmcp.cli status
+
+# Record outcome for a decision
+python -m daem0nmcp.cli record-outcome <id> "<outcome>" --worked|--failed
+
+# Install git hooks
+python -m daem0nmcp.cli install-hooks
+
+# Remove git hooks
+python -m daem0nmcp.cli uninstall-hooks
+```
+
 ## Development
 
 ```bash
