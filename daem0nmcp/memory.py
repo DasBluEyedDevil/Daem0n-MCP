@@ -271,7 +271,16 @@ class MemoryManager:
                 result["conflicts"] = conflicts
                 result["warning"] = f"Found {len(conflicts)} potential conflict(s) with existing memories"
 
-            return result
+        # Track in session state for enforcement
+        if category == "decision" and project_path:
+            try:
+                from .enforcement import SessionManager
+                session_mgr = SessionManager(self.db)
+                await session_mgr.add_pending_decision(project_path, result["id"])
+            except Exception as e:
+                logger.debug(f"Session tracking failed (non-fatal): {e}")
+
+        return result
 
     async def _check_conflicts(
         self,
@@ -617,6 +626,16 @@ class MemoryManager:
                 if not worked else
                 "Outcome recorded successfully"
             )
+
+            # Remove from pending decisions
+            try:
+                from .enforcement import SessionManager
+                session_mgr = SessionManager(self.db)
+                # Use current working directory as project_path since it's not passed in
+                project_path = os.getcwd()
+                await session_mgr.remove_pending_decision(project_path, memory_id)
+            except Exception as e:
+                logger.debug(f"Session tracking failed (non-fatal): {e}")
 
             return response
 

@@ -453,3 +453,68 @@ class TestInstallHooksCLI:
             capture_output=True, text=True
         )
         assert result.returncode == 0
+
+
+class TestMCPSessionTracking:
+    """Test that MCP tools update session state."""
+
+    @pytest.fixture
+    def db_manager(self, tmp_path):
+        from daem0nmcp.database import DatabaseManager
+        return DatabaseManager(str(tmp_path / "storage"))
+
+    @pytest.fixture
+    def memory_mgr(self, db_manager):
+        from daem0nmcp.memory import MemoryManager
+        return MemoryManager(db_manager)
+
+    @pytest.fixture
+    def session_mgr(self, db_manager):
+        from daem0nmcp.enforcement import SessionManager
+        return SessionManager(db_manager)
+
+    @pytest.mark.asyncio
+    async def test_remember_adds_pending_decision(self, db_manager, memory_mgr, session_mgr):
+        """remember() should add decision to pending_decisions."""
+        await db_manager.init_db()
+        import os
+        project_path = os.getcwd()  # Uses default
+
+        # Create a decision
+        result = await memory_mgr.remember(
+            category="decision",
+            content="Test decision",
+            rationale="Test rationale",
+            project_path=project_path
+        )
+
+        # Check session state
+        state = await session_mgr.get_session_state(project_path)
+        assert state is not None
+        pending = state["pending_decisions"]
+        assert result["id"] in pending
+
+    @pytest.mark.asyncio
+    async def test_record_outcome_removes_pending(self, db_manager, memory_mgr, session_mgr):
+        """record_outcome() should remove from pending_decisions."""
+        await db_manager.init_db()
+        import os
+        project_path = os.getcwd()
+
+        # Create and record outcome
+        result = await memory_mgr.remember(
+            category="decision",
+            content="Test decision",
+            project_path=project_path
+        )
+        await memory_mgr.record_outcome(
+            memory_id=result["id"],
+            outcome="It worked",
+            worked=True
+        )
+
+        # Check session state - should be removed from pending
+        state = await session_mgr.get_session_state(project_path)
+        if state:
+            pending = state["pending_decisions"]
+            assert result["id"] not in pending
