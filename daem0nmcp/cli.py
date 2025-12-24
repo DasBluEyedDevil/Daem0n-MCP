@@ -13,6 +13,8 @@ Usage:
     python -m daem0nmcp.cli pre-commit [--interactive] [--staged-files FILE ...]
     python -m daem0nmcp.cli status
     python -m daem0nmcp.cli record-outcome <memory_id> "<outcome>" --worked|--failed
+    python -m daem0nmcp.cli install-hooks [--force]
+    python -m daem0nmcp.cli uninstall-hooks
 
 Global Options:
     --json              Output as JSON for automation/scripting
@@ -281,6 +283,13 @@ def main():
     record_parser.add_argument("--worked", action="store_true", help="The decision worked")
     record_parser.add_argument("--failed", action="store_true", help="The decision failed")
 
+    # install-hooks command
+    install_parser = subparsers.add_parser("install-hooks", help="Install git hooks for enforcement")
+    install_parser.add_argument("--force", "-f", action="store_true", help="Overwrite existing hooks")
+
+    # uninstall-hooks command
+    subparsers.add_parser("uninstall-hooks", help="Remove daem0nmcp git hooks")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -440,6 +449,30 @@ def main():
             else:
                 print(f"Error: {result.get('error')}", file=sys.stderr)
                 sys.exit(1)
+
+    elif args.command == "install-hooks":
+        from .hooks import install_hooks
+        project_path = args.project_path or os.getcwd()
+        success, message = install_hooks(project_path, force=args.force)
+
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+
+        sys.exit(0 if success else 1)
+
+    elif args.command == "uninstall-hooks":
+        from .hooks import uninstall_hooks
+        project_path = args.project_path or os.getcwd()
+        success, message = uninstall_hooks(project_path)
+
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+
+        sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":

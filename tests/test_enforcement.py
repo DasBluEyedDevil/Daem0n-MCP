@@ -405,3 +405,51 @@ class TestRecordOutcomeCLI:
         )
         assert result.returncode == 1
         assert "must specify" in result.stderr.lower()
+
+
+class TestInstallHooksCLI:
+    """Test install-hooks CLI command."""
+
+    def test_install_hooks_command_exists(self):
+        """The install-hooks subcommand should exist."""
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [sys.executable, "-m", "daem0nmcp.cli", "install-hooks", "--help"],
+            capture_output=True, text=True
+        )
+        assert result.returncode == 0
+
+    def test_install_hooks_creates_precommit(self, tmp_path):
+        """install-hooks should create .git/hooks/pre-commit."""
+        import subprocess
+        import sys
+
+        # Create a git repo structure
+        git_dir = tmp_path / ".git" / "hooks"
+        git_dir.mkdir(parents=True)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "daem0nmcp.cli",
+             "--project-path", str(tmp_path), "install-hooks"],
+            capture_output=True, text=True
+        )
+
+        assert result.returncode == 0
+        assert (git_dir / "pre-commit").exists()
+
+        # Check hook content
+        hook_content = (git_dir / "pre-commit").read_text()
+        assert "daem0nmcp" in hook_content
+
+    def test_uninstall_hooks_command_exists(self):
+        """The uninstall-hooks subcommand should exist."""
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [sys.executable, "-m", "daem0nmcp.cli", "uninstall-hooks", "--help"],
+            capture_output=True, text=True
+        )
+        assert result.returncode == 0
