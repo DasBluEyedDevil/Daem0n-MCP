@@ -727,6 +727,14 @@ async def record_outcome(
     )
 
 
+# Directories to exclude when scanning project structure
+BOOTSTRAP_EXCLUDED_DIRS = {
+    'node_modules', '.git', '__pycache__', '.venv', 'venv',
+    'dist', 'build', '.next', 'target', '.idea', '.vscode',
+    '.eggs', 'eggs', '.tox', '.nox', '.mypy_cache', '.pytest_cache',
+    '.ruff_cache', 'htmlcov', '.coverage', 'site-packages'
+}
+
 # ============================================================================
 # Helper: Git awareness
 # ============================================================================
