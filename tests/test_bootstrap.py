@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from daem0nmcp.server import _extract_project_identity
+from daem0nmcp.server import _extract_project_identity, _extract_architecture
 
 
 class TestExtractProjectIdentity:
@@ -59,3 +59,52 @@ dependencies = ["fastapi", "sqlalchemy"]
         result = _extract_project_identity(str(tmp_path))
 
         assert "node-app" in result
+
+
+class TestExtractArchitecture:
+    """Tests for _extract_architecture extractor."""
+
+    def test_extracts_readme_content(self, tmp_path):
+        """Should extract first 2000 chars from README.md."""
+        readme = "# My Project\n\nThis is a test project.\n\n## Features\n- Feature 1\n- Feature 2"
+        (tmp_path / "README.md").write_text(readme)
+
+        result = _extract_architecture(str(tmp_path))
+
+        assert result is not None
+        assert "My Project" in result
+        assert "Feature 1" in result
+
+    def test_includes_directory_structure(self, tmp_path):
+        """Should include top-level directory structure."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "README.md").write_text("# Test")
+
+        result = _extract_architecture(str(tmp_path))
+
+        assert "src" in result
+        assert "tests" in result
+
+    def test_excludes_noise_directories(self, tmp_path):
+        """Should exclude node_modules, .git, etc."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "node_modules").mkdir()
+        (tmp_path / ".git").mkdir()
+
+        result = _extract_architecture(str(tmp_path))
+
+        assert result is not None
+        assert "node_modules" not in result
+        assert ".git" not in result
+
+    def test_returns_structure_only_without_readme(self, tmp_path):
+        """Should return directory structure even without README."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "lib").mkdir()
+
+        result = _extract_architecture(str(tmp_path))
+
+        assert result is not None
+        assert "src" in result

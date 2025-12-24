@@ -844,6 +844,68 @@ def _extract_project_identity(project_path: str) -> Optional[str]:
     return None
 
 
+def _extract_architecture(project_path: str) -> Optional[str]:
+    """
+    Extract architecture overview from README and directory structure.
+
+    Combines:
+    1. README.md content (first 2000 chars)
+    2. Top-level directory structure (excluding noise)
+
+    Returns:
+        Formatted string with architecture overview, or None if empty project.
+    """
+    root = Path(project_path)
+    parts = []
+
+    # Extract README content
+    for readme_name in ["README.md", "README.rst", "README.txt", "README"]:
+        readme = root / readme_name
+        if readme.exists():
+            try:
+                content = readme.read_text(encoding='utf-8', errors='ignore')[:2000]
+                if content.strip():
+                    parts.append(f"README:\n{content}")
+                break
+            except Exception as e:
+                logger.debug(f"Failed to read {readme_name}: {e}")
+
+    # Extract directory structure (top 2 levels)
+    dirs = []
+    files = []
+    try:
+        for item in sorted(root.iterdir()):
+            name = item.name
+            if name.startswith('.') and name not in ['.github']:
+                continue
+            if name in BOOTSTRAP_EXCLUDED_DIRS:
+                continue
+            if item.is_dir():
+                # Get immediate children count
+                try:
+                    child_count = sum(1 for _ in item.iterdir())
+                    dirs.append(f"  {name}/ ({child_count} items)")
+                except PermissionError:
+                    dirs.append(f"  {name}/")
+            elif item.is_file() and name in [
+                'main.py', 'app.py', 'index.ts', 'index.js', 'main.rs',
+                'main.go', 'Makefile', 'Dockerfile', 'docker-compose.yml'
+            ]:
+                files.append(f"  {name}")
+    except Exception as e:
+        logger.debug(f"Failed to scan directory: {e}")
+
+    if dirs or files:
+        structure = "Directory structure:\n"
+        structure += "\n".join(dirs + files)
+        parts.append(structure)
+
+    if not parts:
+        return None
+
+    return "Architecture overview:\n\n" + "\n\n".join(parts)
+
+
 # ============================================================================
 # Helper: Git awareness
 # ============================================================================
