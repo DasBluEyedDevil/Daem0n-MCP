@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 
-from daem0nmcp.server import _extract_project_identity, _extract_architecture, _extract_conventions, _extract_entry_points, _scan_todos_for_bootstrap
+from daem0nmcp.server import _extract_project_identity, _extract_architecture, _extract_conventions, _extract_entry_points, _scan_todos_for_bootstrap, _extract_project_instructions
 
 
 class TestExtractProjectIdentity:
@@ -230,3 +231,77 @@ class TestScanTodosForBootstrap:
         result = _scan_todos_for_bootstrap(str(tmp_path))
 
         assert result is None
+
+
+class TestExtractProjectInstructions:
+    """Tests for _extract_project_instructions extractor."""
+
+    def test_extracts_claude_md(self, tmp_path):
+        """Should extract content from CLAUDE.md."""
+        (tmp_path / "CLAUDE.md").write_text("# Instructions\n\nUse TypeScript.")
+
+        result = _extract_project_instructions(str(tmp_path))
+
+        assert result is not None
+        assert "CLAUDE.md" in result
+        assert "TypeScript" in result
+
+    def test_extracts_agents_md(self, tmp_path):
+        """Should extract content from AGENTS.md."""
+        (tmp_path / "AGENTS.md").write_text("# Agent Config\n\nBe concise.")
+
+        result = _extract_project_instructions(str(tmp_path))
+
+        assert result is not None
+        assert "AGENTS.md" in result
+
+    def test_returns_none_when_no_files(self, tmp_path):
+        """Should return None when no instruction files exist."""
+        result = _extract_project_instructions(str(tmp_path))
+        assert result is None
+
+
+class TestBootstrapProjectContext:
+    """Integration tests for _bootstrap_project_context."""
+
+    @pytest.mark.asyncio
+    async def test_creates_multiple_memories(self, tmp_path):
+        """Should create memories for each available source."""
+        # Set up project files
+        (tmp_path / "package.json").write_text('{"name": "test-app", "description": "Test"}')
+        (tmp_path / "README.md").write_text("# Test App\n\nA test application.")
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "index.ts").write_text("// main")
+        (tmp_path / "code.py").write_text("# TODO: Fix this")
+
+        # Mock the context
+        mock_memory_manager = AsyncMock()
+        mock_memory_manager.remember = AsyncMock(return_value={"id": 1})
+
+        mock_ctx = MagicMock()
+        mock_ctx.project_path = str(tmp_path)
+        mock_ctx.memory_manager = mock_memory_manager
+
+        from daem0nmcp.server import _bootstrap_project_context
+        result = await _bootstrap_project_context(mock_ctx)
+
+        assert result["bootstrapped"] is True
+        assert result["memories_created"] >= 3  # At least identity, architecture, entry_points
+        assert "sources" in result
+        assert result["sources"].get("project_identity") == "ingested"
+
+    @pytest.mark.asyncio
+    async def test_graceful_fallback_empty_project(self, tmp_path):
+        """Should handle empty project gracefully."""
+        mock_memory_manager = AsyncMock()
+        mock_memory_manager.remember = AsyncMock(return_value={"id": 1})
+
+        mock_ctx = MagicMock()
+        mock_ctx.project_path = str(tmp_path)
+        mock_ctx.memory_manager = mock_memory_manager
+
+        from daem0nmcp.server import _bootstrap_project_context
+        result = await _bootstrap_project_context(mock_ctx)
+
+        assert result["bootstrapped"] is True
+        assert "sources" in result

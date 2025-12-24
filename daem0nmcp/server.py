@@ -1091,6 +1091,42 @@ def _scan_todos_for_bootstrap(project_path: str, limit: int = 20) -> Optional[st
     return "Known issues from code comments:\n" + "\n".join(summary_parts)
 
 
+def _extract_project_instructions(project_path: str) -> Optional[str]:
+    """
+    Extract project instructions from CLAUDE.md and AGENTS.md.
+
+    Returns:
+        Combined instructions content, or None if no files found.
+    """
+    root = Path(project_path)
+    parts = []
+
+    # Check CLAUDE.md
+    claude_md = root / "CLAUDE.md"
+    if claude_md.exists():
+        try:
+            content = claude_md.read_text(encoding='utf-8', errors='ignore')[:3000]
+            if content.strip():
+                parts.append(f"From CLAUDE.md:\n{content}")
+        except Exception as e:
+            logger.debug(f"Failed to read CLAUDE.md: {e}")
+
+    # Check AGENTS.md
+    agents_md = root / "AGENTS.md"
+    if agents_md.exists():
+        try:
+            content = agents_md.read_text(encoding='utf-8', errors='ignore')[:2000]
+            if content.strip():
+                parts.append(f"From AGENTS.md:\n{content}")
+        except Exception as e:
+            logger.debug(f"Failed to read AGENTS.md: {e}")
+
+    if not parts:
+        return None
+
+    return "Project instructions:\n\n" + "\n\n".join(parts)
+
+
 # ============================================================================
 # Helper: Git awareness
 # ============================================================================
@@ -1219,61 +1255,100 @@ async def _bootstrap_project_context(ctx: ProjectContext) -> Dict[str, Any]:
     Bootstrap initial context on first run.
 
     Called automatically when get_briefing() detects no memories exist.
-    Ingests:
-    1. CLAUDE.md project instructions (if exists)
-    2. Git history baseline for project context
+    Ingests multiple sources to provide comprehensive project awareness:
+    1. Project identity (tech stack from manifests)
+    2. Architecture overview (README + directory structure)
+    3. Coding conventions (from config files)
+    4. Project instructions (CLAUDE.md, AGENTS.md)
+    5. Git history baseline
+    6. Known issues (TODO/FIXME scan)
+    7. Entry points (main files)
 
     Args:
         ctx: The project context to bootstrap
 
     Returns:
-        Dictionary with bootstrap results
+        Dictionary with bootstrap results including sources status
     """
     results = {
         "bootstrapped": True,
-        "claude_md": None,
-        "git_history": None,
-        "memories_created": 0
+        "memories_created": 0,
+        "sources": {}
     }
 
-    # 1. Ingest CLAUDE.md if exists
-    claude_md_path = Path(ctx.project_path) / "CLAUDE.md"
-    if claude_md_path.exists():
+    # Define all extractors with their memory configs
+    extractors = [
+        (
+            "project_identity",
+            lambda: _extract_project_identity(ctx.project_path),
+            "pattern",
+            "Tech stack and dependencies from project manifest",
+            ["bootstrap", "tech-stack", "identity"]
+        ),
+        (
+            "architecture",
+            lambda: _extract_architecture(ctx.project_path),
+            "pattern",
+            "Project structure and README overview",
+            ["bootstrap", "architecture", "structure"]
+        ),
+        (
+            "conventions",
+            lambda: _extract_conventions(ctx.project_path),
+            "pattern",
+            "Coding conventions and tool configurations",
+            ["bootstrap", "conventions", "style"]
+        ),
+        (
+            "project_instructions",
+            lambda: _extract_project_instructions(ctx.project_path),
+            "pattern",
+            "Project-specific AI instructions from CLAUDE.md/AGENTS.md",
+            ["bootstrap", "project-config", "instructions"]
+        ),
+        (
+            "git_evolution",
+            lambda: _get_git_history_summary(ctx.project_path, limit=30),
+            "learning",
+            "Recent git history showing project evolution",
+            ["bootstrap", "git-history", "evolution"]
+        ),
+        (
+            "known_issues",
+            lambda: _scan_todos_for_bootstrap(ctx.project_path, limit=20),
+            "warning",
+            "Known issues from TODO/FIXME/HACK comments in code",
+            ["bootstrap", "tech-debt", "issues"]
+        ),
+        (
+            "entry_points",
+            lambda: _extract_entry_points(ctx.project_path),
+            "learning",
+            "Main entry point files identified in the project",
+            ["bootstrap", "entry-points", "structure"]
+        ),
+    ]
+
+    # Run each extractor and create memories
+    for name, extractor, category, rationale, tags in extractors:
         try:
-            content = claude_md_path.read_text(encoding='utf-8', errors='ignore')
-            if content.strip():
-                # Store as a permanent pattern (project instructions)
+            content = extractor()
+            if content:
                 await ctx.memory_manager.remember(
-                    category="pattern",
-                    content=f"Project instructions from CLAUDE.md:\n{content[:3000]}",
-                    rationale="Auto-ingested from CLAUDE.md on first run - these are project-specific instructions",
-                    tags=["bootstrap", "project-config", "claude-md"],
+                    category=category,
+                    content=content,
+                    rationale=f"Auto-ingested on first run: {rationale}",
+                    tags=tags,
                     project_path=ctx.project_path
                 )
-                results["claude_md"] = "ingested"
+                results["sources"][name] = "ingested"
                 results["memories_created"] += 1
-                logger.info(f"Bootstrapped CLAUDE.md for {ctx.project_path}")
+                logger.info(f"Bootstrapped {name} for {ctx.project_path}")
+            else:
+                results["sources"][name] = "skipped"
         except Exception as e:
-            logger.warning(f"Failed to ingest CLAUDE.md: {e}")
-            results["claude_md"] = f"error: {e}"
-
-    # 2. Ingest git history baseline
-    git_summary = _get_git_history_summary(ctx.project_path, limit=30)
-    if git_summary:
-        try:
-            await ctx.memory_manager.remember(
-                category="learning",
-                content=f"Project git history baseline (recent commits):\n{git_summary}",
-                rationale="Auto-ingested git history on first run - provides context about project evolution",
-                tags=["bootstrap", "git-history", "project-context"],
-                project_path=ctx.project_path
-            )
-            results["git_history"] = "ingested"
-            results["memories_created"] += 1
-            logger.info(f"Bootstrapped git history for {ctx.project_path}")
-        except Exception as e:
-            logger.warning(f"Failed to ingest git history: {e}")
-            results["git_history"] = f"error: {e}"
+            logger.warning(f"Failed to extract {name}: {e}")
+            results["sources"][name] = f"error: {e}"
 
     return results
 
