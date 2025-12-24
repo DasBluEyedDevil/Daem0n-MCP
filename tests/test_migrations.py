@@ -127,4 +127,4 @@ class TestMigrations:
             versions = [row[0] for row in cursor.fetchall()]
 
         assert len(versions) == count
-        assert versions == [1, 2, 3, 4, 5, 6, 7]
+        assert versions == [1, 2, 3, 4, 5, 6, 7, 8]

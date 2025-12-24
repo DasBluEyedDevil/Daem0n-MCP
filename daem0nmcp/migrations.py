@@ -131,6 +131,30 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         "CREATE INDEX IF NOT EXISTS idx_relationships_target ON memory_relationships(target_id);",
         "CREATE INDEX IF NOT EXISTS idx_relationships_type ON memory_relationships(relationship);"
     ]),
+    (8, "Add session_state and enforcement_bypass_log tables", [
+        """
+        CREATE TABLE IF NOT EXISTS session_state (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL UNIQUE,
+            project_path TEXT NOT NULL,
+            briefed INTEGER DEFAULT 0,
+            context_checks TEXT DEFAULT '[]',
+            pending_decisions TEXT DEFAULT '[]',
+            last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_session_state_session_id ON session_state(session_id);",
+        """
+        CREATE TABLE IF NOT EXISTS enforcement_bypass_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            pending_decisions TEXT DEFAULT '[]',
+            staged_files_with_warnings TEXT DEFAULT '[]',
+            reason TEXT
+        );
+        """,
+    ]),
 ]
 
 
