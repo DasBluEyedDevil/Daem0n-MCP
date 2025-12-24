@@ -91,3 +91,97 @@ class TestEnforcementMigration:
         assert cursor.fetchone() is not None, "enforcement_bypass_log table should exist"
 
         conn.close()
+
+
+class TestSessionManager:
+    """Test session state management."""
+
+    @pytest.fixture
+    def db_manager(self, tmp_path):
+        """Create a test database manager."""
+        from daem0nmcp.database import DatabaseManager
+        return DatabaseManager(str(tmp_path / "storage"))
+
+    @pytest.fixture
+    def session_mgr(self, db_manager):
+        """Create a session manager."""
+        from daem0nmcp.enforcement import SessionManager
+        return SessionManager(db_manager)
+
+    def test_get_session_id_format(self):
+        """Session ID should be deterministic based on project and hour."""
+        from daem0nmcp.enforcement import get_session_id
+        session_id = get_session_id("/path/to/project")
+        assert "-" in session_id
+        parts = session_id.split("-")
+        assert len(parts[0]) == 8  # hash prefix
+        assert len(parts[1]) == 10  # YYYYMMDDHH
+
+    def test_get_session_id_same_hour(self):
+        """Same project in same hour should get same session ID."""
+        from daem0nmcp.enforcement import get_session_id
+        id1 = get_session_id("/path/to/project")
+        id2 = get_session_id("/path/to/project")
+        assert id1 == id2
+
+    def test_get_session_id_different_projects(self):
+        """Different projects should get different session IDs."""
+        from daem0nmcp.enforcement import get_session_id
+        id1 = get_session_id("/path/to/project1")
+        id2 = get_session_id("/path/to/project2")
+        assert id1 != id2
+
+    @pytest.mark.asyncio
+    async def test_mark_briefed(self, db_manager, session_mgr):
+        """Marking briefed should update session state."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+
+        await session_mgr.mark_briefed(project_path)
+
+        state = await session_mgr.get_session_state(project_path)
+        assert state is not None
+        assert state["briefed"] is True
+
+    @pytest.mark.asyncio
+    async def test_add_context_check(self, db_manager, session_mgr):
+        """Adding context check should update session state."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+
+        await session_mgr.add_context_check(project_path, "src/auth.py")
+        await session_mgr.add_context_check(project_path, "authentication")
+
+        state = await session_mgr.get_session_state(project_path)
+        checks = state["context_checks"]  # Already a list (JSON column)
+        assert "src/auth.py" in checks
+        assert "authentication" in checks
+
+    @pytest.mark.asyncio
+    async def test_add_pending_decision(self, db_manager, session_mgr):
+        """Adding pending decision should update session state."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+
+        await session_mgr.add_pending_decision(project_path, 42)
+        await session_mgr.add_pending_decision(project_path, 43)
+
+        state = await session_mgr.get_session_state(project_path)
+        pending = state["pending_decisions"]  # Already a list
+        assert 42 in pending
+        assert 43 in pending
+
+    @pytest.mark.asyncio
+    async def test_remove_pending_decision(self, db_manager, session_mgr):
+        """Removing pending decision should update session state."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+
+        await session_mgr.add_pending_decision(project_path, 42)
+        await session_mgr.add_pending_decision(project_path, 43)
+        await session_mgr.remove_pending_decision(project_path, 42)
+
+        state = await session_mgr.get_session_state(project_path)
+        pending = state["pending_decisions"]
+        assert 42 not in pending
+        assert 43 in pending
