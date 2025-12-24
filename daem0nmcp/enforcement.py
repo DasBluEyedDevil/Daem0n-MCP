@@ -6,13 +6,13 @@ Provides session state tracking and pre-commit enforcement logic.
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 
 from sqlalchemy import select
 
 from .database import DatabaseManager
-from .models import SessionState, EnforcementBypassLog
+from .models import SessionState, EnforcementBypassLog, Memory
 
 logger = logging.getLogger(__name__)
 
@@ -152,3 +152,114 @@ class SessionManager:
                     pending.remove(memory_id)
                     state.pending_decisions = pending
                 state.last_activity = datetime.now(timezone.utc)
+
+
+class PreCommitChecker:
+    """
+    Validates staged files before commit.
+
+    Checks for:
+    - Pending decisions without outcomes (blocks if >24h old, warns if recent)
+    - Files with failed approaches (worked=False)
+    - Files with warning memories
+    """
+
+    PENDING_THRESHOLD = timedelta(hours=24)
+
+    def __init__(self, db_manager: DatabaseManager, memory_manager):
+        """
+        Initialize the pre-commit checker.
+
+        Args:
+            db_manager: Database manager instance
+            memory_manager: Memory manager instance
+        """
+        self.db = db_manager
+        self.memory = memory_manager
+
+    async def check(self, staged_files: List[str], project_path: str) -> Dict[str, Any]:
+        """
+        Check staged files for issues before commit.
+
+        Args:
+            staged_files: List of file paths being committed
+            project_path: Project root path
+
+        Returns:
+            Dict with:
+            - can_commit: bool - whether commit should proceed
+            - blocks: List of blocking issues
+            - warnings: List of non-blocking warnings
+        """
+        blocks = []
+        warnings = []
+
+        # Check for pending decisions without outcomes
+        async with self.db.get_session() as session:
+            result = await session.execute(
+                select(Memory).where(
+                    Memory.category == "decision",
+                    Memory.outcome.is_(None),
+                    Memory.worked.is_(None)
+                )
+            )
+            pending_decisions = result.scalars().all()
+
+        now = datetime.now(timezone.utc)
+        for decision in pending_decisions:
+            # Handle both naive and aware datetimes from DB
+            decision_time = decision.created_at
+            if decision_time.tzinfo is None:
+                decision_time = decision_time.replace(tzinfo=timezone.utc)
+            age = now - decision_time
+            if age > self.PENDING_THRESHOLD:
+                age_hours = int(age.total_seconds() / 3600)
+                blocks.append({
+                    "type": "PENDING_DECISION_OLD",
+                    "memory_id": decision.id,
+                    "content": decision.content,
+                    "message": f"Decision #{decision.id} from {age_hours}h ago needs outcome: {decision.content[:80]}"
+                })
+            else:
+                warnings.append({
+                    "type": "PENDING_DECISION_RECENT",
+                    "memory_id": decision.id,
+                    "message": f"Decision #{decision.id} needs outcome: {decision.content[:80]}"
+                })
+
+        # Check each staged file for failed approaches and warnings
+        for file_path in staged_files:
+            try:
+                file_memories = await self.memory.recall_for_file(
+                    file_path=file_path,
+                    project_path=project_path
+                )
+            except Exception as e:
+                logger.warning(f"Could not check memories for {file_path}: {e}")
+                continue  # Skip this file but continue checking others
+
+            # Check for failed approaches (worked=False)
+            for category in ["decisions", "learnings", "warnings", "patterns"]:
+                for mem in file_memories.get(category, []):
+                    if mem.get("worked") is False:
+                        blocks.append({
+                            "type": "FAILED_APPROACH",
+                            "memory_id": mem.get("id"),
+                            "content": mem.get("content", ""),
+                            "message": f"File {file_path} has failed approach: {mem.get('content', '')[:80]}"
+                        })
+
+            # Check for warning memories (not already failed)
+            for mem in file_memories.get("warnings", []):
+                if mem.get("worked") is not False:  # Don't duplicate failed approach warnings
+                    warnings.append({
+                        "type": "FILE_WARNING",
+                        "memory_id": mem.get("id"),
+                        "message": f"Warning for {file_path}: {mem.get('content', '')[:80]}"
+                    })
+
+        return {
+            "can_commit": len(blocks) == 0,
+            "blocks": blocks,
+            "warnings": warnings
+        }

@@ -185,3 +185,134 @@ class TestSessionManager:
         pending = state["pending_decisions"]
         assert 42 not in pending
         assert 43 in pending
+
+
+class TestPreCommitChecker:
+    """Test pre-commit validation logic."""
+
+    @pytest.fixture
+    def db_manager(self, tmp_path):
+        """Create a test database manager."""
+        from daem0nmcp.database import DatabaseManager
+        return DatabaseManager(str(tmp_path / "storage"))
+
+    @pytest.fixture
+    def memory_mgr(self, db_manager):
+        """Create a memory manager."""
+        from daem0nmcp.memory import MemoryManager
+        return MemoryManager(db_manager)
+
+    @pytest.fixture
+    def checker(self, db_manager, memory_mgr):
+        """Create a pre-commit checker."""
+        from daem0nmcp.enforcement import PreCommitChecker
+        return PreCommitChecker(db_manager, memory_mgr)
+
+    @pytest.mark.asyncio
+    async def test_check_with_no_issues(self, db_manager, checker):
+        """Clean state should allow commit."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+        staged_files = ["src/auth.py", "src/main.py"]
+
+        result = await checker.check(staged_files, project_path)
+
+        assert result["can_commit"] is True
+        assert len(result["blocks"]) == 0
+        assert len(result["warnings"]) == 0
+
+    @pytest.mark.asyncio
+    async def test_check_blocks_old_pending_decisions(self, db_manager, memory_mgr, checker):
+        """Decisions older than 24h should block commit."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+        staged_files = ["src/auth.py"]
+
+        # Create a decision older than 24h without outcome
+        from datetime import datetime, timezone, timedelta
+        old_time = datetime.now(timezone.utc) - timedelta(hours=25)
+
+        # Create memory directly in database
+        from daem0nmcp.models import Memory
+        async with db_manager.get_session() as session:
+            decision = Memory(
+                category="decision",
+                content="Use JWT for authentication",
+                created_at=old_time,
+                outcome=None,
+                worked=None
+            )
+            session.add(decision)
+            await session.flush()
+            memory_id = decision.id
+
+        result = await checker.check(staged_files, project_path)
+
+        assert result["can_commit"] is False
+        assert len(result["blocks"]) == 1
+        assert result["blocks"][0]["type"] == "PENDING_DECISION_OLD"
+        assert result["blocks"][0]["memory_id"] == memory_id
+
+    @pytest.mark.asyncio
+    async def test_check_blocks_failed_approach_files(self, db_manager, memory_mgr, checker):
+        """Files with worked=False should block commit."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+        staged_files = ["src/auth.py"]
+
+        # Create a memory with worked=False for the staged file
+        result = await memory_mgr.remember(
+            category="decision",
+            content="Try synchronous auth approach",
+            file_path="src/auth.py",
+            project_path=project_path
+        )
+        memory_id = result["id"]
+
+        # Mark it as failed
+        await memory_mgr.record_outcome(
+            memory_id=memory_id,
+            outcome="Caused timeout issues",
+            worked=False
+        )
+
+        result = await checker.check(staged_files, project_path)
+
+        assert result["can_commit"] is False
+        assert len(result["blocks"]) >= 1
+        failed_blocks = [b for b in result["blocks"] if b["type"] == "FAILED_APPROACH"]
+        assert len(failed_blocks) == 1
+        assert failed_blocks[0]["memory_id"] == memory_id
+        assert "src/auth.py" in failed_blocks[0]["message"]
+
+    @pytest.mark.asyncio
+    async def test_check_warns_on_recent_pending(self, db_manager, memory_mgr, checker):
+        """Recent pending decisions should warn but not block."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+        staged_files = ["src/auth.py"]
+
+        # Create a recent decision without outcome
+        from datetime import datetime, timezone, timedelta
+        recent_time = datetime.now(timezone.utc) - timedelta(hours=12)
+
+        from daem0nmcp.models import Memory
+        async with db_manager.get_session() as session:
+            decision = Memory(
+                category="decision",
+                content="Use Redis for caching",
+                created_at=recent_time,
+                outcome=None,
+                worked=None
+            )
+            session.add(decision)
+            await session.flush()
+            memory_id = decision.id
+
+        result = await checker.check(staged_files, project_path)
+
+        assert result["can_commit"] is True  # Should still allow commit
+        assert len(result["warnings"]) >= 1
+        pending_warnings = [w for w in result["warnings"] if w["type"] == "PENDING_DECISION_RECENT"]
+        assert len(pending_warnings) == 1
+        assert pending_warnings[0]["memory_id"] == memory_id
