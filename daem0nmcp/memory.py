@@ -952,6 +952,177 @@ class MemoryManager:
             "built_at": self._index_built_at.isoformat()
         }
 
+    async def compact_memories(
+        self,
+        summary: str,
+        limit: int = 10,
+        topic: Optional[str] = None,
+        dry_run: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Compact recent episodic memories into a single summary.
+
+        Creates a summary memory, links it to originals via 'supersedes' edges,
+        and archives the originals. Preserves full history via graph edges.
+
+        Args:
+            summary: The summary text (must be >= 50 chars after trimming)
+            limit: Max number of memories to compact (must be > 0)
+            topic: Optional topic filter (content/rationale/tags substring match)
+            dry_run: If True, preview candidates without changes (default: True)
+
+        Returns:
+            Result dict with status, summary_id, compacted_count, etc.
+        """
+        # Validate inputs
+        summary = summary.strip() if summary else ""
+        if len(summary) < 50:
+            return {
+                "error": "Summary must be at least 50 characters",
+                "provided_length": len(summary)
+            }
+        if limit <= 0:
+            return {"error": "Limit must be greater than 0"}
+
+        async with self.db.get_session() as session:
+            # Select candidate memories: episodic, not pinned, not permanent, not archived
+            # For decisions, require outcome to be recorded (don't hide pending decisions)
+            query = (
+                select(Memory)
+                .where(
+                    Memory.category.in_(["decision", "learning"]),
+                    or_(Memory.pinned == False, Memory.pinned.is_(None)),  # noqa: E712
+                    or_(Memory.is_permanent == False, Memory.is_permanent.is_(None)),  # noqa: E712
+                    _not_archived_condition(),
+                )
+                .order_by(Memory.created_at.asc())  # Oldest first
+            )
+
+            # For decisions, exclude those without outcomes (pending)
+            # This is done via post-fetch filtering to keep query simple
+
+            result = await session.execute(query)
+            all_candidates = result.scalars().all()
+
+            # Filter: decisions must have outcome recorded
+            candidates = []
+            for mem in all_candidates:
+                if mem.category == "decision":
+                    if mem.outcome is None and mem.worked is None:
+                        continue  # Skip pending decisions
+                candidates.append(mem)
+
+            # Apply topic filter if provided
+            if topic:
+                topic_lower = topic.lower()
+                filtered = []
+                for mem in candidates:
+                    content_match = topic_lower in (mem.content or "").lower()
+                    rationale_match = topic_lower in (mem.rationale or "").lower()
+                    tags_match = any(
+                        topic_lower in str(tag).lower()
+                        for tag in (mem.tags or [])
+                    )
+                    if content_match or rationale_match or tags_match:
+                        filtered.append(mem)
+                candidates = filtered
+
+            # Apply limit
+            candidates = candidates[:limit]
+
+            if not candidates:
+                reason = "topic_mismatch" if topic else "no_candidates"
+                return {
+                    "status": "skipped",
+                    "reason": reason,
+                    "topic": topic,
+                    "message": "No matching memories to compact"
+                }
+
+            compacted_ids = [m.id for m in candidates]
+
+            # Dry run - just return preview
+            if dry_run:
+                return {
+                    "status": "dry_run",
+                    "would_compact": len(candidates),
+                    "candidate_ids": compacted_ids,
+                    "candidates": [
+                        {
+                            "id": m.id,
+                            "category": m.category,
+                            "content": m.content[:100] + "..." if len(m.content) > 100 else m.content,
+                            "created_at": m.created_at.isoformat()
+                        }
+                        for m in candidates
+                    ],
+                    "topic": topic,
+                    "message": f"Would compact {len(candidates)} memories (dry_run=True)"
+                }
+
+            # Compute tags: ["compacted", "checkpoint"] + topic if provided
+            summary_tags = ["compacted", "checkpoint"]
+            if topic:
+                summary_tags.append(topic)
+            # Add union of common tags (appearing in > 50% of candidates)
+            tag_counts: Dict[str, int] = {}
+            for mem in candidates:
+                for tag in (mem.tags or []):
+                    if isinstance(tag, str) and tag not in summary_tags:
+                        tag_counts[tag] = tag_counts.get(tag, 0) + 1
+            threshold = len(candidates) / 2
+            for tag, count in tag_counts.items():
+                if count >= threshold:
+                    summary_tags.append(tag)
+            summary_tags = sorted(set(summary_tags))
+
+            # Create summary memory
+            keywords = extract_keywords(summary, summary_tags)
+            vector_embedding = vectors.encode(summary) if self._vectors_enabled else None
+
+            summary_memory = Memory(
+                category="learning",
+                content=summary,
+                rationale=f"Compacted summary of {len(candidates)} memories.",
+                context={"compacted_ids": compacted_ids, "topic": topic},
+                tags=summary_tags,
+                keywords=keywords,
+                is_permanent=False,
+                vector_embedding=vector_embedding
+            )
+            session.add(summary_memory)
+            await session.flush()  # Get the ID
+
+            summary_id = summary_memory.id
+
+            # Create supersedes relationships and archive originals
+            for mem in candidates:
+                rel = MemoryRelationship(
+                    source_id=summary_id,
+                    target_id=mem.id,
+                    relationship="supersedes",
+                    description="Session compaction"
+                )
+                session.add(rel)
+                mem.archived = True
+
+            # Commit transaction
+            await session.commit()
+
+        # Rebuild index to reflect archived items and new summary
+        await self.rebuild_index()
+
+        return {
+            "status": "compacted",
+            "summary_id": summary_id,
+            "compacted_count": len(candidates),
+            "compacted_ids": compacted_ids,
+            "category": "learning",
+            "tags": summary_tags,
+            "topic": topic,
+            "message": f"Compacted {len(candidates)} memories into summary {summary_id}"
+        }
+
     # =========================================================================
     # Graph Memory Methods - Explicit relationship edges between memories
     # =========================================================================

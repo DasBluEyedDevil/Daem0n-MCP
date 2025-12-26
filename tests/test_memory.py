@@ -703,3 +703,36 @@ class TestPathNormalization:
 
         # Should still work, just stores the original path
         assert "id" in result
+
+
+class TestCompactMemories:
+    """Tests for memory compaction functionality."""
+
+    @pytest.fixture
+    async def memories_to_compact(self, memory_manager):
+        """Create several episodic memories eligible for compaction."""
+        memories = []
+        for i in range(5):
+            mem = await memory_manager.remember(
+                category="learning",
+                content=f"Learning {i}: Some insight about topic {i}",
+                rationale=f"Discovered during session {i}",
+                tags=["session", "compaction-test"],
+                project_path="/test/project"
+            )
+            memories.append(mem)
+        return memories
+
+    @pytest.mark.asyncio
+    async def test_compact_creates_summary_memory(self, memory_manager, memories_to_compact):
+        """Compaction creates a new summary memory."""
+        result = await memory_manager.compact_memories(
+            summary="Summary of 5 learnings about various topics discovered during the testing session.",
+            limit=5,
+            dry_run=False  # Explicitly set to False for compaction test
+        )
+
+        assert result["status"] == "compacted"
+        assert "summary_id" in result
+        assert result["compacted_count"] == 5
+        assert result["category"] == "learning"
