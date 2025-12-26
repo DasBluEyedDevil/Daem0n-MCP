@@ -948,6 +948,30 @@ The `causal_history` field traces backward through linked memories to show what 
 
 *"Daem0n, advise me on refactoring this scroll..."*
 
+#### `compact_memories(summary, project_path, limit?, topic?, dry_run?)`
+**When**: Reducing recall noise by consolidating old episodic memories
+**Returns**: Summary memory ID and compaction stats
+```
+compact_memories(
+    summary="Summary of 5 authentication-related decisions from Q1 development cycle...",
+    limit=5,
+    topic="auth",
+    dry_run=false,
+    project_path="/path/to/project"
+)
+```
+
+**Behavior:**
+- Selects episodic memories (decisions with outcomes, learnings)
+- Excludes pending decisions (protects enforcement workflow)
+- Excludes pinned/permanent/archived memories
+- Creates summary as `category="learning"` with `["compacted", "checkpoint"]` tags
+- Links summary to originals via `supersedes` edges (preserves audit trail)
+- Archives original memories (hidden from recall, but graph-traceable)
+- Defaults to `dry_run=true` for safety (preview without changes)
+
+*"Daem0n, consolidate these memories into wisdom..."*
+
 #### `ingest_doc(url, topic, project_path, chunk_size?)`
 **When**: Importing external knowledge for reference
 **Returns**: Chunks stored as eternal learnings
