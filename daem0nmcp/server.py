@@ -787,9 +787,11 @@ def _extract_project_identity(project_path: str) -> Optional[str]:
             for line in content.split('\n'):
                 line = line.strip()
                 if line.startswith('name = '):
-                    parts.append(f"Project: {line.split('=', 1)[1].strip().strip('\"')}")
+                    project_name = line.split('=', 1)[1].strip().strip('"')
+                    parts.append(f"Project: {project_name}")
                 elif line.startswith('description = '):
-                    parts.append(f"Description: {line.split('=', 1)[1].strip().strip('\"')}")
+                    description = line.split('=', 1)[1].strip().strip('"')
+                    parts.append(f"Description: {description}")
             # Extract dependencies list
             if 'dependencies = [' in content:
                 start = content.find('dependencies = [')
@@ -816,9 +818,11 @@ def _extract_project_identity(project_path: str) -> Optional[str]:
             for line in content.split('\n'):
                 line = line.strip()
                 if line.startswith('name = '):
-                    parts.append(f"Project: {line.split('=', 1)[1].strip().strip('\"')}")
+                    project_name = line.split('=', 1)[1].strip().strip('"')
+                    parts.append(f"Project: {project_name}")
                 elif line.startswith('description = '):
-                    parts.append(f"Description: {line.split('=', 1)[1].strip().strip('\"')}")
+                    description = line.split('=', 1)[1].strip().strip('"')
+                    parts.append(f"Description: {description}")
             if parts:
                 return "Tech stack (from Cargo.toml):\n" + "\n".join(parts)
         except Exception as e:
