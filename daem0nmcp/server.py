@@ -3266,6 +3266,52 @@ async def cleanup_memories(
     }
 
 
+# ============================================================================
+# Tool: COMPACT_MEMORIES - Consolidate episodic memories into summaries
+# ============================================================================
+@mcp.tool()
+@with_request_id
+async def compact_memories(
+    summary: str,
+    limit: int = 10,
+    topic: Optional[str] = None,
+    dry_run: bool = True,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Compact recent episodic memories into a single summary.
+
+    Consolidates multiple decision/learning memories into one summary,
+    archives the originals, and preserves history via graph edges.
+    Use this to reduce recall noise while maintaining audit trails.
+
+    Args:
+        summary: The summary text (must be at least 50 characters)
+        limit: Max number of memories to compact (default: 10)
+        topic: Optional topic filter (matches content, rationale, or tags)
+        dry_run: Preview candidates without changes (default: True)
+        project_path: Project root path (for multi-project HTTP server support)
+
+    Returns:
+        Result with status, summary_id, compacted_count, etc.
+
+    Examples:
+        compact_memories("Summary of auth work...", limit=5, dry_run=True)
+        compact_memories("Summary of DB decisions...", topic="database", dry_run=False)
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    return await ctx.memory_manager.compact_memories(
+        summary=summary,
+        limit=limit,
+        topic=topic,
+        dry_run=dry_run
+    )
+
+
 @mcp.tool()
 @with_request_id
 async def health(
