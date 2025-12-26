@@ -331,3 +331,75 @@ class TestGetGraph:
         result = await memory_manager.get_graph()
 
         assert "error" in result
+
+
+class TestCompactionGraph:
+    """Tests for graph relationships created by compaction."""
+
+    @pytest.fixture
+    async def compacted_memories(self, memory_manager):
+        """Create and compact some memories, returning IDs."""
+        original_ids = []
+        for i in range(3):
+            mem = await memory_manager.remember(
+                category="learning",
+                content=f"Original learning {i} about testing patterns and best practices",
+                project_path="/test"
+            )
+            original_ids.append(mem["id"])
+
+        result = await memory_manager.compact_memories(
+            summary="Comprehensive summary of testing patterns and best practices learned over multiple sessions.",
+            limit=10,
+            dry_run=False
+        )
+
+        return {
+            "summary_id": result["summary_id"],
+            "original_ids": original_ids
+        }
+
+    @pytest.mark.asyncio
+    async def test_compaction_creates_supersedes_edges(self, memory_manager, compacted_memories):
+        """Compaction creates supersedes edges from summary to originals."""
+        summary_id = compacted_memories["summary_id"]
+        original_ids = compacted_memories["original_ids"]
+
+        # Trace forward from summary should find all originals
+        result = await memory_manager.trace_chain(
+            memory_id=summary_id,
+            direction="forward",
+            relationship_types=["supersedes"]
+        )
+
+        found_ids = [m["id"] for m in result["chain"]]
+        for orig_id in original_ids:
+            assert orig_id in found_ids, f"Original {orig_id} should be linked via supersedes"
+
+    @pytest.mark.asyncio
+    async def test_compaction_archives_originals(self, memory_manager, compacted_memories):
+        """Original memories are archived after compaction."""
+        original_ids = compacted_memories["original_ids"]
+
+        # Recall should NOT find archived memories
+        result = await memory_manager.recall("testing patterns", limit=20)
+
+        all_found_ids = []
+        for cat in ["decisions", "patterns", "warnings", "learnings"]:
+            all_found_ids.extend([m["id"] for m in result.get(cat, [])])
+
+        for orig_id in original_ids:
+            assert orig_id not in all_found_ids, f"Archived memory {orig_id} should not appear in recall"
+
+    @pytest.mark.asyncio
+    async def test_summary_appears_in_recall(self, memory_manager, compacted_memories):
+        """Summary memory appears in recall results."""
+        summary_id = compacted_memories["summary_id"]
+
+        result = await memory_manager.recall("testing patterns", limit=20)
+
+        all_found_ids = []
+        for cat in ["decisions", "patterns", "warnings", "learnings"]:
+            all_found_ids.extend([m["id"] for m in result.get(cat, [])])
+
+        assert summary_id in all_found_ids, "Summary should appear in recall"
