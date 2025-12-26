@@ -1106,9 +1106,6 @@ class MemoryManager:
                 session.add(rel)
                 mem.archived = True
 
-            # Commit transaction
-            await session.commit()
-
         # Rebuild index to reflect archived items and new summary
         await self.rebuild_index()
 
