@@ -823,3 +823,47 @@ class TestCompactMemories:
 
         assert result["status"] == "skipped"
         assert result["reason"] == "topic_mismatch"
+
+    @pytest.mark.asyncio
+    async def test_compact_excludes_pending_decisions(self, memory_manager):
+        """Decisions without outcomes are excluded from compaction."""
+        # Create a decision WITHOUT outcome (pending)
+        pending = await memory_manager.remember(
+            category="decision",
+            content="Use Redis for caching - awaiting outcome",
+            project_path="/test"
+        )
+
+        # Create a decision WITH outcome (resolved)
+        resolved = await memory_manager.remember(
+            category="decision",
+            content="Use PostgreSQL for database - outcome recorded",
+            project_path="/test"
+        )
+        await memory_manager.record_outcome(
+            memory_id=resolved["id"],
+            outcome="Worked well for our use case",
+            worked=True
+        )
+
+        # Create a learning (always eligible)
+        learning = await memory_manager.remember(
+            category="learning",
+            content="Learned about connection pooling",
+            project_path="/test"
+        )
+
+        result = await memory_manager.compact_memories(
+            summary="Summary covering database decisions and connection pooling learnings in detail.",
+            limit=10,
+            dry_run=True
+        )
+
+        candidate_ids = result["candidate_ids"]
+
+        # Pending decision should NOT be in candidates
+        assert pending["id"] not in candidate_ids
+
+        # Resolved decision and learning should be in candidates
+        assert resolved["id"] in candidate_ids
+        assert learning["id"] in candidate_ids
