@@ -867,3 +867,36 @@ class TestCompactMemories:
         # Resolved decision and learning should be in candidates
         assert resolved["id"] in candidate_ids
         assert learning["id"] in candidate_ids
+
+    @pytest.mark.asyncio
+    async def test_dry_run_does_not_modify_state(self, memory_manager, memories_to_compact):
+        """Dry run returns preview without modifying anything."""
+        original_ids = [m["id"] for m in memories_to_compact]
+
+        # Run dry_run
+        result = await memory_manager.compact_memories(
+            summary="Summary of learnings covering insights about various topics discovered during sessions.",
+            limit=5,
+            dry_run=True
+        )
+
+        assert result["status"] == "dry_run"
+        assert result["would_compact"] == 5
+
+        # Verify originals still appear in recall (not archived)
+        recall_result = await memory_manager.recall("topic insight session", limit=20)
+        found_ids = [m["id"] for m in recall_result.get("learnings", [])]
+
+        for orig_id in original_ids:
+            assert orig_id in found_ids, f"Memory {orig_id} should still be visible after dry_run"
+
+    @pytest.mark.asyncio
+    async def test_dry_run_is_default(self, memory_manager, memories_to_compact):
+        """Dry run is the default behavior."""
+        result = await memory_manager.compact_memories(
+            summary="Summary of learnings covering insights about various topics discovered during sessions.",
+            limit=5
+            # Note: dry_run not specified, should default to True
+        )
+
+        assert result["status"] == "dry_run"
