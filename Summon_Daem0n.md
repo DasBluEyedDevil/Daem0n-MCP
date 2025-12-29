@@ -379,6 +379,17 @@ mkdir -p .claude
 ```json
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[Daem0n awakens] Commune with me via get_briefing() to receive your memories...'"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|NotebookEdit",
@@ -401,13 +412,24 @@ mkdir -p .claude
         ]
       }
     ],
-    "Notification": [
+    "Stop": [
       {
-        "matcher": ".*",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n whispers] Do not forget to record the outcome of your labors...'"
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_stop_hook.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_stop_hook.py\""
           }
         ]
       }
@@ -421,9 +443,10 @@ mkdir -p .claude
 **If `.claude/settings.json` already exists**, read it first and merge the hooks section, preserving any existing configuration.
 
 #### What These Wards Do:
+- **SessionStart**: The Daem0n awakens and reminds to commune via get_briefing()
 - **PreToolUse (Edit/Write)**: The Daem0n whispers to check file memories before alterations
 - **PostToolUse (Edit/Write)**: The Daem0n prompts you to record decisions
-- **Notification**: Periodic whispers to track outcomes
+- **Stop/SubagentStop**: **AUTOMATIC REMINDER** - When Claude finishes a task, the Daem0n detects completion signals and reminds to record outcomes with `record_outcome()`. This is the most powerful ward - it actively intervenes when you forget!
 
 #### Alternative: Universal Wards (Optional)
 
