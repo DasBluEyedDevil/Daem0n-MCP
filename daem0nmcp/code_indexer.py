@@ -4,7 +4,8 @@ Code Indexer - Multi-language AST parsing for code understanding.
 Phase 2 of Cognitive Architecture: Daem0n understands project structure
 and can answer "what depends on X?"
 
-Uses tree-sitter-languages for cross-language parsing without compilation.
+Uses tree-sitter-language-pack for cross-language parsing without compilation.
+(Supports Python 3.14+ with pre-built wheels)
 """
 
 import hashlib
@@ -144,9 +145,9 @@ ENTITY_QUERIES = {
 
 
 def _check_tree_sitter_available() -> bool:
-    """Check if tree-sitter-languages is available."""
+    """Check if tree-sitter-language-pack is available."""
     try:
-        from tree_sitter_languages import get_parser
+        from tree_sitter_language_pack import get_parser
         return True
     except ImportError:
         return False
@@ -161,7 +162,7 @@ class TreeSitterIndexer:
     """
     Universal code indexer using tree-sitter.
 
-    Supports multiple languages through tree-sitter-languages package.
+    Supports multiple languages through tree-sitter-language-pack package.
     Extracts code entities (classes, functions, methods) for indexing.
     """
 
@@ -182,7 +183,7 @@ class TreeSitterIndexer:
 
         if lang not in self._parsers:
             try:
-                from tree_sitter_languages import get_parser, get_language
+                from tree_sitter_language_pack import get_parser, get_language
                 self._parsers[lang] = get_parser(lang)
                 self._languages[lang] = get_language(lang)
             except Exception as e:

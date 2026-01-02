@@ -38,8 +38,8 @@ dependencies = [
     # Phase 1: File watching + notifications
     "watchdog>=3.0.0",
     "plyer>=2.1.0",
-    # Phase 2: Code understanding
-    "tree-sitter-languages>=1.10.0",
+    # Phase 2: Code understanding (tree-sitter-language-pack has Python 3.14 wheels)
+    "tree-sitter-language-pack>=0.13.0",
 ]
 
 [project.optional-dependencies]

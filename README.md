@@ -16,7 +16,7 @@
 ## What's New in v2.10.0
 
 - **Code Understanding Layer (Phase 2)**: The Daem0n now understands your code structure
-  - Multi-language AST parsing via `tree-sitter-languages`
+  - Multi-language AST parsing via `tree-sitter-language-pack`
   - Supports: Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP
   - Extracts: classes, functions, methods, signatures, docstrings
   - New MCP tools:
@@ -468,7 +468,7 @@ pip install --upgrade daem0nmcp
 - `qdrant-client` - Vector database for semantic search
 - `watchdog` - File watching for proactive notifications
 - `plyer` - Desktop notifications
-- `tree-sitter-languages` - Multi-language code parsing (required)
+- `tree-sitter-language-pack` - Multi-language code parsing (Python 3.14 compatible)
 
 All dependencies are required for full functionality.
 

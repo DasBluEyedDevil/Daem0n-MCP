@@ -3,7 +3,7 @@ Tests for the code indexer (Phase 2: Code Understanding).
 
 Tests tree-sitter parsing, entity extraction, and indexing.
 
-NOTE: tree-sitter-languages is a REQUIRED dependency.
+NOTE: tree-sitter-language-pack is a REQUIRED dependency.
 These tests will fail if it's not installed.
 """
 
@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 import tempfile
 import shutil
 
-# tree-sitter-languages is required, not optional
-from tree_sitter_languages import get_parser
+# tree-sitter-language-pack is required, not optional
+from tree_sitter_language_pack import get_parser
 
 
 @pytest.fixture
