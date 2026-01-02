@@ -23,6 +23,9 @@ async def memory_manager(temp_storage):
     await db.init_db()
     manager = MemoryManager(db)
     yield manager
+    # Close Qdrant before cleanup to release file locks on Windows
+    if manager._qdrant:
+        manager._qdrant.close()
     await db.close()
 
 

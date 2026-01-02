@@ -36,7 +36,11 @@ async def db_manager(temp_storage):
 @pytest.fixture
 async def memory_manager(db_manager):
     """Create a memory manager."""
-    return MemoryManager(db_manager)
+    manager = MemoryManager(db_manager)
+    yield manager
+    # Close Qdrant before cleanup to release file locks on Windows
+    if manager._qdrant:
+        manager._qdrant.close()
 
 
 @pytest.fixture
