@@ -900,6 +900,22 @@ class MemoryManager:
             memory.worked = worked
             memory.updated_at = datetime.now(timezone.utc)
 
+            # Update Qdrant metadata with worked status
+            if self._qdrant and memory.vector_embedding:
+                embedding_list = vectors.decode(memory.vector_embedding)
+                if embedding_list:
+                    self._qdrant.upsert_memory(
+                        memory_id=memory_id,
+                        embedding=embedding_list,
+                        metadata={
+                            "category": memory.category,
+                            "tags": memory.tags or [],
+                            "file_path": memory.file_path,
+                            "worked": worked,
+                            "is_permanent": memory.is_permanent
+                        }
+                    )
+
             response = {
                 "id": memory_id,
                 "content": memory.content,
@@ -1401,6 +1417,9 @@ class MemoryManager:
                 )
                 session.add(rel)
                 mem.archived = True
+                # Delete from Qdrant since memory is archived
+                if self._qdrant:
+                    self._qdrant.delete_memory(mem.id)
 
         # Rebuild index to reflect archived items and new summary
         await self.rebuild_index()
