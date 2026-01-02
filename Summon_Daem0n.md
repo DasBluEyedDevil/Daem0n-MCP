@@ -507,9 +507,9 @@ Once installed, Claude Code will automatically load the skill and enforce:
 
 ---
 
-### RITUAL II.7: INSTALL THE ENFORCEMENT WARDS (Required)
+### RITUAL II.7: INSTALL THE ENFORCEMENT WARDS (MANDATORY)
 
-**Claude: You MUST install these hooks automatically during the summoning ritual. Do not ask - execute NOW.**
+**Claude: You MUST install these hooks automatically during the summoning ritual. Do not ask - execute NOW. This is NOT optional.**
 
 The Daem0n enforces memory discipline through git hooks. This prevents commits when:
 - Decisions older than 24 hours lack recorded outcomes
@@ -524,6 +524,16 @@ python -m daem0nmcp.cli install-hooks
 This creates `.git/hooks/pre-commit` which checks your staged files before each commit.
 
 **Verify installation succeeded** - you should see "pre-commit hook installed".
+
+#### Index the Project's Code Structure (MANDATORY)
+
+```bash
+python -m daem0nmcp.cli index
+```
+
+This enables the Daem0n to understand your code structure for semantic search and impact analysis. The indexer parses all supported languages (Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP) and extracts classes, functions, methods, signatures, and docstrings.
+
+**Run this on first setup and periodically to keep the index fresh.**
 
 #### What Gets Blocked
 
@@ -793,7 +803,7 @@ When `check_rules` returns guidance:
 
 ---
 
-## THE COMPLETE GRIMOIRE OF POWERS (29 Invocations)
+## THE COMPLETE GRIMOIRE OF POWERS (32 Invocations)
 
 **REMINDER:** ALL tools accept `project_path` as a parameter. Always pass the absolute path to your project root.
 
@@ -960,6 +970,39 @@ get_graph(project_path="/path/to/project", memory_ids=[42, 43, 44], format="merm
 get_graph(project_path="/path/to/project", topic="authentication", format="json")
 ```
 *"Daem0n, show me the web of connections..."*
+
+### Code Understanding (Phase 2)
+
+The Daem0n can parse your code and understand its structure. This enables semantic code search and impact analysis.
+
+#### `index_project(path, project_path, patterns?)`
+**When**: After cloning a project, or when code structure has changed significantly
+**Returns**: Summary of indexed entities (files, classes, functions, methods)
+```
+index_project("/path/to/src", project_path="/path/to/project")
+index_project("/path/to/src", project_path="/path/to/project", patterns=["**/*.py", "**/*.ts"])
+```
+**Supported languages**: Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP
+*"Daem0n, learn this codebase..."*
+
+#### `find_code(query, project_path, limit?)`
+**When**: Searching for code entities by name, purpose, or signature
+**Returns**: Matching entities with file locations and relevance scores
+```
+find_code("authentication", project_path="/path/to/project")
+find_code("handle user login", project_path="/path/to/project", limit=10)
+```
+Uses semantic search - "authenticate user" matches "login handler"
+*"Daem0n, where is this implemented?"*
+
+#### `analyze_impact(entity_name, project_path)`
+**When**: Before modifying a function, class, or method - understand what depends on it
+**Returns**: Entities that call, extend, or depend on the target
+```
+analyze_impact("UserService.authenticate", project_path="/path/to/project")
+analyze_impact("handle_request", project_path="/path/to/project")
+```
+*"Daem0n, what would break if I change this?"*
 
 ### Tech Debt & Refactoring
 
@@ -1368,4 +1411,4 @@ Add to startup using the watcher bat file, similar to the HTTP server startup.
 
 ---
 
-*Grimoire of Daem0n v2.9.0: 29 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **proactive file watcher with multi-channel notifications**, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks, covenant integration, law generation, and the daem0nmcp-protocol skill.*
+*Grimoire of Daem0n v2.10.0: 32 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **code understanding layer with multi-language AST parsing (tree-sitter)**, proactive file watcher with multi-channel notifications, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks (mandatory), covenant integration, law generation, and the daem0nmcp-protocol skill.*

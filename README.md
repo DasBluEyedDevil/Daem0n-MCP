@@ -464,9 +464,13 @@ cd ~/Daem0nMCP && git pull && pip install -e .
 pip install --upgrade daem0nmcp
 ```
 
-**Important:** The `pip install -e .` step is required to install new dependencies added in recent versions:
-- v2.9.0+: `qdrant-client`, `watchdog`, `plyer`
-- v2.10.0+: `tree-sitter-languages`
+**Important:** The `pip install -e .` step is required to install all dependencies:
+- `qdrant-client` - Vector database for semantic search
+- `watchdog` - File watching for proactive notifications
+- `plyer` - Desktop notifications
+- `tree-sitter-languages` - Multi-language code parsing (required)
+
+All dependencies are required for full functionality.
 
 ### 2. Restart Claude Code
 
@@ -478,13 +482,23 @@ Database migrations are applied automatically when any MCP tool runs. The first 
 
 No manual migration step required.
 
-### 4. Optional: Install Enforcement Hooks
+### 4. Install Enforcement Hooks
 
 Pre-commit hooks block commits when decisions lack outcomes:
 
 ```bash
 python -m daem0nmcp.cli install-hooks
 ```
+
+### 5. Index Your Codebase
+
+Enable code understanding by indexing your project:
+
+```bash
+python -m daem0nmcp.cli index
+```
+
+This parses your code with tree-sitter (supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP) and enables semantic code search via `find_code()` and impact analysis via `analyze_impact()`.
 
 ## Development
 

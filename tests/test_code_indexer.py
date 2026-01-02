@@ -2,6 +2,9 @@
 Tests for the code indexer (Phase 2: Code Understanding).
 
 Tests tree-sitter parsing, entity extraction, and indexing.
+
+NOTE: tree-sitter-languages is a REQUIRED dependency.
+These tests will fail if it's not installed.
 """
 
 import pytest
@@ -10,20 +13,8 @@ from datetime import datetime, timezone
 import tempfile
 import shutil
 
-
-# Check if tree-sitter-languages is available
-try:
-    from tree_sitter_languages import get_parser
-    TREE_SITTER_AVAILABLE = True
-except ImportError:
-    TREE_SITTER_AVAILABLE = False
-
-
-# Mark for tests that require tree-sitter
-requires_tree_sitter = pytest.mark.skipif(
-    not TREE_SITTER_AVAILABLE,
-    reason="tree-sitter-languages not installed"
-)
+# tree-sitter-languages is required, not optional
+from tree_sitter_languages import get_parser
 
 
 @pytest.fixture
@@ -148,14 +139,14 @@ fn helper() {}
     shutil.rmtree(temp_dir)
 
 
-@requires_tree_sitter
 class TestTreeSitterIndexer:
-    """Tests for TreeSitterIndexer (requires tree-sitter-languages)."""
+    """Tests for TreeSitterIndexer."""
 
     def test_is_available(self):
         """Test availability check."""
         from daem0nmcp.code_indexer import is_available
-        assert is_available() == TREE_SITTER_AVAILABLE
+        # tree-sitter-languages is a required dependency
+        assert is_available() is True
 
     def test_get_supported_extensions(self):
         """Test getting supported extensions."""
@@ -321,9 +312,8 @@ class TestTreeSitterIndexer:
         assert 'def authenticate' in auth['signature']
 
 
-@requires_tree_sitter
 class TestCodeIndexManager:
-    """Tests for CodeIndexManager (requires tree-sitter-languages)."""
+    """Tests for CodeIndexManager."""
 
     @pytest.fixture
     async def db_manager(self, temp_project):
