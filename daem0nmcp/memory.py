@@ -19,6 +19,7 @@ from sqlalchemy import select, or_, func, desc
 
 from .database import DatabaseManager
 from .models import Memory, MemoryRelationship
+from .config import settings
 
 # Valid relationship types for graph edges
 VALID_RELATIONSHIPS = frozenset({
@@ -116,10 +117,30 @@ class MemoryManager:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self._index: Optional[TFIDFIndex] = None
-        self._vector_index: Optional[vectors.VectorIndex] = None
         self._index_loaded = False
         self._vectors_enabled = vectors.is_available()
         self._index_built_at: Optional[datetime] = None
+
+        # Initialize Qdrant vector store if available
+        self._qdrant = None
+        if self._vectors_enabled:
+            # Prefer database manager's storage path for Qdrant (co-locates with SQLite)
+            # This ensures tests with temp storage get their own Qdrant instance
+            qdrant_path = str(Path(db_manager.storage_path) / "qdrant")
+            Path(qdrant_path).mkdir(parents=True, exist_ok=True)
+
+            # Check if remote mode is configured (overrides local)
+            if settings.qdrant_url:
+                # Remote mode placeholder - not implemented yet
+                logger.info("Qdrant remote mode not configured, vector search disabled")
+            else:
+                try:
+                    from .qdrant_store import QdrantVectorStore
+                    self._qdrant = QdrantVectorStore(path=qdrant_path)
+                    logger.info(f"Initialized Qdrant vector store at: {qdrant_path}")
+                except RuntimeError as e:
+                    # Handle locking errors gracefully (e.g., in concurrent test scenarios)
+                    logger.warning(f"Could not initialize Qdrant (falling back to TF-IDF only): {e}")
 
     async def _check_index_freshness(self) -> bool:
         """
@@ -133,7 +154,7 @@ class MemoryManager:
             logger.info("Database changed since index was built, rebuilding...")
             self._index_loaded = False
             self._index = None
-            self._vector_index = None
+            # Qdrant is persistent and doesn't need rebuilding
             await self._ensure_index()
             return True
 
@@ -143,9 +164,6 @@ class MemoryManager:
         """Ensure the TF-IDF index is loaded with all memories."""
         if self._index is None:
             self._index = TFIDFIndex()
-
-        if self._vector_index is None:
-            self._vector_index = vectors.VectorIndex()
 
         if not self._index_loaded:
             async with self.db.get_session() as session:
@@ -159,17 +177,87 @@ class MemoryManager:
                     if mem.rationale:
                         text += " " + mem.rationale
                     self._index.add_document(mem.id, text, mem.tags)
-
-                    # Load vectors if available
-                    if self._vectors_enabled and mem.vector_embedding:
-                        self._vector_index.add_from_bytes(mem.id, mem.vector_embedding)
+                    # Vectors are loaded from Qdrant (persistent), not SQLite
 
                 self._index_loaded = True
                 self._index_built_at = datetime.now(timezone.utc)
-                vector_count = len(self._vector_index) if self._vector_index else 0
-                logger.info(f"Loaded {len(memories)} memories into TF-IDF index ({vector_count} with vectors)")
+                qdrant_count = self._qdrant.get_count() if self._qdrant else 0
+                logger.info(f"Loaded {len(memories)} memories into TF-IDF index ({qdrant_count} vectors in Qdrant)")
 
         return self._index
+
+    def _hybrid_search(
+        self,
+        query: str,
+        top_k: int = 10,
+        tfidf_threshold: float = 0.1,
+        vector_threshold: float = 0.3
+    ) -> List[Tuple[int, float]]:
+        """
+        Hybrid search combining TF-IDF and Qdrant vector similarity.
+
+        Uses the same weighted combination as the original HybridSearch:
+        final_score = (1 - 0.3) * tfidf_score + 0.3 * vector_score
+
+        Args:
+            query: Query text
+            top_k: Maximum results
+            tfidf_threshold: Minimum TF-IDF score
+            vector_threshold: Minimum vector similarity score
+
+        Returns:
+            List of (doc_id, score) tuples sorted by score descending
+        """
+        vector_weight = 0.3  # Same as HybridSearch.vector_weight
+
+        # Get TF-IDF results
+        tfidf_results = self._index.search(query, top_k=top_k * 2, threshold=tfidf_threshold)
+        tfidf_scores = {doc_id: score for doc_id, score in tfidf_results}
+
+        # If Qdrant is available, get vector results
+        if self._qdrant and self._qdrant.get_count() > 0:
+            # Encode query to vector
+            query_embedding_bytes = vectors.encode(query)
+            if query_embedding_bytes:
+                query_vector = vectors.decode(query_embedding_bytes)
+                if query_vector:
+                    try:
+                        qdrant_results = self._qdrant.search(
+                            query_vector=query_vector,
+                            limit=top_k * 2
+                        )
+                    except (AttributeError, Exception) as e:
+                        # Handle qdrant-client API version mismatch or other errors
+                        logger.debug(f"Qdrant search failed, falling back to TF-IDF: {e}")
+                        return tfidf_results[:top_k]
+
+                    # Filter by threshold
+                    vector_scores = {
+                        doc_id: score for doc_id, score in qdrant_results
+                        if score >= vector_threshold
+                    }
+
+                    # Combine scores
+                    all_docs = set(tfidf_scores.keys()) | set(vector_scores.keys())
+                    combined = []
+
+                    for doc_id in all_docs:
+                        tfidf_score = tfidf_scores.get(doc_id, 0.0)
+                        vector_score = vector_scores.get(doc_id, 0.0)
+
+                        # Weighted combination
+                        final_score = (
+                            (1 - vector_weight) * tfidf_score +
+                            vector_weight * vector_score
+                        )
+
+                        combined.append((doc_id, final_score))
+
+                    combined.sort(key=lambda x: x[1], reverse=True)
+                    return combined[:top_k]
+
+        # Fall back to TF-IDF only if no Qdrant or no vectors
+        return tfidf_results[:top_k]
 
     async def remember(
         self,
@@ -249,11 +337,23 @@ class MemoryManager:
                 text += " " + rationale
             index.add_document(memory_id, text, tags)
 
-            # Add to vector index if available
-            if self._vectors_enabled and vector_embedding and self._vector_index:
-                self._vector_index.add_from_bytes(memory_id, vector_embedding)
+            # Upsert to Qdrant if available
+            if self._qdrant and vector_embedding:
+                embedding_list = vectors.decode(vector_embedding)
+                if embedding_list:
+                    self._qdrant.upsert_memory(
+                        memory_id=memory_id,
+                        embedding=embedding_list,
+                        metadata={
+                            "category": category,
+                            "tags": tags or [],
+                            "file_path": file_path_abs,
+                            "worked": None,  # Will be updated via record_outcome
+                            "is_permanent": is_permanent
+                        }
+                    )
 
-            logger.info(f"Stored {category}: {content[:50]}..." + (" [+vector]" if vector_embedding else ""))
+            logger.info(f"Stored {category}: {content[:50]}..." + (" [+qdrant]" if vector_embedding and self._qdrant else ""))
 
             result = {
                 "id": memory_id,
@@ -404,9 +504,21 @@ class MemoryManager:
                         text += " " + rationale
                     index.add_document(memory.id, text, tags)
 
-                    # Add to vector index if available
-                    if self._vectors_enabled and vector_embedding and self._vector_index:
-                        self._vector_index.add_from_bytes(memory.id, vector_embedding)
+                    # Upsert to Qdrant if available
+                    if self._qdrant and vector_embedding:
+                        embedding_list = vectors.decode(vector_embedding)
+                        if embedding_list:
+                            self._qdrant.upsert_memory(
+                                memory_id=memory.id,
+                                embedding=embedding_list,
+                                metadata={
+                                    "category": category,
+                                    "tags": tags,
+                                    "file_path": file_path_abs,
+                                    "worked": None,
+                                    "is_permanent": is_permanent
+                                }
+                            )
 
                     created_ids.append(memory.id)
                     results["created_count"] += 1
@@ -457,20 +569,15 @@ class MemoryManager:
         """
         Check for conflicts with existing memories using deep semantic search.
 
-        Uses VectorIndex (if available) or TF-IDF to find semantically similar
+        Uses Qdrant vectors (if available) or TF-IDF to find semantically similar
         memories across the ENTIRE database, not just recent ones. This catches
         conflicts with decisions made long ago that might still be relevant.
         """
         await self._check_index_freshness()
-        index = await self._ensure_index()
+        await self._ensure_index()
 
-        # Use hybrid search if vectors available, otherwise TF-IDF only
-        # Search for semantically similar memories across ALL memories
-        if self._vectors_enabled and self._vector_index and len(self._vector_index) > 0:
-            hybrid = vectors.HybridSearch(index, self._vector_index)
-            search_results = hybrid.search(content, top_k=50)  # Top 50 most similar
-        else:
-            search_results = index.search(content, top_k=50, threshold=0.3)
+        # Use hybrid search (TF-IDF + Qdrant vectors if available)
+        search_results = self._hybrid_search(content, top_k=50, tfidf_threshold=0.3)
 
         if not search_results:
             return []
@@ -582,14 +689,10 @@ class MemoryManager:
             return cached_result
 
         await self._check_index_freshness()
-        index = await self._ensure_index()
+        await self._ensure_index()
 
-        # Use hybrid search if vectors available, otherwise TF-IDF only
-        if self._vectors_enabled and self._vector_index and len(self._vector_index) > 0:
-            hybrid = vectors.HybridSearch(index, self._vector_index)
-            search_results = hybrid.search(topic, top_k=limit * 4)
-        else:
-            search_results = index.search(topic, top_k=limit * 4, threshold=0.05)
+        # Use hybrid search (TF-IDF + Qdrant vectors if available)
+        search_results = self._hybrid_search(topic, top_k=limit * 4, tfidf_threshold=0.05)
 
         if not search_results:
             return {"memories": [], "message": "No relevant memories found", "topic": topic}
@@ -1113,16 +1216,16 @@ class MemoryManager:
 
     async def rebuild_index(self) -> Dict[str, Any]:
         """
-        Force rebuild of TF-IDF and vector indexes.
+        Force rebuild of TF-IDF index.
 
+        Qdrant is persistent and doesn't need rebuilding.
         Returns statistics about the rebuild.
         """
-        # Clear existing index
+        # Clear existing TF-IDF index
         self._index = TFIDFIndex()
-        self._vector_index = vectors.VectorIndex() if self._vectors_enabled else None
         self._index_loaded = False
 
-        # Rebuild
+        # Rebuild TF-IDF from SQLite
         async with self.db.get_session() as session:
             result = await session.execute(
                 select(Memory).where(_not_archived_condition())
@@ -1134,16 +1237,14 @@ class MemoryManager:
                 if mem.rationale:
                     text += " " + mem.rationale
                 self._index.add_document(mem.id, text, mem.tags)
-
-                if self._vectors_enabled and self._vector_index and mem.vector_embedding:
-                    self._vector_index.add_from_bytes(mem.id, mem.vector_embedding)
+                # Qdrant is persistent and doesn't need rebuilding
 
         self._index_loaded = True
         self._index_built_at = datetime.now(timezone.utc)
 
         return {
             "memories_indexed": len(memories),
-            "vectors_indexed": len(self._vector_index) if self._vector_index else 0,
+            "vectors_indexed": self._qdrant.get_count() if self._qdrant else 0,
             "built_at": self._index_built_at.isoformat()
         }
 
