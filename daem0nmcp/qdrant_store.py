@@ -99,6 +99,8 @@ class QdrantVectorStore:
         """
         Search for similar memories with optional metadata filtering.
 
+        Uses the modern query_points API (qdrant-client >= 1.10).
+
         Args:
             query_vector: Query embedding vector (384 dimensions).
             limit: Maximum number of results to return.
@@ -123,14 +125,15 @@ class QdrantVectorStore:
                 FieldCondition(key="file_path", match=MatchValue(value=file_path))
             )
 
-        results = self.client.search(
+        # Use query_points (modern API) instead of deprecated search
+        response = self.client.query_points(
             collection_name=self.COLLECTION_MEMORIES,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=Filter(must=filters) if filters else None,
             limit=limit
         )
 
-        return [(hit.id, hit.score) for hit in results]
+        return [(point.id, point.score) for point in response.points]
 
     def delete_memory(self, memory_id: int) -> None:
         """
