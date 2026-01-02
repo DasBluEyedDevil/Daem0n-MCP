@@ -14,7 +14,15 @@ import logging
 from typing import Optional
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, Filter
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchAny,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +37,7 @@ class QdrantVectorStore:
 
     COLLECTION_MEMORIES = "daem0n_memories"
     COLLECTION_CODE = "daem0n_code_entities"  # Reserved for Phase 2
+    EMBEDDING_DIMENSION = 384  # all-MiniLM-L6-v2 output dimension
 
     def __init__(self, path: str = "./storage/qdrant"):
         """
@@ -51,7 +60,7 @@ class QdrantVectorStore:
             self.client.create_collection(
                 collection_name=self.COLLECTION_MEMORIES,
                 vectors_config=VectorParams(
-                    size=384,  # all-MiniLM-L6-v2 output dimension
+                    size=self.EMBEDDING_DIMENSION,
                     distance=Distance.COSINE
                 )
             )
@@ -100,8 +109,6 @@ class QdrantVectorStore:
         Returns:
             List of (memory_id, similarity_score) tuples, sorted by score descending.
         """
-        from qdrant_client.models import FieldCondition, MatchAny, MatchValue
-
         filters = []
         if category_filter:
             filters.append(
