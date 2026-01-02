@@ -139,14 +139,20 @@ class Settings(BaseSettings):
 
         return str(storage)
 
-    def get_qdrant_path(self) -> str:
+    def get_qdrant_path(self) -> Optional[str]:
         """
-        Determine Qdrant storage path.
+        Determine Qdrant storage path for local mode.
 
-        Priority:
+        Returns None if qdrant_url is set (remote mode).
+
+        Priority for local mode:
         1. qdrant_path setting (explicit override via DAEM0NMCP_QDRANT_PATH)
         2. <storage_path>/qdrant (next to the SQLite database)
         """
+        # Remote mode - no local path needed
+        if self.qdrant_url:
+            return None
+
         if self.qdrant_path:
             Path(self.qdrant_path).mkdir(parents=True, exist_ok=True)
             return self.qdrant_path
