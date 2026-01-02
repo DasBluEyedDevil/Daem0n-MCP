@@ -35,6 +35,9 @@ dependencies = [
     "numpy>=1.24.0",
     # Vector database
     "qdrant-client>=1.7.0",
+    # Phase 1: File watching + notifications
+    "watchdog>=3.0.0",
+    "plyer>=2.1.0",
 ]
 
 [project.optional-dependencies]
