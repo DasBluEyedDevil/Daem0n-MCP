@@ -65,6 +65,17 @@ class QdrantVectorStore:
                 )
             )
 
+        # Create code entities collection for Phase 2 (code understanding)
+        if self.COLLECTION_CODE not in collections:
+            logger.info(f"Creating collection: {self.COLLECTION_CODE}")
+            self.client.create_collection(
+                collection_name=self.COLLECTION_CODE,
+                vectors_config=VectorParams(
+                    size=self.EMBEDDING_DIMENSION,
+                    distance=Distance.COSINE
+                )
+            )
+
     def upsert_memory(
         self,
         memory_id: int,
