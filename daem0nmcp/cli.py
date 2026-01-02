@@ -15,6 +15,7 @@ Usage:
     python -m daem0nmcp.cli record-outcome <memory_id> "<outcome>" --worked|--failed
     python -m daem0nmcp.cli install-hooks [--force]
     python -m daem0nmcp.cli uninstall-hooks
+    python -m daem0nmcp.cli watch [--debounce SECONDS] [--no-system] [--no-log] [--no-poll]
 
 Global Options:
     --json              Output as JSON for automation/scripting
@@ -290,6 +291,19 @@ def main():
     # uninstall-hooks command
     subparsers.add_parser("uninstall-hooks", help="Remove daem0nmcp git hooks")
 
+    # watch command
+    watch_parser = subparsers.add_parser("watch", help="Start file watcher daemon")
+    watch_parser.add_argument("--debounce", type=float, default=1.0,
+                              help="Debounce interval in seconds (default: 1.0)")
+    watch_parser.add_argument("--no-system", action="store_true",
+                              help="Disable system notifications")
+    watch_parser.add_argument("--no-log", action="store_true",
+                              help="Disable log file channel")
+    watch_parser.add_argument("--no-poll", action="store_true",
+                              help="Disable editor poll channel")
+    watch_parser.add_argument("--extensions", nargs="*", default=None,
+                              help="File extensions to watch (e.g., .py .ts)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -473,6 +487,74 @@ def main():
             print(message)
 
         sys.exit(0 if success else 1)
+
+    elif args.command == "watch":
+        from .watcher import FileWatcher, WatcherConfig, LoggingChannel
+        from .channels import SystemNotifyChannel, LogFileChannel, EditorPollChannel
+
+        project_path = Path(args.project_path or os.getcwd()).resolve()
+
+        # Build channel list
+        channels = [LoggingChannel()]  # Always log to console
+
+        if not args.no_system:
+            channels.append(SystemNotifyChannel())
+
+        if not args.no_log:
+            log_path = settings.get_watcher_log_path()
+            channels.append(LogFileChannel(log_path))
+
+        if not args.no_poll:
+            poll_path = settings.get_watcher_poll_path()
+            channels.append(EditorPollChannel(poll_path))
+
+        # Build config
+        config = WatcherConfig(
+            debounce_seconds=args.debounce,
+            watch_extensions=args.extensions or []
+        )
+
+        # Create watcher
+        watcher = FileWatcher(
+            project_path=project_path,
+            memory_manager=memory,
+            channels=channels,
+            config=config
+        )
+
+        async def run_watcher():
+            """Run watcher until interrupted."""
+            await db.init_db()
+
+            print(f"Starting file watcher for: {project_path}")
+            print(f"Channels: {', '.join(type(c).__name__ for c in channels)}")
+            print(f"Debounce: {config.debounce_seconds}s")
+            if config.watch_extensions:
+                print(f"Extensions: {', '.join(config.watch_extensions)}")
+            print("\nPress Ctrl+C to stop...\n")
+
+            await watcher.start()
+
+            try:
+                # Run forever until interrupted
+                while True:
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                pass
+            finally:
+                await watcher.stop()
+                stats = watcher.statistics
+                print(f"\nWatcher statistics:")
+                print(f"  Files changed: {stats['files_changed']}")
+                print(f"  Notifications sent: {stats['notifications_sent']}")
+                print(f"  Files debounced: {stats['files_debounced']}")
+                print(f"  Files without memories: {stats['files_skipped_no_memories']}")
+                print(f"  Errors: {stats['errors']}")
+
+        try:
+            asyncio.run(run_watcher())
+        except KeyboardInterrupt:
+            print("\nStopped.")
 
 
 if __name__ == "__main__":
