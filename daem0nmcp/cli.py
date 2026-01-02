@@ -374,7 +374,7 @@ def main():
                 print(json.dumps(result, default=str))
             else:
                 print(f"Database: {db_path}")
-                print(f"\nMigration complete:")
+                print("\nMigration complete:")
                 print(f"  Schema migrations: {result['schema_migrations']}")
                 for m in result.get('applied', []):
                     print(f"    - {m}")
@@ -551,7 +551,7 @@ def main():
             finally:
                 await watcher.stop()
                 stats = watcher.statistics
-                print(f"\nWatcher statistics:")
+                print("\nWatcher statistics:")
                 print(f"  Files changed: {stats['files_changed']}")
                 print(f"  Notifications sent: {stats['notifications_sent']}")
                 print(f"  Files debounced: {stats['files_debounced']}")

@@ -146,11 +146,8 @@ ENTITY_QUERIES = {
 
 def _check_tree_sitter_available() -> bool:
     """Check if tree-sitter-language-pack is available."""
-    try:
-        from tree_sitter_language_pack import get_parser
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+    return importlib.util.find_spec("tree_sitter_language_pack") is not None
 
 
 def is_available() -> bool:

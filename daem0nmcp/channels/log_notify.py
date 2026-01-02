@@ -7,11 +7,9 @@ read by external tools, scripts, or editor integrations.
 
 import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-from daem0nmcp.watcher import NotificationChannel, WatcherNotification
+from daem0nmcp.watcher import WatcherNotification
 
 logger = logging.getLogger(__name__)
 

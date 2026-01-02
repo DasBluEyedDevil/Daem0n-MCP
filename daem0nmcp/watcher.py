@@ -26,10 +26,10 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Protocol, Set, Any, runtime_checkable
+from typing import Dict, List, Optional, Protocol, Any, runtime_checkable
 
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, FileModifiedEvent, DirModifiedEvent
+from watchdog.events import FileSystemEventHandler, DirModifiedEvent
 
 logger = logging.getLogger(__name__)
 

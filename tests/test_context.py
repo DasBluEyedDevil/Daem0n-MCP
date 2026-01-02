@@ -2,8 +2,7 @@
 
 import pytest
 import asyncio
-from unittest.mock import patch, AsyncMock
-from pathlib import Path
+from unittest.mock import patch
 import tempfile
 import shutil
 
@@ -107,7 +106,7 @@ class TestProjectContextEviction:
         ctx.last_accessed = time.time() - CONTEXT_TTL_SECONDS - 100
 
         # Create a recent context
-        ctx2 = await get_project_context(temp_projects[1])
+        await get_project_context(temp_projects[1])
 
         # Evict
         await evict_stale_contexts()

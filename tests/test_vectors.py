@@ -1,6 +1,5 @@
 """Tests for the vector embeddings module."""
 
-import pytest
 from daem0nmcp import vectors
 
 

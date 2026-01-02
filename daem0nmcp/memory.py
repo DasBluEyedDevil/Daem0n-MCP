@@ -20,6 +20,15 @@ from sqlalchemy import select, or_, func, desc
 from .database import DatabaseManager
 from .models import Memory, MemoryRelationship
 from .config import settings
+from .similarity import (
+    TFIDFIndex,
+    extract_keywords,
+    calculate_memory_decay,
+    detect_conflict,
+)
+from .cache import get_recall_cache, make_cache_key
+from . import vectors
+from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 # Valid relationship types for graph edges
 VALID_RELATIONSHIPS = frozenset({
@@ -29,20 +38,6 @@ VALID_RELATIONSHIPS = frozenset({
     "conflicts_with", # A contradicts B
     "related_to",     # General association (weaker)
 })
-from .similarity import (
-    TFIDFIndex,
-    tokenize,
-    extract_keywords,
-    calculate_memory_decay,
-    detect_conflict,
-    get_global_index,
-    STOP_WORDS,
-    DEFAULT_DECAY_HALF_LIFE_DAYS,
-    MIN_DECAY_WEIGHT,
-)
-from .cache import get_recall_cache, make_cache_key
-from . import vectors
-from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -703,7 +698,7 @@ class MemoryManager:
 
         # Get full memory objects
         memory_ids = [doc_id for doc_id, _ in search_results]
-        score_map = {doc_id: score for doc_id, score in search_results}
+        {doc_id: score for doc_id, score in search_results}
 
         async with self.db.get_session() as session:
             # Build query with date filters at database level for performance

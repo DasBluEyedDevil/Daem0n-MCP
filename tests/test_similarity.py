@@ -1,6 +1,5 @@
 """Tests for the TF-IDF similarity engine."""
 
-import pytest
 from datetime import datetime, timezone, timedelta
 
 from daem0nmcp.similarity import (
@@ -8,8 +7,7 @@ from daem0nmcp.similarity import (
     extract_code_symbols,
     TFIDFIndex,
     calculate_memory_decay,
-    detect_conflict,
-    STOP_WORDS
+    detect_conflict
 )
 
 

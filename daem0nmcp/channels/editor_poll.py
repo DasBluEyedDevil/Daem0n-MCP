@@ -9,9 +9,9 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
-from daem0nmcp.watcher import NotificationChannel, WatcherNotification
+from daem0nmcp.watcher import WatcherNotification
 
 logger = logging.getLogger(__name__)
 

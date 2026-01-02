@@ -14,7 +14,6 @@ import tempfile
 import shutil
 
 # tree-sitter-language-pack is required, not optional
-from tree_sitter_language_pack import get_parser
 
 
 @pytest.fixture
@@ -542,7 +541,6 @@ class TestCodeEntityModel:
     async def test_create_code_entity(self, db_manager):
         """Test creating a CodeEntity."""
         from daem0nmcp.models import CodeEntity
-        from datetime import datetime, timezone
 
         async with db_manager.get_session() as session:
             entity = CodeEntity(
@@ -591,7 +589,6 @@ class TestMemoryCodeRefModel:
     async def test_create_memory_code_ref(self, db_manager):
         """Test creating a MemoryCodeRef."""
         from daem0nmcp.models import Memory, MemoryCodeRef
-        from datetime import datetime, timezone
 
         async with db_manager.get_session() as session:
             # First create a memory

@@ -15,7 +15,7 @@ from sqlalchemy import select, desc
 
 from .database import DatabaseManager
 from .models import Rule
-from .similarity import TFIDFIndex, tokenize, extract_keywords
+from .similarity import TFIDFIndex, extract_keywords
 from .cache import get_rules_cache, make_cache_key
 
 logger = logging.getLogger(__name__)

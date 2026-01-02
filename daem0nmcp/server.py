@@ -85,7 +85,7 @@ except ImportError:
     from daem0nmcp import __version__
     from daem0nmcp import vectors
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
-from sqlalchemy import select, desc, delete, or_
+from sqlalchemy import select, delete, or_
 from dataclasses import dataclass, field
 
 # Configure logging
@@ -3265,7 +3265,7 @@ async def prune_memories(
             Memory.created_at < cutoff,
             Memory.is_permanent == False,  # noqa: E712
             Memory.pinned == False,  # noqa: E712
-            Memory.outcome == None,  # Don't prune memories with outcomes
+            Memory.outcome is None,  # Don't prune memories with outcomes
             or_(Memory.archived == False, Memory.archived.is_(None)),  # noqa: E712
             or_(Memory.recall_count < min_recall_count, Memory.recall_count.is_(None))  # Saliency protection
         )
@@ -3453,7 +3453,7 @@ async def cleanup_memories(
                         keeper.pinned = True
 
                     # If keeper is archived but duplicate isn't, unarchive
-                    if dupe.archived == False and keeper.archived == True:
+                    if not dupe.archived and keeper.archived:
                         keeper.archived = False
 
                     # Merge tags (union of all tags)

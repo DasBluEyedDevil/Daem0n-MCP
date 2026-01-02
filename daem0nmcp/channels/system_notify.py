@@ -8,7 +8,7 @@ when files with associated memories are modified.
 import logging
 from typing import Optional
 
-from daem0nmcp.watcher import NotificationChannel, WatcherNotification
+from daem0nmcp.watcher import WatcherNotification
 
 logger = logging.getLogger(__name__)
 

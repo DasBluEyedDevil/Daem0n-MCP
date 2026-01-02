@@ -9,7 +9,7 @@ This module provides:
 
 import logging
 import struct
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple
 
 from sentence_transformers import SentenceTransformer
 import numpy as np

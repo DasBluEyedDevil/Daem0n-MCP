@@ -5,14 +5,13 @@ Tests the watcher daemon, notification channels, and their integration
 with the memory system.
 """
 
-import asyncio
 import json
 import pytest
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from daem0nmcp.watcher import (
     FileWatcher,
@@ -20,7 +19,6 @@ from daem0nmcp.watcher import (
     WatcherNotification,
     LoggingChannel,
     CallbackChannel,
-    DEFAULT_SKIP_PATTERNS,
     create_watcher,
 )
 from daem0nmcp.channels import (

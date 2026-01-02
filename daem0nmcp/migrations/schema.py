@@ -283,7 +283,7 @@ def run_migrations(db_path: str) -> Tuple[int, List[str]]:
                     except sqlite3.OperationalError as e:
                         # Ignore "duplicate column" errors
                         if "duplicate column" in str(e).lower():
-                            logger.info(f"  Column already exists, skipping")
+                            logger.info("  Column already exists, skipping")
                             continue
                         raise
 
@@ -382,7 +382,6 @@ def migrate_and_backfill_vectors(db_path: str) -> dict:
 # CLI entry point
 def main():
     """Run migrations from command line."""
-    import sys
     from ..config import settings
 
     db_path = str(settings.get_storage_path())
@@ -390,7 +389,7 @@ def main():
 
     result = migrate_and_backfill_vectors(db_path)
 
-    print(f"\nMigration complete:")
+    print("\nMigration complete:")
     print(f"  Schema migrations: {result['schema_migrations']}")
     for m in result.get('applied', []):
         print(f"    - {m}")

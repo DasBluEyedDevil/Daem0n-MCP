@@ -9,7 +9,6 @@ import tempfile
 import uuid
 from pathlib import Path
 
-import pytest
 
 # Register pytest-asyncio plugin
 pytest_plugins = ('pytest_asyncio',)

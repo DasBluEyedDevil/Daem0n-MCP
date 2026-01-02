@@ -7,7 +7,7 @@ No external dependencies required.
 
 import time
 import logging
-from typing import Any, Optional, Dict, Tuple, Hashable
+from typing import Any, Dict, Tuple, Hashable
 from threading import Lock
 
 logger = logging.getLogger(__name__)
