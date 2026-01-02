@@ -13,7 +13,20 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
-## What's New in v2.9.0
+## What's New in v2.10.0
+
+- **Code Understanding Layer (Phase 2)**: The Daem0n now understands your code structure
+  - Multi-language AST parsing via `tree-sitter-languages`
+  - Supports: Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP
+  - Extracts: classes, functions, methods, signatures, docstrings
+  - New MCP tools:
+    - `index_project` - Index code entities for understanding
+    - `find_code` - Semantic search across code entities
+    - `analyze_impact` - Analyze what changing an entity would affect
+  - CLI: `python -m daem0nmcp.cli index`
+  - New models: `CodeEntity`, `MemoryCodeRef`
+
+### Previous Features (v2.9.0)
 
 - **Qdrant Vector Backend (Phase 0)**: Persistent vector storage replaces SQLite blob storage
   - Qdrant local mode (file-based, no server required)
@@ -147,7 +160,7 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Core Tools (29 Total)
+## Core Tools (32 Total)
 
 ### Memory Tools
 
@@ -188,6 +201,14 @@ Or use `start_daem0nmcp_server.bat`
 | `unlink_memories` | Remove relationships between memories |
 | `trace_chain` | Traverse memory graph (forward/backward) |
 | `get_graph` | Visualize memory relationships (JSON or Mermaid) |
+
+### Code Understanding Tools
+
+| Tool | Purpose |
+|------|---------|
+| `index_project` | Index code entities (classes, functions, methods) |
+| `find_code` | Semantic search across code entities |
+| `analyze_impact` | Analyze what changing an entity would affect |
 
 ### Utility Tools
 
@@ -362,19 +383,22 @@ Environment variables (prefix: `DAEM0NMCP_`):
 
 ```
 daem0nmcp/
-├── server.py      # MCP server with 29 tools (FastMCP)
-├── memory.py      # Memory storage & semantic retrieval
-├── rules.py       # Rule engine with TF-IDF matching
-├── similarity.py  # TF-IDF index, decay, conflict detection
-├── vectors.py     # Vector embeddings (sentence-transformers)
-├── database.py    # SQLite async database
-├── models.py      # 5 tables: memories, rules, memory_relationships,
-│                  #           session_state, enforcement_bypass_log
-├── enforcement.py # Pre-commit enforcement & session tracking
-├── hooks.py       # Git hook templates & installation
-├── cli.py         # Command-line interface
-├── migrations.py  # Database schema migrations
-└── config.py      # Pydantic settings
+├── server.py       # MCP server with 32 tools (FastMCP)
+├── memory.py       # Memory storage & semantic retrieval
+├── rules.py        # Rule engine with TF-IDF matching
+├── similarity.py   # TF-IDF index, decay, conflict detection
+├── vectors.py      # Vector embeddings (sentence-transformers)
+├── code_indexer.py # Code understanding via tree-sitter (Phase 2)
+├── watcher.py      # Proactive file watcher daemon (Phase 1)
+├── database.py     # SQLite async database
+├── models.py       # 7 tables: memories, rules, memory_relationships,
+│                   #           session_state, enforcement_bypass_log,
+│                   #           code_entities, memory_code_refs
+├── enforcement.py  # Pre-commit enforcement & session tracking
+├── hooks.py        # Git hook templates & installation
+├── cli.py          # Command-line interface
+├── migrations/     # Database schema migrations
+└── config.py       # Pydantic settings
 
 .claude/
 └── skills/
@@ -397,6 +421,9 @@ python -m daem0nmcp.cli briefing
 
 # Scan for TODO/FIXME/HACK comments
 python -m daem0nmcp.cli scan-todos [--auto-remember] [--path PATH]
+
+# Index code entities (Phase 2)
+python -m daem0nmcp.cli index [--path PATH] [--patterns **/*.py **/*.ts ...]
 
 # Run database migrations (usually automatic)
 python -m daem0nmcp.cli migrate [--backfill-vectors]

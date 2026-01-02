@@ -211,3 +211,71 @@ class EnforcementBypassLog(Base):
     pending_decisions = Column(JSON, default=list)  # List of skipped decision IDs
     staged_files_with_warnings = Column(JSON, default=list)  # List of risky files
     reason = Column(Text, nullable=True)  # Optional user-provided reason
+
+
+class CodeEntity(Base):
+    """
+    A code element from an indexed project.
+
+    Types: file, class, function, method, variable, import, module
+
+    Used by Phase 2: Code Understanding layer to enable:
+    - "What depends on X?"
+    - Impact analysis for changes
+    - Semantic code search
+    """
+    __tablename__ = "code_entities"
+
+    id = Column(String, primary_key=True)  # hash of project+path+name+type
+    project_path = Column(String, nullable=False, index=True)
+
+    entity_type = Column(String, nullable=False)  # file, class, function, method
+    name = Column(String, nullable=False)
+    qualified_name = Column(String, nullable=True)  # e.g., "myapp.models.User.save"
+    file_path = Column(String, nullable=False, index=True)
+    line_start = Column(Integer, nullable=True)
+    line_end = Column(Integer, nullable=True)
+
+    signature = Column(Text, nullable=True)  # First line of definition
+    docstring = Column(Text, nullable=True)
+
+    # Structural relationships (for dependency tracking)
+    calls = Column(JSON, default=list)  # Functions/methods this entity calls
+    called_by = Column(JSON, default=list)  # Functions/methods that call this
+    imports = Column(JSON, default=list)  # What this entity imports
+    inherits = Column(JSON, default=list)  # Parent classes for class entities
+
+    indexed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class MemoryCodeRef(Base):
+    """
+    Links memories to code entities.
+
+    Enables automatic symbol resolution:
+    - When a memory mentions `UserService.authenticate`, link to that entity
+    - When code changes, surface relevant memories
+
+    Relationship types:
+    - about: Memory discusses this entity
+    - modifies: Memory describes changes to this entity
+    - introduces: Memory introduces this entity
+    - deprecates: Memory marks this entity as deprecated
+    """
+    __tablename__ = "memory_code_refs"
+
+    id = Column(Integer, primary_key=True)
+    memory_id = Column(Integer, ForeignKey("memories.id", ondelete="CASCADE"), index=True)
+    code_entity_id = Column(String, index=True)
+
+    # Snapshot (survives reindex - entity might be renamed/moved)
+    entity_type = Column(String, nullable=True)
+    entity_name = Column(String, nullable=True)
+    file_path = Column(String, nullable=True)
+    line_number = Column(Integer, nullable=True)
+
+    relationship = Column(String, nullable=True)  # "about", "modifies", "introduces", "deprecates"
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # ORM relationship
+    memory = orm_relationship("Memory", backref="code_refs")

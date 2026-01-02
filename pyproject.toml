@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daem0nmcp"
-version = "2.9.0"
+version = "2.10.0"
 description = "AI Memory & Decision System - Give AI agents persistent memory and consistent decision-making"
 readme = "README.md"
 license = {text = "MIT"}
@@ -38,6 +38,8 @@ dependencies = [
     # Phase 1: File watching + notifications
     "watchdog>=3.0.0",
     "plyer>=2.1.0",
+    # Phase 2: Code understanding
+    "tree-sitter-languages>=1.10.0",
 ]
 
 [project.optional-dependencies]

@@ -16,6 +16,7 @@ Usage:
     python -m daem0nmcp.cli install-hooks [--force]
     python -m daem0nmcp.cli uninstall-hooks
     python -m daem0nmcp.cli watch [--debounce SECONDS] [--no-system] [--no-log] [--no-poll]
+    python -m daem0nmcp.cli index [--path PATH] [--patterns *.py *.ts ...]
 
 Global Options:
     --json              Output as JSON for automation/scripting
@@ -304,6 +305,12 @@ def main():
     watch_parser.add_argument("--extensions", nargs="*", default=None,
                               help="File extensions to watch (e.g., .py .ts)")
 
+    # index command
+    index_parser = subparsers.add_parser("index", help="Index code entities for understanding")
+    index_parser.add_argument("--path", help="Path to index (default: project root)")
+    index_parser.add_argument("--patterns", nargs="*", default=None,
+                              help="Glob patterns for files (e.g., **/*.py **/*.ts)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -555,6 +562,48 @@ def main():
             asyncio.run(run_watcher())
         except KeyboardInterrupt:
             print("\nStopped.")
+
+    elif args.command == "index":
+        from .code_indexer import CodeIndexManager, is_available
+
+        if not is_available():
+            if args.json:
+                print(json.dumps({"error": "tree-sitter-languages not installed", "indexed": 0}))
+            else:
+                print("ERROR: Code indexing requires tree-sitter-languages", file=sys.stderr)
+                print("Install with: pip install tree-sitter-languages")
+            sys.exit(1)
+
+        project_path = Path(args.project_path or os.getcwd()).resolve()
+        target_path = args.path or str(project_path)
+
+        # Get Qdrant store if available
+        qdrant = None
+        try:
+            from .qdrant_store import QdrantVectorStore
+            qdrant = QdrantVectorStore(storage_path=str(storage_path))
+        except Exception:
+            pass
+
+        indexer = CodeIndexManager(db=db, qdrant=qdrant)
+
+        async def run_indexing():
+            await db.init_db()
+            return await indexer.index_project(target_path, args.patterns)
+
+        result = asyncio.run(run_indexing())
+
+        if args.json:
+            print(json.dumps(result, default=str))
+        else:
+            print(f"Indexed {result.get('indexed', 0)} code entities")
+            print(f"  Files processed: {result.get('files_processed', 0)}")
+            print(f"  Files skipped: {result.get('files_skipped', 0)}")
+            print(f"  Project: {result.get('project', target_path)}")
+
+            if result.get('error'):
+                print(f"\nError: {result['error']}")
+                sys.exit(1)
 
 
 if __name__ == "__main__":
