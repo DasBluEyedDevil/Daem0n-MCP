@@ -457,28 +457,34 @@ Upgrading Daem0n-MCP is straightforward:
 ### 1. Update the Code
 
 ```bash
+# If installed from source (recommended)
+cd ~/Daem0nMCP && git pull && pip install -e .
+
 # If installed via pip
 pip install --upgrade daem0nmcp
-
-# If installed from source
-cd ~/Daem0nMCP && git pull && pip install -e .
 ```
 
-### 2. Migrations Run Automatically
+**Important:** The `pip install -e .` step is required to install new dependencies added in recent versions:
+- v2.9.0+: `qdrant-client`, `watchdog`, `plyer`
+- v2.10.0+: `tree-sitter-languages`
+
+### 2. Restart Claude Code
+
+After updating, restart Claude Code to load the new MCP tools.
+
+### 3. Migrations Run Automatically
 
 Database migrations are applied automatically when any MCP tool runs. The first time you use `get_briefing()`, `remember()`, or any other tool after upgrading, the database schema is updated.
 
 No manual migration step required.
 
-### 3. Install Enforcement Hooks (New in 2.7+)
+### 4. Optional: Install Enforcement Hooks
 
-If upgrading from a version before 2.7, install the new pre-commit hooks:
+Pre-commit hooks block commits when decisions lack outcomes:
 
 ```bash
 python -m daem0nmcp.cli install-hooks
 ```
-
-This enables automatic enforcement that blocks commits when decisions lack outcomes.
 
 ## Development
 
@@ -486,7 +492,7 @@ This enables automatic enforcement that blocks commits when decisions lack outco
 # Install in development mode
 pip install -e .
 
-# Run tests (209 tests)
+# Run tests (355 tests)
 pytest tests/ -v --asyncio-mode=auto
 
 # Run server directly
@@ -522,4 +528,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.7.0: Pre-commit enforcement that actually blocks commits when memory discipline is broken—AI agents can no longer skip the protocol.*
+*Daem0nMCP v2.10.0: Code understanding layer with multi-language AST parsing—the Daem0n now understands your code structure.*
