@@ -273,7 +273,7 @@ def migrate_and_backfill_vectors(db_path: str) -> dict:
     Returns:
         Migration report
     """
-    from . import vectors
+    from .. import vectors
 
     # First run schema migrations
     count, applied = run_migrations(db_path)
@@ -342,7 +342,7 @@ def migrate_and_backfill_vectors(db_path: str) -> dict:
 def main():
     """Run migrations from command line."""
     import sys
-    from .config import settings
+    from ..config import settings
 
     db_path = str(settings.get_storage_path())
     print(f"Migrating database: {db_path}")
