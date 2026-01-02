@@ -42,6 +42,7 @@ from .similarity import (
 )
 from .cache import get_recall_cache, make_cache_key
 from . import vectors
+from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,10 @@ class MemoryManager:
             # Check if remote mode is configured (overrides local)
             if settings.qdrant_url:
                 # Remote mode placeholder - not implemented yet
-                logger.info("Qdrant remote mode not configured, vector search disabled")
+                logger.warning(
+                    f"Qdrant remote mode (URL: {settings.qdrant_url}) not yet implemented. "
+                    "Falling back to TF-IDF only for vector search."
+                )
             else:
                 try:
                     from .qdrant_store import QdrantVectorStore
@@ -226,8 +230,8 @@ class MemoryManager:
                             query_vector=query_vector,
                             limit=top_k * 2
                         )
-                    except (AttributeError, Exception) as e:
-                        # Handle qdrant-client API version mismatch or other errors
+                    except (ResponseHandlingException, UnexpectedResponse, RuntimeError) as e:
+                        # Handle Qdrant API errors gracefully
                         logger.debug(f"Qdrant search failed, falling back to TF-IDF: {e}")
                         return tfidf_results[:top_k]
 
