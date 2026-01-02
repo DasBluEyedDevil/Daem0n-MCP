@@ -13,13 +13,25 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
-## What's New in v2.8.0
+## What's New in v2.9.0
+
+- **Qdrant Vector Backend (Phase 0)**: Persistent vector storage replaces SQLite blob storage
+  - Qdrant local mode (file-based, no server required)
+  - Hybrid search: TF-IDF + vector similarity (0.3 weight)
+  - Migration script: `python -m daem0nmcp.migrations.migrate_vectors`
+
+- **Proactive File Watcher (Phase 1)**: The Daem0n now watches your files proactively
+  - Monitors file changes and notifies when files with associated memories are modified
+  - Multi-channel notifications:
+    - **System notifications**: Desktop alerts via `plyer`
+    - **Log file**: JSON-lines at `.daem0nmcp/storage/watcher.log`
+    - **Editor poll**: JSON at `.daem0nmcp/storage/editor-poll.json` for IDE plugins
+  - Start with: `python -m daem0nmcp.cli watch`
+  - Configurable debouncing, skip patterns, extension filters
+
+### Previous Features (v2.8.0)
 
 - **Automatic Tool Reminders (Stop Hook)**: Claude Code hooks that detect task completion and remind to record outcomes
-  - Intelligent detection of completion signals ("all tasks complete", "implementation done", etc.)
-  - Checks if `record_outcome()` was already called - no spam if you're following protocol
-  - Works for both main agent (Stop) and subagents (SubagentStop)
-  - Loop prevention to avoid infinite reminder cycles
 - **Enhanced SessionStart Hook**: Now reminds to commune with `get_briefing()` at session start
 - **Hook Scripts**: New `hooks/` directory with reusable Python scripts for Claude Code integration
 

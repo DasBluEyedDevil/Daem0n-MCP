@@ -1257,4 +1257,115 @@ Migration happens automatically at first awakening. After migration completes, y
 
 ---
 
-*Grimoire of Daem0n v2.7.0: 29 tools for eternal memory with semantic understanding, vector embeddings, graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks, covenant integration, law generation, and the daem0nmcp-protocol skill.*
+## THE PROACTIVE LAYER (Phase 1: File Watcher)
+
+The Daem0n can now watch your realm proactively. When files are modified, it checks for associated memories and notifies you through multiple channels.
+
+### Starting the Watcher Daemon
+
+```bash
+# Start watching the current project
+python -m daem0nmcp.cli watch
+
+# With options
+python -m daem0nmcp.cli watch --debounce 2.0 --no-system --extensions .py .ts
+```
+
+**Options:**
+| Flag | Description |
+|------|-------------|
+| `--debounce SECONDS` | Wait time before re-notifying for same file (default: 1.0) |
+| `--no-system` | Disable desktop system notifications |
+| `--no-log` | Disable log file channel |
+| `--no-poll` | Disable editor poll channel |
+| `--extensions EXT...` | Only watch specific file extensions (e.g., `.py .ts`) |
+
+### Notification Channels
+
+The watcher notifies through three channels simultaneously:
+
+#### 1. System Notifications (Desktop)
+Cross-platform desktop notifications via `plyer`. Shows file name and memory summary.
+
+#### 2. Log File Channel
+Writes JSON-lines to `.daem0nmcp/storage/watcher.log`:
+```json
+{"timestamp": "2024-01-15T10:30:00Z", "file_path": "/path/to/file.py", "summary": "3 memories", "memory_count": 3}
+```
+
+Monitor with: `tail -f .daem0nmcp/storage/watcher.log | jq`
+
+#### 3. Editor Poll Channel
+Creates `.daem0nmcp/storage/editor-poll.json` that IDEs can poll:
+```json
+{
+  "version": 1,
+  "files": {
+    "/path/to/file.py": {
+      "summary": "ATTENTION NEEDED - 3 memories",
+      "has_warnings": true,
+      "memory_count": 3
+    }
+  }
+}
+```
+
+Editor plugins can watch this file and show inline annotations.
+
+### Watcher Configuration
+
+Environment variables (prefix: `DAEM0NMCP_`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WATCHER_ENABLED` | `false` | Enable watcher at startup |
+| `WATCHER_DEBOUNCE_SECONDS` | `1.0` | Debounce interval |
+| `WATCHER_SYSTEM_NOTIFICATIONS` | `true` | Desktop notifications |
+| `WATCHER_LOG_FILE` | `true` | Log file channel |
+| `WATCHER_EDITOR_POLL` | `true` | Editor poll channel |
+| `WATCHER_SKIP_PATTERNS` | `[]` | Additional skip patterns |
+| `WATCHER_WATCH_EXTENSIONS` | `[]` | Extension filter |
+
+### Default Skip Patterns
+
+The watcher automatically ignores:
+- `.git`, `.svn`, `.hg` (version control)
+- `node_modules` (dependencies)
+- `__pycache__`, `.pytest_cache` (Python cache)
+- `.venv`, `venv`, `env` (virtual environments)
+- `.daem0nmcp` (Daem0n's own storage)
+- IDE directories (`.idea`, `.vscode`)
+- Build outputs (`dist`, `build`)
+
+### How It Works
+
+```
+1. File modified (e.g., src/auth.py)
+     ↓
+2. Watcher detects change (via watchdog)
+     ↓
+3. Debounce check (skip if notified within 1s)
+     ↓
+4. Query: recall_for_file("src/auth.py")
+     ↓
+5. If memories found → Notify all channels
+     ↓
+6. Desktop notification: "auth.py: ATTENTION - 3 memories (1 warning)"
+```
+
+### Running as Background Service
+
+**Unix/macOS:**
+```bash
+# Run in background
+nohup python -m daem0nmcp.cli watch > /tmp/daem0n_watcher.log 2>&1 &
+
+# Or with systemd (create ~/.config/systemd/user/daem0nmcp-watcher.service)
+```
+
+**Windows:**
+Add to startup using the watcher bat file, similar to the HTTP server startup.
+
+---
+
+*Grimoire of Daem0n v2.9.0: 29 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **proactive file watcher with multi-channel notifications**, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks, covenant integration, law generation, and the daem0nmcp-protocol skill.*
