@@ -3621,7 +3621,8 @@ async def index_project(
     qdrant = None
     try:
         from .qdrant_store import QdrantVectorStore
-        qdrant = QdrantVectorStore(storage_path=ctx.storage_path)
+        qdrant_path = str(Path(ctx.storage_path) / "qdrant")
+        qdrant = QdrantVectorStore(path=qdrant_path)
     except Exception:
         pass
 
@@ -3682,7 +3683,8 @@ async def find_code(
     qdrant = None
     try:
         from .qdrant_store import QdrantVectorStore
-        qdrant = QdrantVectorStore(storage_path=ctx.storage_path)
+        qdrant_path = str(Path(ctx.storage_path) / "qdrant")
+        qdrant = QdrantVectorStore(path=qdrant_path)
     except Exception:
         pass
 

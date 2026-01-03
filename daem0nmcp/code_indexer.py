@@ -717,7 +717,10 @@ class CodeIndexManager:
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
         """
-        Semantic search across code entities.
+        Search across code entities.
+
+        Uses semantic search via Qdrant if available, falls back to
+        SQLite text matching on name and signature.
 
         Args:
             query: Search query
@@ -727,6 +730,68 @@ class CodeIndexManager:
         Returns:
             List of matching entities with scores
         """
+        from . import vectors
+
+        # Try semantic search first if Qdrant is available
+        if vectors.is_available() and self.qdrant is not None:
+            results = await self._semantic_search(query, project_path, limit)
+            if results:
+                return results
+
+        # Fall back to SQLite text search
+        return await self._text_search(query, project_path, limit)
+
+    async def _text_search(
+        self,
+        query: str,
+        project_path: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Text-based search using SQLite LIKE queries."""
+        if self.db is None:
+            return []
+
+        from .models import CodeEntity
+        from sqlalchemy import select, or_
+
+        async with self.db.get_session() as session:
+            # Search name and signature for query terms
+            search_pattern = f"%{query}%"
+            stmt = select(CodeEntity).where(
+                or_(
+                    CodeEntity.name.ilike(search_pattern),
+                    CodeEntity.signature.ilike(search_pattern),
+                    CodeEntity.docstring.ilike(search_pattern),
+                )
+            )
+
+            if project_path:
+                stmt = stmt.where(CodeEntity.project_path == project_path)
+
+            stmt = stmt.limit(limit)
+            result = await session.execute(stmt)
+            entities = result.scalars().all()
+
+            return [
+                {
+                    'id': e.id,
+                    'name': e.name,
+                    'entity_type': e.entity_type,
+                    'file_path': e.file_path,
+                    'line_start': e.line_start,
+                    'signature': e.signature,
+                    'score': 1.0,  # No relevance score for text search
+                }
+                for e in entities
+            ]
+
+    async def _semantic_search(
+        self,
+        query: str,
+        project_path: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Semantic search using Qdrant vector similarity."""
         from . import vectors
 
         if not vectors.is_available() or self.qdrant is None:
