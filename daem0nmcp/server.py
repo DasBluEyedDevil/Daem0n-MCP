@@ -18,7 +18,7 @@ A smarter MCP server that provides:
 12. Memory maintenance (pin, archive, prune, cleanup)
 13. Code understanding via tree-sitter parsing
 
-32 Tools:
+35 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - recall_for_file: Get all memories for a specific file
@@ -45,6 +45,9 @@ A smarter MCP server that provides:
 - index_project: Index code structure for understanding
 - find_code: Semantic search across code entities
 - analyze_impact: Analyze what changing an entity would affect
+- link_projects: Create a link to another project for cross-repo memory awareness
+- unlink_projects: Remove a link to another project
+- list_linked_projects: List all linked projects
 """
 
 import sys
@@ -3819,6 +3822,132 @@ async def analyze_impact(
     result = await indexer.analyze_impact(entity_name, ctx.project_path)
 
     return {"result": result}
+
+
+# ============================================================================
+# LINKED PROJECTS - Cross-project memory awareness
+# ============================================================================
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def link_projects(
+    linked_path: str,
+    relationship: str = "related",
+    label: Optional[str] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Create a link between the current project and another project.
+
+    Links enable reading memories from related projects while maintaining
+    strict write isolation (each project only writes to its own database).
+
+    Relationship types:
+    - same-project: Different repos in the same logical project (frontend/backend)
+    - upstream: A dependency or library this project uses
+    - downstream: A project that depends on this one
+    - related: General association
+
+    Args:
+        linked_path: Path to the project to link to
+        relationship: Type of relationship (same-project, upstream, downstream, related)
+        label: Optional human-readable label
+        project_path: Current project root path
+
+    Returns:
+        Status dict with link details
+
+    Examples:
+        link_projects("/repos/client", "same-project", label="Frontend app")
+        link_projects("/repos/shared-lib", "upstream")
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    try:
+        from .links import LinkManager
+    except ImportError:
+        from daem0nmcp.links import LinkManager
+
+    link_mgr = LinkManager(ctx.db_manager)
+    return await link_mgr.link_projects(
+        source_path=ctx.project_path,
+        linked_path=linked_path,
+        relationship=relationship,
+        label=label
+    )
+
+
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def unlink_projects(
+    linked_path: str,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Remove a link between the current project and another project.
+
+    Args:
+        linked_path: Path to the project to unlink
+        project_path: Current project root path
+
+    Returns:
+        Status dict
+
+    Example:
+        unlink_projects("/repos/client")
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    try:
+        from .links import LinkManager
+    except ImportError:
+        from daem0nmcp.links import LinkManager
+
+    link_mgr = LinkManager(ctx.db_manager)
+    return await link_mgr.unlink_projects(
+        source_path=ctx.project_path,
+        linked_path=linked_path
+    )
+
+
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def list_linked_projects(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    List all projects linked from the current project.
+
+    Args:
+        project_path: Current project root path
+
+    Returns:
+        Dict with 'links' array containing linked project details
+
+    Example:
+        list_linked_projects()  # Returns {"links": [...]}
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    try:
+        from .links import LinkManager
+    except ImportError:
+        from daem0nmcp.links import LinkManager
+
+    link_mgr = LinkManager(ctx.db_manager)
+    links = await link_mgr.list_linked_projects(source_path=ctx.project_path)
+    return {"links": links}
 
 
 # ============================================================================

@@ -117,3 +117,79 @@ class TestLinkManager:
         result = await link_manager.link_projects("/repos/backend", "/repos/client", "same-project")
 
         assert result["status"] == "already_linked"
+
+
+class TestLinkTools:
+    """Test the MCP tools for link management."""
+
+    @pytest.fixture
+    def db_manager(self, tmp_path):
+        from daem0nmcp.database import DatabaseManager
+        return DatabaseManager(str(tmp_path / "storage"))
+
+    @pytest.mark.asyncio
+    async def test_link_projects_tool(self, db_manager):
+        """link_projects MCP tool should create a link."""
+        await db_manager.init_db()
+
+        from daem0nmcp import server
+        server._project_contexts.clear()
+
+        project_path = str(db_manager.storage_path.parent.parent)
+
+        # Briefing first (for communion)
+        await server.get_briefing(project_path=project_path)
+
+        result = await server.link_projects(
+            linked_path="/repos/client",
+            relationship="same-project",
+            project_path=project_path
+        )
+
+        assert result["status"] == "linked"
+
+    @pytest.mark.asyncio
+    async def test_list_linked_projects_tool(self, db_manager):
+        """list_linked_projects MCP tool should return links."""
+        await db_manager.init_db()
+
+        from daem0nmcp import server
+        server._project_contexts.clear()
+
+        project_path = str(db_manager.storage_path.parent.parent)
+
+        await server.get_briefing(project_path=project_path)
+        await server.link_projects(
+            linked_path="/repos/client",
+            relationship="same-project",
+            project_path=project_path
+        )
+
+        result = await server.list_linked_projects(project_path=project_path)
+
+        assert len(result["links"]) == 1
+        assert result["links"][0]["linked_path"] == "/repos/client"
+
+    @pytest.mark.asyncio
+    async def test_unlink_projects_tool(self, db_manager):
+        """unlink_projects MCP tool should remove a link."""
+        await db_manager.init_db()
+
+        from daem0nmcp import server
+        server._project_contexts.clear()
+
+        project_path = str(db_manager.storage_path.parent.parent)
+
+        await server.get_briefing(project_path=project_path)
+        await server.link_projects(
+            linked_path="/repos/client",
+            relationship="same-project",
+            project_path=project_path
+        )
+
+        result = await server.unlink_projects(
+            linked_path="/repos/client",
+            project_path=project_path
+        )
+
+        assert result["status"] == "unlinked"
