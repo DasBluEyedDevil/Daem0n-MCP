@@ -1653,7 +1653,7 @@ async def _get_linked_projects_summary(ctx: ProjectContext) -> List[Dict[str, An
     summaries = []
     for link in links:
         linked_path = link["linked_path"]
-        daem0n_dir = Path(linked_path) / ".daem0n"
+        linked_storage = Path(linked_path) / ".daem0nmcp" / "storage"
 
         summary = {
             "path": linked_path,
@@ -1664,9 +1664,9 @@ async def _get_linked_projects_summary(ctx: ProjectContext) -> List[Dict[str, An
             "memory_count": 0
         }
 
-        if daem0n_dir.exists():
+        if linked_storage.exists():
             try:
-                linked_db = DatabaseManager(str(daem0n_dir))
+                linked_db = DatabaseManager(str(linked_storage))
                 await linked_db.init_db()
 
                 linked_memory = MemoryManager(linked_db)

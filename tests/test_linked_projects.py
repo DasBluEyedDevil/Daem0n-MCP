@@ -201,13 +201,13 @@ class TestCrossProjectRecall:
     @pytest.fixture
     def backend_db(self, tmp_path):
         from daem0nmcp.database import DatabaseManager
-        db = DatabaseManager(str(tmp_path / "backend" / ".daem0n"))
+        db = DatabaseManager(str(tmp_path / "backend" / ".daem0nmcp"))
         return db
 
     @pytest.fixture
     def client_db(self, tmp_path):
         from daem0nmcp.database import DatabaseManager
-        db = DatabaseManager(str(tmp_path / "client" / ".daem0n"))
+        db = DatabaseManager(str(tmp_path / "client" / ".daem0nmcp"))
         return db
 
     @pytest.mark.asyncio
@@ -307,4 +307,12 @@ class TestLinkedBriefing:
 
         assert "linked_projects" in result
         assert len(result["linked_projects"]) == 1
-        assert result["linked_projects"][0]["path"] == client_path
+
+        # Verify the linked project data structure is correctly populated
+        linked = result["linked_projects"][0]
+        assert linked["path"] == client_path
+        assert linked["available"] == True  # Now should work with correct .daem0nmcp path
+        assert linked["relationship"] == "same-project"
+        # With correct storage path, we should see the warning we added
+        assert linked["warning_count"] == 1
+        assert linked["memory_count"] == 1
