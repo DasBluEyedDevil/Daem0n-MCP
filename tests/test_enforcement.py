@@ -153,8 +153,41 @@ class TestSessionManager:
 
         state = await session_mgr.get_session_state(project_path)
         checks = state["context_checks"]  # Already a list (JSON column)
-        assert "src/auth.py" in checks
-        assert "authentication" in checks
+        # Extract topics from timestamped dicts
+        topics = [c["topic"] if isinstance(c, dict) else c for c in checks]
+        assert "src/auth.py" in topics
+        assert "authentication" in topics
+
+    @pytest.mark.asyncio
+    async def test_context_check_stores_timestamp(self, db_manager, session_mgr):
+        """Context checks should store timestamps for TTL validation."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+
+        await session_mgr.add_context_check(project_path, "authentication")
+
+        state = await session_mgr.get_session_state(project_path)
+        checks = state["context_checks"]
+
+        assert len(checks) == 1
+        assert isinstance(checks[0], dict)
+        assert "topic" in checks[0]
+        assert "timestamp" in checks[0]
+        assert checks[0]["topic"] == "authentication"
+
+    @pytest.mark.asyncio
+    async def test_has_recent_context_check(self, db_manager, session_mgr):
+        """Should detect recent vs stale context checks."""
+        await db_manager.init_db()
+        project_path = "/test/project"
+
+        await session_mgr.add_context_check(project_path, "authentication")
+
+        # Recent check should be found
+        assert await session_mgr.has_recent_context_check(project_path, max_age_seconds=300)
+
+        # With very short TTL, should be stale
+        assert not await session_mgr.has_recent_context_check(project_path, max_age_seconds=0)
 
     @pytest.mark.asyncio
     async def test_add_pending_decision(self, db_manager, session_mgr):

@@ -87,9 +87,22 @@ class SessionManager:
                 state.briefed = True
                 state.last_activity = datetime.now(timezone.utc)
 
-    async def add_context_check(self, project_path: str, topic_or_file: str) -> None:
-        """Record that a context check was performed."""
+    async def add_context_check(
+        self,
+        project_path: str,
+        topic_or_file: str,
+        timestamp: Optional[datetime] = None,
+    ) -> None:
+        """
+        Record that a context check was performed.
+
+        Args:
+            project_path: Project root path
+            topic_or_file: What was checked (topic or file path)
+            timestamp: When the check was performed (defaults to now)
+        """
         session_id = get_session_id(project_path)
+        check_time = timestamp or datetime.now(timezone.utc)
 
         async with self.db.get_session() as session:
             result = await session.execute(
@@ -97,20 +110,64 @@ class SessionManager:
             )
             state = result.scalar_one_or_none()
 
+            check_entry = {
+                "topic": topic_or_file,
+                "timestamp": check_time.isoformat(),
+            }
+
             if state is None:
                 state = SessionState(
                     session_id=session_id,
                     project_path=project_path,
-                    context_checks=[topic_or_file],
+                    context_checks=[check_entry],
                     pending_decisions=[],
                 )
                 session.add(state)
             else:
                 checks = list(state.context_checks or [])
-                if topic_or_file not in checks:
-                    checks.append(topic_or_file)
-                    state.context_checks = checks
+                # Remove old entry for same topic if exists
+                checks = [c for c in checks if not (isinstance(c, dict) and c.get("topic") == topic_or_file)]
+                checks.append(check_entry)
+                # Keep only last 20 checks to prevent unbounded growth
+                state.context_checks = checks[-20:]
                 state.last_activity = datetime.now(timezone.utc)
+
+    async def has_recent_context_check(
+        self,
+        project_path: str,
+        max_age_seconds: int = 300,
+    ) -> bool:
+        """
+        Check if any context_check was performed within the TTL.
+
+        Args:
+            project_path: Project root path
+            max_age_seconds: Maximum age for a check to be considered valid
+
+        Returns:
+            True if a valid recent check exists
+        """
+        state = await self.get_session_state(project_path)
+        if state is None:
+            return False
+
+        context_checks = state.get("context_checks", [])
+        if not context_checks:
+            return False
+
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(seconds=max_age_seconds)
+
+        for check in context_checks:
+            if isinstance(check, dict) and "timestamp" in check:
+                check_time = datetime.fromisoformat(check["timestamp"])
+                if check_time > cutoff:
+                    return True
+            elif isinstance(check, str):
+                # Legacy format - treat as valid (backwards compatibility)
+                return True
+
+        return False
 
     async def add_pending_decision(self, project_path: str, memory_id: int) -> None:
         """Record that a decision was made but not yet outcome-recorded."""
