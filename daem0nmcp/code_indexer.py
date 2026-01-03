@@ -267,6 +267,8 @@ class TreeSitterIndexer:
             query = tree_sitter.Query(language, query_text)
             cursor = tree_sitter.QueryCursor(query)
             matches = list(cursor.matches(tree.root_node))
+            query = language.query(query_text)
+            captures = query.captures(tree.root_node)
         except Exception as e:
             logger.debug(f"Query failed for {lang}: {e}")
             yield from self._walk_tree_fallback(tree.root_node, source)
@@ -294,6 +296,13 @@ class TreeSitterIndexer:
             for def_node in def_nodes:
                 # Skip if already processed
                 node_id = (def_node.start_byte, def_node.end_byte)
+        # Group captures by definition
+        processed_defs = set()
+
+        for node, capture_name in captures:
+            if capture_name.endswith('.def'):
+                # Skip if already processed (same node can match multiple patterns)
+                node_id = (node.start_byte, node.end_byte)
                 if node_id in processed_defs:
                     continue
                 processed_defs.add(node_id)
@@ -310,15 +319,37 @@ class TreeSitterIndexer:
                 # Get first line as signature (up to 200 chars)
                 signature = self._extract_signature(def_node, source)
                 docstring = self._extract_docstring(def_node, source, lang)
+                entity_type = capture_name.split('.')[0]
+                name_node = self._find_name_node(node, captures, capture_name)
+                name = name_node.text.decode('utf-8', errors='replace') if name_node else "anonymous"
+
+                # Get first line as signature (up to 200 chars)
+                signature = self._extract_signature(node, source)
+                docstring = self._extract_docstring(node, source, lang)
 
                 yield {
                     'entity_type': entity_type,
                     'name': name,
                     'line_start': def_node.start_point[0] + 1,  # 1-indexed
                     'line_end': def_node.end_point[0] + 1,
+                    'line_start': node.start_point[0] + 1,  # 1-indexed
+                    'line_end': node.end_point[0] + 1,
                     'signature': signature,
                     'docstring': docstring,
                 }
+
+    def _find_name_node(self, def_node, captures: list, def_capture: str) -> Optional[Any]:
+        """Find the name node corresponding to a definition node."""
+        # The name capture should be right before or part of the def capture
+        name_capture = def_capture.replace('.def', '.name')
+
+        for node, capture_name in captures:
+            if capture_name == name_capture:
+                # Check if this name node is a descendant of the def node
+                if self._is_descendant(def_node, node):
+                    return node
+
+        return None
 
     def _is_descendant(self, ancestor, node) -> bool:
         """Check if node is a descendant of ancestor."""
@@ -482,6 +513,8 @@ class CodeIndexManager:
         '**/*.py', '**/*.js', '**/*.mjs', '**/*.ts', '**/*.tsx',
         '**/*.go', '**/*.rs', '**/*.java', '**/*.kt', '**/*.kts',
         '**/*.rb', '**/*.php', '**/*.c', '**/*.h', '**/*.cpp', '**/*.cs',
+        '**/*.go', '**/*.rs', '**/*.java', '**/*.rb',
+        '**/*.php', '**/*.c', '**/*.h', '**/*.cpp', '**/*.cs',
     ]
 
     # Directories to skip during indexing
