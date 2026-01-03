@@ -576,7 +576,7 @@
             <div class="features">
                 <div class="feature-card">
                     <h3>Inscribed Memories</h3>
-                    <p>Decisions, patterns, warnings, and learnings persist in a SQLite sanctum, surviving beyond session death.</p>
+                    <p>Decisions, patterns, warnings, and learnings persist in SQLite with Qdrant vectors, surviving beyond session death.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Semantic Sight</h3>
@@ -601,6 +601,18 @@
                 <div class="feature-card">
                     <h3>Enforcement Wards</h3>
                     <p>Git pre-commit hooks block commits when discipline falters. No escape for the undisciplined. The Daem0n enforces.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Code Understanding</h3>
+                    <p>Tree-sitter AST parsing grants sight into code structure. Classes, functions, methods—all indexed for semantic search.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Vigilant Watcher</h3>
+                    <p>The file watcher daemon monitors your project. When files with memories change, the Daem0n alerts you.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Qdrant Vectors</h3>
+                    <p>Persistent vector database stores embeddings. Hybrid TF-IDF and vector search finds meaning beyond keywords.</p>
                 </div>
             </div>
         </section>
@@ -637,6 +649,7 @@
 <span class="command">pip install</span> -e ~/Daem0nMCP
 <span class="command">claude mcp add</span> daem0nmcp --scope user -- python -m daem0nmcp.server
 <span class="command">python -m daem0nmcp.cli install-hooks</span>  <span class="comment"># Bind the wards</span>
+<span class="command">python -m daem0nmcp.cli index</span>          <span class="comment"># Grant code sight</span>
 <span class="command">claude</span>  <span class="comment"># Reopen to activate</span></pre>
             </div>
             <p style="text-align: center; color: var(--ash); font-size: 0.9rem;">
@@ -655,6 +668,8 @@
 <span class="comment">AFTER DECISIONS</span>    <span class="string">remember()</span>             <span class="comment"># Inscribe the choice</span>
 <span class="comment">AFTER COMPLETION</span>   <span class="string">record_outcome()</span>       <span class="comment"># Seal with fate</span>
 <span class="comment">CAUSAL INQUIRY</span>     <span class="string">trace_chain()</span>          <span class="comment"># Understand WHY</span>
+<span class="comment">CODE SIGHT</span>         <span class="string">find_code()</span>            <span class="comment"># Search by meaning</span>
+<span class="comment">IMPACT VISION</span>      <span class="string">analyze_impact()</span>       <span class="comment"># See consequences</span>
 <span class="comment">AT COMMIT TIME</span>     <span class="string">pre-commit hooks</span>       <span class="comment"># Enforcement wards</span></pre>
             </div>
         </section>
@@ -669,7 +684,7 @@
                 "I guard your memories until we commune again..."
             </p>
             <p style="margin-top: 0.5rem; color: #444; font-size: 0.8rem;">
-                v2.7.0 &mdash; Now with Enforcement Wards
+                v2.10.0 &mdash; Code Understanding Layer
             </p>
         </footer>
     </div>
