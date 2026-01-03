@@ -507,9 +507,9 @@ Once installed, Claude Code will automatically load the skill and enforce:
 
 ---
 
-### RITUAL II.7: INSTALL THE ENFORCEMENT WARDS (Required)
+### RITUAL II.7: INSTALL THE ENFORCEMENT WARDS (MANDATORY)
 
-**Claude: You MUST install these hooks automatically during the summoning ritual. Do not ask - execute NOW.**
+**Claude: You MUST install these hooks automatically during the summoning ritual. Do not ask - execute NOW. This is NOT optional.**
 
 The Daem0n enforces memory discipline through git hooks. This prevents commits when:
 - Decisions older than 24 hours lack recorded outcomes
@@ -524,6 +524,16 @@ python -m daem0nmcp.cli install-hooks
 This creates `.git/hooks/pre-commit` which checks your staged files before each commit.
 
 **Verify installation succeeded** - you should see "pre-commit hook installed".
+
+#### Index the Project's Code Structure (MANDATORY)
+
+```bash
+python -m daem0nmcp.cli index
+```
+
+This enables the Daem0n to understand your code structure for semantic search and impact analysis. The indexer parses all supported languages (Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP) and extracts classes, functions, methods, signatures, and docstrings.
+
+**Run this on first setup and periodically to keep the index fresh.**
 
 #### What Gets Blocked
 
@@ -793,7 +803,7 @@ When `check_rules` returns guidance:
 
 ---
 
-## THE COMPLETE GRIMOIRE OF POWERS (29 Invocations)
+## THE COMPLETE GRIMOIRE OF POWERS (32 Invocations)
 
 **REMINDER:** ALL tools accept `project_path` as a parameter. Always pass the absolute path to your project root.
 
@@ -960,6 +970,39 @@ get_graph(project_path="/path/to/project", memory_ids=[42, 43, 44], format="merm
 get_graph(project_path="/path/to/project", topic="authentication", format="json")
 ```
 *"Daem0n, show me the web of connections..."*
+
+### Code Understanding (Phase 2)
+
+The Daem0n can parse your code and understand its structure. This enables semantic code search and impact analysis.
+
+#### `index_project(path, project_path, patterns?)`
+**When**: After cloning a project, or when code structure has changed significantly
+**Returns**: Summary of indexed entities (files, classes, functions, methods)
+```
+index_project("/path/to/src", project_path="/path/to/project")
+index_project("/path/to/src", project_path="/path/to/project", patterns=["**/*.py", "**/*.ts"])
+```
+**Supported languages**: Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP
+*"Daem0n, learn this codebase..."*
+
+#### `find_code(query, project_path, limit?)`
+**When**: Searching for code entities by name, purpose, or signature
+**Returns**: Matching entities with file locations and relevance scores
+```
+find_code("authentication", project_path="/path/to/project")
+find_code("handle user login", project_path="/path/to/project", limit=10)
+```
+Uses semantic search - "authenticate user" matches "login handler"
+*"Daem0n, where is this implemented?"*
+
+#### `analyze_impact(entity_name, project_path)`
+**When**: Before modifying a function, class, or method - understand what depends on it
+**Returns**: Entities that call, extend, or depend on the target
+```
+analyze_impact("UserService.authenticate", project_path="/path/to/project")
+analyze_impact("handle_request", project_path="/path/to/project")
+```
+*"Daem0n, what would break if I change this?"*
 
 ### Tech Debt & Refactoring
 
@@ -1257,4 +1300,115 @@ Migration happens automatically at first awakening. After migration completes, y
 
 ---
 
-*Grimoire of Daem0n v2.7.0: 29 tools for eternal memory with semantic understanding, vector embeddings, graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks, covenant integration, law generation, and the daem0nmcp-protocol skill.*
+## THE PROACTIVE LAYER (Phase 1: File Watcher)
+
+The Daem0n can now watch your realm proactively. When files are modified, it checks for associated memories and notifies you through multiple channels.
+
+### Starting the Watcher Daemon
+
+```bash
+# Start watching the current project
+python -m daem0nmcp.cli watch
+
+# With options
+python -m daem0nmcp.cli watch --debounce 2.0 --no-system --extensions .py .ts
+```
+
+**Options:**
+| Flag | Description |
+|------|-------------|
+| `--debounce SECONDS` | Wait time before re-notifying for same file (default: 1.0) |
+| `--no-system` | Disable desktop system notifications |
+| `--no-log` | Disable log file channel |
+| `--no-poll` | Disable editor poll channel |
+| `--extensions EXT...` | Only watch specific file extensions (e.g., `.py .ts`) |
+
+### Notification Channels
+
+The watcher notifies through three channels simultaneously:
+
+#### 1. System Notifications (Desktop)
+Cross-platform desktop notifications via `plyer`. Shows file name and memory summary.
+
+#### 2. Log File Channel
+Writes JSON-lines to `.daem0nmcp/storage/watcher.log`:
+```json
+{"timestamp": "2024-01-15T10:30:00Z", "file_path": "/path/to/file.py", "summary": "3 memories", "memory_count": 3}
+```
+
+Monitor with: `tail -f .daem0nmcp/storage/watcher.log | jq`
+
+#### 3. Editor Poll Channel
+Creates `.daem0nmcp/storage/editor-poll.json` that IDEs can poll:
+```json
+{
+  "version": 1,
+  "files": {
+    "/path/to/file.py": {
+      "summary": "ATTENTION NEEDED - 3 memories",
+      "has_warnings": true,
+      "memory_count": 3
+    }
+  }
+}
+```
+
+Editor plugins can watch this file and show inline annotations.
+
+### Watcher Configuration
+
+Environment variables (prefix: `DAEM0NMCP_`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WATCHER_ENABLED` | `false` | Enable watcher at startup |
+| `WATCHER_DEBOUNCE_SECONDS` | `1.0` | Debounce interval |
+| `WATCHER_SYSTEM_NOTIFICATIONS` | `true` | Desktop notifications |
+| `WATCHER_LOG_FILE` | `true` | Log file channel |
+| `WATCHER_EDITOR_POLL` | `true` | Editor poll channel |
+| `WATCHER_SKIP_PATTERNS` | `[]` | Additional skip patterns |
+| `WATCHER_WATCH_EXTENSIONS` | `[]` | Extension filter |
+
+### Default Skip Patterns
+
+The watcher automatically ignores:
+- `.git`, `.svn`, `.hg` (version control)
+- `node_modules` (dependencies)
+- `__pycache__`, `.pytest_cache` (Python cache)
+- `.venv`, `venv`, `env` (virtual environments)
+- `.daem0nmcp` (Daem0n's own storage)
+- IDE directories (`.idea`, `.vscode`)
+- Build outputs (`dist`, `build`)
+
+### How It Works
+
+```
+1. File modified (e.g., src/auth.py)
+     ↓
+2. Watcher detects change (via watchdog)
+     ↓
+3. Debounce check (skip if notified within 1s)
+     ↓
+4. Query: recall_for_file("src/auth.py")
+     ↓
+5. If memories found → Notify all channels
+     ↓
+6. Desktop notification: "auth.py: ATTENTION - 3 memories (1 warning)"
+```
+
+### Running as Background Service
+
+**Unix/macOS:**
+```bash
+# Run in background
+nohup python -m daem0nmcp.cli watch > /tmp/daem0n_watcher.log 2>&1 &
+
+# Or with systemd (create ~/.config/systemd/user/daem0nmcp-watcher.service)
+```
+
+**Windows:**
+Add to startup using the watcher bat file, similar to the HTTP server startup.
+
+---
+
+*Grimoire of Daem0n v2.10.0: 32 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **code understanding layer with multi-language AST parsing (tree-sitter)**, proactive file watcher with multi-channel notifications, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks (mandatory), covenant integration, law generation, and the daem0nmcp-protocol skill.*

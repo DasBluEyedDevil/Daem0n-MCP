@@ -3,7 +3,6 @@
 import pytest
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 
 from daem0nmcp.models import SessionState, EnforcementBypassLog
 from daem0nmcp.migrations import run_migrations, MIGRATIONS
@@ -229,7 +228,7 @@ class TestPreCommitChecker:
         staged_files = ["src/auth.py"]
 
         # Create a decision older than 24h without outcome
-        from datetime import datetime, timezone, timedelta
+        from datetime import timedelta
         old_time = datetime.now(timezone.utc) - timedelta(hours=25)
 
         # Create memory directly in database
@@ -293,7 +292,7 @@ class TestPreCommitChecker:
         staged_files = ["src/auth.py"]
 
         # Create a recent decision without outcome
-        from datetime import datetime, timezone, timedelta
+        from datetime import timedelta
         recent_time = datetime.now(timezone.utc) - timedelta(hours=12)
 
         from daem0nmcp.models import Memory

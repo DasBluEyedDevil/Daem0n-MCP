@@ -155,6 +155,47 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         );
         """,
     ]),
+    (9, "Add code_entities and memory_code_refs tables for Phase 2", [
+        """
+        CREATE TABLE IF NOT EXISTS code_entities (
+            id TEXT PRIMARY KEY,
+            project_path TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            qualified_name TEXT,
+            file_path TEXT NOT NULL,
+            line_start INTEGER,
+            line_end INTEGER,
+            signature TEXT,
+            docstring TEXT,
+            calls TEXT DEFAULT '[]',
+            called_by TEXT DEFAULT '[]',
+            imports TEXT DEFAULT '[]',
+            inherits TEXT DEFAULT '[]',
+            indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_code_entities_project ON code_entities(project_path);",
+        "CREATE INDEX IF NOT EXISTS idx_code_entities_file ON code_entities(file_path);",
+        "CREATE INDEX IF NOT EXISTS idx_code_entities_name ON code_entities(name);",
+        "CREATE INDEX IF NOT EXISTS idx_code_entities_type ON code_entities(entity_type);",
+        """
+        CREATE TABLE IF NOT EXISTS memory_code_refs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id INTEGER,
+            code_entity_id TEXT,
+            entity_type TEXT,
+            entity_name TEXT,
+            file_path TEXT,
+            line_number INTEGER,
+            relationship TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_memory_code_refs_memory ON memory_code_refs(memory_id);",
+        "CREATE INDEX IF NOT EXISTS idx_memory_code_refs_entity ON memory_code_refs(code_entity_id);",
+    ]),
 ]
 
 
@@ -242,7 +283,7 @@ def run_migrations(db_path: str) -> Tuple[int, List[str]]:
                     except sqlite3.OperationalError as e:
                         # Ignore "duplicate column" errors
                         if "duplicate column" in str(e).lower():
-                            logger.info(f"  Column already exists, skipping")
+                            logger.info("  Column already exists, skipping")
                             continue
                         raise
 
@@ -273,7 +314,7 @@ def migrate_and_backfill_vectors(db_path: str) -> dict:
     Returns:
         Migration report
     """
-    from . import vectors
+    from .. import vectors
 
     # First run schema migrations
     count, applied = run_migrations(db_path)
@@ -341,15 +382,14 @@ def migrate_and_backfill_vectors(db_path: str) -> dict:
 # CLI entry point
 def main():
     """Run migrations from command line."""
-    import sys
-    from .config import settings
+    from ..config import settings
 
     db_path = str(settings.get_storage_path())
     print(f"Migrating database: {db_path}")
 
     result = migrate_and_backfill_vectors(db_path)
 
-    print(f"\nMigration complete:")
+    print("\nMigration complete:")
     print(f"  Schema migrations: {result['schema_migrations']}")
     for m in result.get('applied', []):
         print(f"    - {m}")

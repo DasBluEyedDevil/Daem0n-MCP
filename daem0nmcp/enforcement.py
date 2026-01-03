@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy import select
 
 from .database import DatabaseManager
-from .models import SessionState, EnforcementBypassLog, Memory
+from .models import SessionState, Memory
 from .config import settings
 
 logger = logging.getLogger(__name__)

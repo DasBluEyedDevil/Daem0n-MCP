@@ -13,13 +13,38 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
-## What's New in v2.8.0
+## What's New in v2.10.0
+
+- **Code Understanding Layer (Phase 2)**: The Daem0n now understands your code structure
+  - Multi-language AST parsing via `tree-sitter-language-pack`
+  - Supports: Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP
+  - Extracts: classes, functions, methods, signatures, docstrings
+  - New MCP tools:
+    - `index_project` - Index code entities for understanding
+    - `find_code` - Semantic search across code entities
+    - `analyze_impact` - Analyze what changing an entity would affect
+  - CLI: `python -m daem0nmcp.cli index`
+  - New models: `CodeEntity`, `MemoryCodeRef`
+
+### Previous Features (v2.9.0)
+
+- **Qdrant Vector Backend (Phase 0)**: Persistent vector storage replaces SQLite blob storage
+  - Qdrant local mode (file-based, no server required)
+  - Hybrid search: TF-IDF + vector similarity (0.3 weight)
+  - Migration script: `python -m daem0nmcp.migrations.migrate_vectors`
+
+- **Proactive File Watcher (Phase 1)**: The Daem0n now watches your files proactively
+  - Monitors file changes and notifies when files with associated memories are modified
+  - Multi-channel notifications:
+    - **System notifications**: Desktop alerts via `plyer`
+    - **Log file**: JSON-lines at `.daem0nmcp/storage/watcher.log`
+    - **Editor poll**: JSON at `.daem0nmcp/storage/editor-poll.json` for IDE plugins
+  - Start with: `python -m daem0nmcp.cli watch`
+  - Configurable debouncing, skip patterns, extension filters
+
+### Previous Features (v2.8.0)
 
 - **Automatic Tool Reminders (Stop Hook)**: Claude Code hooks that detect task completion and remind to record outcomes
-  - Intelligent detection of completion signals ("all tasks complete", "implementation done", etc.)
-  - Checks if `record_outcome()` was already called - no spam if you're following protocol
-  - Works for both main agent (Stop) and subagents (SubagentStop)
-  - Loop prevention to avoid infinite reminder cycles
 - **Enhanced SessionStart Hook**: Now reminds to commune with `get_briefing()` at session start
 - **Hook Scripts**: New `hooks/` directory with reusable Python scripts for Claude Code integration
 
@@ -135,7 +160,7 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Core Tools (29 Total)
+## Core Tools (32 Total)
 
 ### Memory Tools
 
@@ -176,6 +201,14 @@ Or use `start_daem0nmcp_server.bat`
 | `unlink_memories` | Remove relationships between memories |
 | `trace_chain` | Traverse memory graph (forward/backward) |
 | `get_graph` | Visualize memory relationships (JSON or Mermaid) |
+
+### Code Understanding Tools
+
+| Tool | Purpose |
+|------|---------|
+| `index_project` | Index code entities (classes, functions, methods) |
+| `find_code` | Semantic search across code entities |
+| `analyze_impact` | Analyze what changing an entity would affect |
 
 ### Utility Tools
 
@@ -350,19 +383,22 @@ Environment variables (prefix: `DAEM0NMCP_`):
 
 ```
 daem0nmcp/
-├── server.py      # MCP server with 29 tools (FastMCP)
-├── memory.py      # Memory storage & semantic retrieval
-├── rules.py       # Rule engine with TF-IDF matching
-├── similarity.py  # TF-IDF index, decay, conflict detection
-├── vectors.py     # Vector embeddings (sentence-transformers)
-├── database.py    # SQLite async database
-├── models.py      # 5 tables: memories, rules, memory_relationships,
-│                  #           session_state, enforcement_bypass_log
-├── enforcement.py # Pre-commit enforcement & session tracking
-├── hooks.py       # Git hook templates & installation
-├── cli.py         # Command-line interface
-├── migrations.py  # Database schema migrations
-└── config.py      # Pydantic settings
+├── server.py       # MCP server with 32 tools (FastMCP)
+├── memory.py       # Memory storage & semantic retrieval
+├── rules.py        # Rule engine with TF-IDF matching
+├── similarity.py   # TF-IDF index, decay, conflict detection
+├── vectors.py      # Vector embeddings (sentence-transformers)
+├── code_indexer.py # Code understanding via tree-sitter (Phase 2)
+├── watcher.py      # Proactive file watcher daemon (Phase 1)
+├── database.py     # SQLite async database
+├── models.py       # 7 tables: memories, rules, memory_relationships,
+│                   #           session_state, enforcement_bypass_log,
+│                   #           code_entities, memory_code_refs
+├── enforcement.py  # Pre-commit enforcement & session tracking
+├── hooks.py        # Git hook templates & installation
+├── cli.py          # Command-line interface
+├── migrations/     # Database schema migrations
+└── config.py       # Pydantic settings
 
 .claude/
 └── skills/
@@ -385,6 +421,9 @@ python -m daem0nmcp.cli briefing
 
 # Scan for TODO/FIXME/HACK comments
 python -m daem0nmcp.cli scan-todos [--auto-remember] [--path PATH]
+
+# Index code entities (Phase 2)
+python -m daem0nmcp.cli index [--path PATH] [--patterns **/*.py **/*.ts ...]
 
 # Run database migrations (usually automatic)
 python -m daem0nmcp.cli migrate [--backfill-vectors]
@@ -418,28 +457,48 @@ Upgrading Daem0n-MCP is straightforward:
 ### 1. Update the Code
 
 ```bash
+# If installed from source (recommended)
+cd ~/Daem0nMCP && git pull && pip install -e .
+
 # If installed via pip
 pip install --upgrade daem0nmcp
-
-# If installed from source
-cd ~/Daem0nMCP && git pull && pip install -e .
 ```
 
-### 2. Migrations Run Automatically
+**Important:** The `pip install -e .` step is required to install all dependencies:
+- `qdrant-client` - Vector database for semantic search
+- `watchdog` - File watching for proactive notifications
+- `plyer` - Desktop notifications
+- `tree-sitter-language-pack` - Multi-language code parsing (Python 3.14 compatible)
+
+All dependencies are required for full functionality.
+
+### 2. Restart Claude Code
+
+After updating, restart Claude Code to load the new MCP tools.
+
+### 3. Migrations Run Automatically
 
 Database migrations are applied automatically when any MCP tool runs. The first time you use `get_briefing()`, `remember()`, or any other tool after upgrading, the database schema is updated.
 
 No manual migration step required.
 
-### 3. Install Enforcement Hooks (New in 2.7+)
+### 4. Install Enforcement Hooks
 
-If upgrading from a version before 2.7, install the new pre-commit hooks:
+Pre-commit hooks block commits when decisions lack outcomes:
 
 ```bash
 python -m daem0nmcp.cli install-hooks
 ```
 
-This enables automatic enforcement that blocks commits when decisions lack outcomes.
+### 5. Index Your Codebase
+
+Enable code understanding by indexing your project:
+
+```bash
+python -m daem0nmcp.cli index
+```
+
+This parses your code with tree-sitter (supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP) and enables semantic code search via `find_code()` and impact analysis via `analyze_impact()`.
 
 ## Development
 
@@ -447,7 +506,7 @@ This enables automatic enforcement that blocks commits when decisions lack outco
 # Install in development mode
 pip install -e .
 
-# Run tests (209 tests)
+# Run tests (355 tests)
 pytest tests/ -v --asyncio-mode=auto
 
 # Run server directly
@@ -483,4 +542,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.7.0: Pre-commit enforcement that actually blocks commits when memory discipline is broken—AI agents can no longer skip the protocol.*
+*Daem0nMCP v2.10.0: Code understanding layer with multi-language AST parsing—the Daem0n now understands your code structure.*

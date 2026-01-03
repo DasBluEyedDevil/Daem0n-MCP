@@ -4,7 +4,6 @@ import pytest
 import tempfile
 import shutil
 import time
-from datetime import datetime, timezone
 
 
 class TestIndexFreshness:

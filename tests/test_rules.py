@@ -1,7 +1,6 @@
 """Tests for the rules engine with TF-IDF matching."""
 
 import pytest
-from pathlib import Path
 import tempfile
 import shutil
 
@@ -119,7 +118,7 @@ class TestRulesEngine:
         result = await rules_engine.check_rules("deploying to production server")
 
         if result["matched_rules"] >= 1:
-            assert result["has_blockers"] == True
+            assert result["has_blockers"]
 
     @pytest.mark.asyncio
     async def test_list_rules(self, rules_engine):
@@ -148,7 +147,7 @@ class TestRulesEngine:
             priority=10
         )
 
-        assert result["updated"] == True
+        assert result["updated"]
 
         # Verify update
         rules = await rules_engine.list_rules()
@@ -165,7 +164,7 @@ class TestRulesEngine:
         )
 
         result = await rules_engine.delete_rule(rule["id"])
-        assert result["deleted"] == True
+        assert result["deleted"]
 
         # Verify deletion
         rules = await rules_engine.list_rules()

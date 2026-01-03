@@ -54,6 +54,9 @@ async def memory_manager(temp_storage):
     await db.init_db()
     manager = MemoryManager(db)
     yield manager
+    # Close Qdrant before cleanup to release file locks on Windows
+    if manager._qdrant:
+        manager._qdrant.close()
     await db.close()
 
 
@@ -162,7 +165,7 @@ class TestMemoryManager:
             worked=True
         )
 
-        assert result["worked"] == True
+        assert result["worked"]
         assert "Worked well" in result["outcome"]
 
     @pytest.mark.asyncio
@@ -179,7 +182,7 @@ class TestMemoryManager:
             worked=False
         )
 
-        assert result["worked"] == False
+        assert not result["worked"]
         # Should suggest creating a warning
         assert "suggestion" in result
 
@@ -495,7 +498,7 @@ class TestMemoryManager:
         from datetime import datetime, timezone, timedelta
 
         # Create memories at different times (simulated by creating and then filtering)
-        mem1 = await memory_manager.remember(
+        await memory_manager.remember(
             category="decision",
             content="Old decision about API design",
             tags=["api"]
@@ -505,7 +508,7 @@ class TestMemoryManager:
         import asyncio
         await asyncio.sleep(0.01)
 
-        mem2 = await memory_manager.remember(
+        await memory_manager.remember(
             category="decision",
             content="Recent decision about API endpoints",
             tags=["api"]
@@ -528,7 +531,7 @@ class TestMemoryManager:
         from datetime import datetime, timezone, timedelta
 
         # Create a memory
-        mem = await memory_manager.remember(
+        await memory_manager.remember(
             category="decision",
             content="Decision about database choice",
             tags=["database"]
@@ -554,7 +557,7 @@ class TestMemoryManager:
         now = datetime.now(timezone.utc)
 
         # Create memory
-        mem = await memory_manager.remember(
+        await memory_manager.remember(
             category="decision",
             content="Decision in time range",
             tags=["time"]
@@ -578,12 +581,12 @@ class TestMemoryManager:
 class TestPathNormalization:
     """Test file path normalization."""
 
-    def test_normalize_file_path_relative_to_absolute(self):
+    def test_normalize_file_path_relative_to_absolute(self, tmp_path):
         """Test converting relative path to absolute."""
         from daem0nmcp.memory import _normalize_file_path
-        import os
 
-        project_path = r"C:\Users\test\project"
+        # Use real temp directory for cross-platform compatibility
+        project_path = str(tmp_path / "project")
         file_path = "src/main.py"
 
         absolute, relative = _normalize_file_path(file_path, project_path)
@@ -593,61 +596,69 @@ class TestPathNormalization:
         assert "src" in absolute
         assert "main.py" in absolute
 
-        # Should create relative path
-        assert relative == "src\\main.py" or relative == "src/main.py"
+        # Should create relative path (platform-agnostic check)
+        relative_normalized = relative.replace("\\", "/")
+        assert relative_normalized == "src/main.py"
 
-    def test_normalize_file_path_absolute_input(self):
+    def test_normalize_file_path_absolute_input(self, tmp_path):
         """Test handling of already absolute path."""
         from daem0nmcp.memory import _normalize_file_path
 
-        project_path = r"C:\Users\test\project"
-        file_path = r"C:\Users\test\project\src\main.py"
+        # Use real temp directory for cross-platform compatibility
+        project_path = tmp_path / "project"
+        project_path.mkdir(parents=True, exist_ok=True)
+        (project_path / "src").mkdir(parents=True, exist_ok=True)
 
-        absolute, relative = _normalize_file_path(file_path, project_path)
+        file_path = project_path / "src" / "main.py"
+        file_path.touch()
+
+        absolute, relative = _normalize_file_path(str(file_path), str(project_path))
 
         # Should keep absolute path
         assert Path(absolute).is_absolute()
 
         # Should compute relative path
-        if absolute.lower().startswith(project_path.lower()):
-            # Path is inside project
-            assert "src" in relative
-            assert "main.py" in relative
-        else:
-            # Path is outside project - should fallback to filename
-            assert relative == "main.py"
+        relative_normalized = relative.replace("\\", "/")
+        assert relative_normalized == "src/main.py"
 
-    def test_normalize_file_path_outside_project(self):
+    def test_normalize_file_path_outside_project(self, tmp_path):
         """Test handling of path outside project root."""
         from daem0nmcp.memory import _normalize_file_path
 
-        project_path = r"C:\Users\test\project"
-        file_path = r"C:\Users\test\other\file.py"
+        # Use real temp directory for cross-platform compatibility
+        project_path = tmp_path / "project"
+        project_path.mkdir(parents=True, exist_ok=True)
 
-        absolute, relative = _normalize_file_path(file_path, project_path)
+        other_path = tmp_path / "other"
+        other_path.mkdir(parents=True, exist_ok=True)
+        file_path = other_path / "file.py"
+        file_path.touch()
+
+        absolute, relative = _normalize_file_path(str(file_path), str(project_path))
 
         # Should keep absolute path
         assert Path(absolute).is_absolute()
 
         # Should provide a stable relative path outside the project
-        assert relative.replace("\\", "/").startswith("..")
-        assert relative.replace("\\", "/").endswith("other/file.py")
+        relative_normalized = relative.replace("\\", "/")
+        assert relative_normalized.startswith("..")
+        assert relative_normalized.endswith("other/file.py")
 
-    def test_normalize_file_path_empty(self):
+    def test_normalize_file_path_empty(self, tmp_path):
         """Test handling of empty path."""
         from daem0nmcp.memory import _normalize_file_path
 
-        project_path = r"C:\Users\test\project"
+        project_path = str(tmp_path / "project")
         absolute, relative = _normalize_file_path("", project_path)
 
         assert absolute is None
         assert relative is None
 
-    def test_normalize_file_path_none(self):
+    def test_normalize_file_path_none(self, tmp_path):
         """Test handling of None path."""
         from daem0nmcp.memory import _normalize_file_path
 
-        project_path = r"C:\Users\test\project"
+        project_path = str(tmp_path / "project")
         absolute, relative = _normalize_file_path(None, project_path)
 
         assert absolute is None
@@ -1251,7 +1262,7 @@ class TestRecallCaching:
         get_recall_cache().clear()  # Clear after the remember
 
         # First recall
-        result1 = await memory_manager.recall("invalidation test pattern")
+        await memory_manager.recall("invalidation test pattern")
 
         # Add a new memory - should clear cache
         await memory_manager.remember(
@@ -1324,10 +1335,8 @@ class TestFTSHighlighting:
         assert len(results) >= 1
 
         # Results should have excerpt field with highlight markers
-        found_with_excerpt = False
         for r in results:
             if "excerpt" in r and r["excerpt"]:
-                found_with_excerpt = True
                 # Default markers are <b> and </b>
                 assert "<b>" in r["excerpt"] or "validate" in r["excerpt"].lower()
                 break

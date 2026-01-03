@@ -8,7 +8,6 @@ import pytest
 import asyncio
 import tempfile
 import shutil
-from pathlib import Path
 
 from daem0nmcp.database import DatabaseManager
 from daem0nmcp.memory import MemoryManager
@@ -36,7 +35,11 @@ async def db_manager(temp_storage):
 @pytest.fixture
 async def memory_manager(db_manager):
     """Create a memory manager."""
-    return MemoryManager(db_manager)
+    manager = MemoryManager(db_manager)
+    yield manager
+    # Close Qdrant before cleanup to release file locks on Windows
+    if manager._qdrant:
+        manager._qdrant.close()
 
 
 @pytest.fixture
@@ -210,7 +213,7 @@ class TestConcurrentRulesAccess:
             )
 
             # Immediately check
-            result = await rules_engine.check_rules(f"interleaved rule")
+            result = await rules_engine.check_rules("interleaved rule")
             return result
 
         # Run 5 concurrent add-and-check operations
@@ -338,7 +341,7 @@ class TestDatabaseConcurrency:
     async def test_concurrent_sessions(self, db_manager):
         """Test that concurrent database sessions work correctly."""
         async def use_session(index: int):
-            async with db_manager.get_session() as session:
+            async with db_manager.get_session():
                 # Simulate some work
                 await asyncio.sleep(0.01)
                 return index

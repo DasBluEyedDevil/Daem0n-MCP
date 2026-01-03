@@ -54,7 +54,7 @@ def install_hooks(project_path: str, force: bool = False) -> Tuple[bool, str]:
     if pre_commit.exists() and not force:
         content = pre_commit.read_text()
         if "daem0nmcp" not in content.lower():
-            return False, f"pre-commit hook already exists. Use --force to overwrite."
+            return False, "pre-commit hook already exists. Use --force to overwrite."
         messages.append("pre-commit hook updated")
     else:
         messages.append("pre-commit hook installed")

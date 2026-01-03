@@ -49,6 +49,20 @@ class Settings(BaseSettings):
     todo_skip_extensions: List[str] = [".pyc", ".pyo", ".so", ".dylib"]
     todo_max_files: int = 500
 
+    # Qdrant vector storage
+    qdrant_path: Optional[str] = None  # Path for local Qdrant storage, auto-detect if not set
+    qdrant_url: Optional[str] = None   # Optional remote Qdrant URL (overrides local path)
+    qdrant_api_key: Optional[str] = None  # API key for remote Qdrant (if using cloud)
+
+    # File Watcher (Phase 1: Proactive Layer)
+    watcher_enabled: bool = False  # Enable file watcher daemon
+    watcher_debounce_seconds: float = 1.0  # Debounce interval for same file
+    watcher_system_notifications: bool = True  # Enable desktop notifications
+    watcher_log_file: bool = True  # Enable log file channel
+    watcher_editor_poll: bool = True  # Enable editor poll channel
+    watcher_skip_patterns: List[str] = []  # Additional patterns to skip (added to defaults)
+    watcher_watch_extensions: List[str] = []  # File extensions to watch (empty = all)
+
     def _migrate_legacy_storage(self, project_path: Path, new_storage: Path) -> bool:
         """
         Migrate data from legacy .devilmcp directory to .daem0nmcp.
@@ -133,6 +147,50 @@ class Settings(BaseSettings):
         storage.mkdir(parents=True, exist_ok=True)
 
         return str(storage)
+
+    def get_qdrant_path(self) -> Optional[str]:
+        """
+        Determine Qdrant storage path for local mode.
+
+        Returns None if qdrant_url is set (remote mode).
+
+        Priority for local mode:
+        1. qdrant_path setting (explicit override via DAEM0NMCP_QDRANT_PATH)
+        2. <storage_path>/qdrant (next to the SQLite database)
+        """
+        # Remote mode - no local path needed
+        if self.qdrant_url:
+            return None
+
+        if self.qdrant_path:
+            Path(self.qdrant_path).mkdir(parents=True, exist_ok=True)
+            return self.qdrant_path
+
+        # Use subdirectory of main storage
+        storage = Path(self.get_storage_path())
+        qdrant_dir = storage / "qdrant"
+        qdrant_dir.mkdir(parents=True, exist_ok=True)
+        return str(qdrant_dir)
+
+    def get_watcher_log_path(self) -> Path:
+        """
+        Get the path for the watcher log file.
+
+        Returns:
+            Path to watcher.log in the storage directory
+        """
+        storage = Path(self.get_storage_path())
+        return storage / "watcher.log"
+
+    def get_watcher_poll_path(self) -> Path:
+        """
+        Get the path for the editor poll file.
+
+        Returns:
+            Path to editor-poll.json in the storage directory
+        """
+        storage = Path(self.get_storage_path())
+        return storage / "editor-poll.json"
 
 
 # Singleton instance

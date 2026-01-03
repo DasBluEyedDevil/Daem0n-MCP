@@ -1,8 +1,6 @@
 """Tests for enhanced bootstrap functionality."""
 import json
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock

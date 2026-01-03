@@ -1,8 +1,6 @@
 """Tests for the TODO/FIXME scanner functionality."""
 
-import pytest
 import tempfile
-import os
 from pathlib import Path
 
 # Import the scanner function directly

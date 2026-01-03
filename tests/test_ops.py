@@ -23,7 +23,7 @@ class TestHealthTool:
         """Verify health tool returns memory statistics."""
         import tempfile
         import shutil
-        from daem0nmcp.server import health, get_project_context, _project_contexts
+        from daem0nmcp.server import health, _project_contexts
 
         temp_dir = tempfile.mkdtemp()
         try:
@@ -48,9 +48,6 @@ class TestExportImport:
         """Verify export returns proper JSON structure."""
         import tempfile
         import shutil
-        from daem0nmcp.database import DatabaseManager
-        from daem0nmcp.memory import MemoryManager
-        from daem0nmcp.rules import RulesEngine
         from daem0nmcp.server import export_data, get_project_context, _project_contexts
 
         temp_dir = tempfile.mkdtemp()
@@ -136,7 +133,7 @@ class TestMaintenanceTools:
         """Verify pinned memories don't decay."""
         import tempfile
         import shutil
-        from daem0nmcp.server import pin_memory, recall, get_project_context, _project_contexts
+        from daem0nmcp.server import pin_memory, get_project_context, _project_contexts
 
         temp_dir = tempfile.mkdtemp()
         try:
@@ -154,7 +151,7 @@ class TestMaintenanceTools:
                 project_path=temp_dir
             )
 
-            assert result.get("pinned") == True
+            assert result.get("pinned")
         finally:
             # Close the database connection before cleanup
             if temp_dir in _project_contexts:
@@ -167,7 +164,6 @@ class TestMaintenanceTools:
         """Verify prune removes old, low-relevance memories."""
         import tempfile
         import shutil
-        from datetime import datetime, timedelta
         from daem0nmcp.server import prune_memories, get_project_context, _project_contexts
 
         temp_dir = tempfile.mkdtemp()

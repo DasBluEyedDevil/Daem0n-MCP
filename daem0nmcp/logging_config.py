@@ -8,7 +8,6 @@ from typing import Callable, Optional, Awaitable
 import inspect
 from contextvars import ContextVar
 from functools import wraps
-from typing import Callable
 
 # Context variable for request tracking
 request_id_var: ContextVar[str] = ContextVar('request_id', default='')
@@ -51,7 +50,7 @@ def with_request_id(func: Callable) -> Callable:
             duration_ms = (time.perf_counter() - start) * 1000
             logger = logging.getLogger(func.__module__)
             logger.info(
-                f"Tool completed",
+                "Tool completed",
                 extra={'duration_ms': round(duration_ms, 2), 'tool_name': func.__name__}
             )
             if _release_callback:

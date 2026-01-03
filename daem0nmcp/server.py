@@ -16,8 +16,9 @@ A smarter MCP server that provides:
 10. Refactor proposal generation
 11. Data export/import for backup and migration
 12. Memory maintenance (pin, archive, prune, cleanup)
+13. Code understanding via tree-sitter parsing
 
-23 Tools:
+32 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - recall_for_file: Get all memories for a specific file
@@ -41,6 +42,9 @@ A smarter MCP server that provides:
 - prune_memories: Remove old, low-value memories
 - cleanup_memories: Deduplicate and merge duplicate memories
 - health: Get server health, version, and statistics
+- index_project: Index code structure for understanding
+- find_code: Semantic search across code entities
+- analyze_impact: Analyze what changing an entity would affect
 """
 
 import sys
@@ -81,7 +85,7 @@ except ImportError:
     from daem0nmcp import __version__
     from daem0nmcp import vectors
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
-from sqlalchemy import select, desc, delete, or_
+from sqlalchemy import select, delete, or_
 from dataclasses import dataclass, field
 
 # Configure logging
@@ -3261,7 +3265,7 @@ async def prune_memories(
             Memory.created_at < cutoff,
             Memory.is_permanent == False,  # noqa: E712
             Memory.pinned == False,  # noqa: E712
-            Memory.outcome == None,  # Don't prune memories with outcomes
+            Memory.outcome.is_(None),  # Don't prune memories with outcomes
             or_(Memory.archived == False, Memory.archived.is_(None)),  # noqa: E712
             or_(Memory.recall_count < min_recall_count, Memory.recall_count.is_(None))  # Saliency protection
         )
@@ -3449,7 +3453,7 @@ async def cleanup_memories(
                         keeper.pinned = True
 
                     # If keeper is archived but duplicate isn't, unarchive
-                    if dupe.archived == False and keeper.archived == True:
+                    if not dupe.archived and keeper.archived:
                         keeper.archived = False
 
                     # Merge tags (union of all tags)
@@ -3565,6 +3569,177 @@ async def health(
         "vectors_enabled": vectors.is_available(),
         "timestamp": time.time()
     }
+
+
+# ============================================================================
+# Code Understanding Tools (Phase 2)
+# ============================================================================
+
+@mcp.tool()
+@with_request_id
+async def index_project(
+    path: Optional[str] = None,
+    patterns: Optional[List[str]] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Index a project's code structure for understanding.
+
+    Parses source files using tree-sitter to extract:
+    - Classes, functions, methods
+    - Signatures and docstrings
+    - File locations
+
+    Indexed entities can be searched with find_code() and
+    analyzed with analyze_impact().
+
+    Args:
+        path: Path to index (defaults to project root)
+        patterns: Glob patterns for files (defaults to all supported languages)
+        project_path: Project root path
+
+    Returns:
+        Indexing statistics (entities indexed, files processed)
+    """
+    try:
+        from .code_indexer import CodeIndexManager, is_available
+    except ImportError:
+        from daem0nmcp.code_indexer import CodeIndexManager, is_available
+
+    if not is_available():
+        return {
+            "error": "Code indexing not available - install tree-sitter-languages",
+            "indexed": 0
+        }
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Get Qdrant store if available
+    qdrant = None
+    try:
+        from .qdrant_store import QdrantVectorStore
+        qdrant = QdrantVectorStore(storage_path=ctx.storage_path)
+    except Exception:
+        pass
+
+    indexer = CodeIndexManager(db=ctx.db_manager, qdrant=qdrant)
+
+    target_path = path or ctx.project_path
+    result = await indexer.index_project(target_path, patterns)
+
+    return {
+        "result": result,
+        "message": f"Indexed {result.get('indexed', 0)} code entities from {result.get('files_processed', 0)} files"
+    }
+
+
+@mcp.tool()
+@with_request_id
+async def find_code(
+    query: str,
+    project_path: Optional[str] = None,
+    limit: int = 20
+) -> Dict[str, Any]:
+    """
+    Semantic search across indexed code entities.
+
+    Finds classes, functions, and methods that match your query.
+    Uses vector similarity for natural language understanding.
+
+    Example queries:
+    - "user authentication"
+    - "database connection handling"
+    - "API request validation"
+
+    Args:
+        query: Search query (natural language)
+        project_path: Project root path
+        limit: Maximum results (default: 20)
+
+    Returns:
+        Matching code entities with relevance scores
+    """
+    try:
+        from .code_indexer import CodeIndexManager, is_available
+    except ImportError:
+        from daem0nmcp.code_indexer import CodeIndexManager, is_available
+
+    if not is_available():
+        return {
+            "error": "Code indexing not available - install tree-sitter-languages",
+            "results": []
+        }
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Get Qdrant store if available
+    qdrant = None
+    try:
+        from .qdrant_store import QdrantVectorStore
+        qdrant = QdrantVectorStore(storage_path=ctx.storage_path)
+    except Exception:
+        pass
+
+    indexer = CodeIndexManager(db=ctx.db_manager, qdrant=qdrant)
+
+    results = await indexer.search_entities(query, ctx.project_path, limit)
+
+    return {
+        "query": query,
+        "results": results,
+        "count": len(results)
+    }
+
+
+@mcp.tool()
+@with_request_id
+async def analyze_impact(
+    entity_name: str,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Analyze what would be affected by changing a code entity.
+
+    Helps understand the blast radius of changes by finding:
+    - Files that would be affected
+    - Other entities that depend on this one
+    - Call sites and usage patterns
+
+    Args:
+        entity_name: Name of the function/class/method to analyze
+        project_path: Project root path
+
+    Returns:
+        Impact analysis with affected files and entities
+    """
+    try:
+        from .code_indexer import CodeIndexManager, is_available
+    except ImportError:
+        from daem0nmcp.code_indexer import CodeIndexManager, is_available
+
+    if not is_available():
+        return {
+            "error": "Code indexing not available - install tree-sitter-languages",
+            "entity": entity_name,
+            "found": False
+        }
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    indexer = CodeIndexManager(db=ctx.db_manager, qdrant=None)
+
+    result = await indexer.analyze_impact(entity_name, ctx.project_path)
+
+    return {"result": result}
 
 
 # ============================================================================
