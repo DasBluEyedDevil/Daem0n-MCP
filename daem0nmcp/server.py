@@ -1953,11 +1953,15 @@ async def context_check(
 
     ctx = await get_project_context(project_path)
 
-    # Get relevant memories
+    # Get relevant memories (with defensive None check)
     memories = await ctx.memory_manager.recall(description, limit=5, project_path=ctx.project_path)
+    if memories is None:
+        memories = {}
 
-    # Check rules
+    # Check rules (with defensive None check)
     rules = await ctx.rules_engine.check_rules(description)
+    if rules is None:
+        rules = {}
 
     # Collect all warnings
     warnings = []

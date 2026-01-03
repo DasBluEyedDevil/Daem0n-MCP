@@ -679,7 +679,7 @@ class MemoryManager:
             include_warnings, decay_half_life_days
         )
         found, cached_result = cache.get(cache_key)
-        if found:
+        if found and cached_result is not None:
             logger.debug(f"recall cache hit for topic: {topic[:50]}...")
             # Still update recall_count for saliency tracking (side effect)
             recalled_ids = [m['id'] for cat in ['decisions', 'patterns', 'warnings', 'learnings']
