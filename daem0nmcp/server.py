@@ -3265,7 +3265,7 @@ async def prune_memories(
             Memory.created_at < cutoff,
             Memory.is_permanent == False,  # noqa: E712
             Memory.pinned == False,  # noqa: E712
-            Memory.outcome is None,  # Don't prune memories with outcomes
+            Memory.outcome.is_(None),  # Don't prune memories with outcomes
             or_(Memory.archived == False, Memory.archived.is_(None)),  # noqa: E712
             or_(Memory.recall_count < min_recall_count, Memory.recall_count.is_(None))  # Saliency protection
         )
