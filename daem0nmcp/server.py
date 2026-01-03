@@ -1635,6 +1635,54 @@ async def _prefetch_focus_areas(
     return focus_memories
 
 
+async def _get_linked_projects_summary(ctx: ProjectContext) -> List[Dict[str, Any]]:
+    """
+    Get summary of linked projects with warning/memory counts.
+
+    Args:
+        ctx: Project context with db_manager and project_path
+
+    Returns:
+        List of dicts with path, relationship, label, available, warning_count, memory_count
+    """
+    from .links import LinkManager
+
+    link_mgr = LinkManager(ctx.db_manager)
+    links = await link_mgr.list_linked_projects(ctx.project_path)
+
+    summaries = []
+    for link in links:
+        linked_path = link["linked_path"]
+        daem0n_dir = Path(linked_path) / ".daem0n"
+
+        summary = {
+            "path": linked_path,
+            "relationship": link["relationship"],
+            "label": link.get("label"),
+            "available": False,
+            "warning_count": 0,
+            "memory_count": 0
+        }
+
+        if daem0n_dir.exists():
+            try:
+                linked_db = DatabaseManager(str(daem0n_dir))
+                await linked_db.init_db()
+
+                linked_memory = MemoryManager(linked_db)
+                stats = await linked_memory.get_statistics()
+
+                summary["available"] = True
+                summary["warning_count"] = stats.get("by_category", {}).get("warning", 0)
+                summary["memory_count"] = stats.get("total_memories", 0)
+            except Exception as e:
+                logger.warning(f"Could not get summary for linked project {linked_path}: {e}")
+
+        summaries.append(summary)
+
+    return summaries
+
+
 def _build_briefing_message(
     stats: Dict[str, Any],
     bootstrap_result: Optional[Dict[str, Any]],
@@ -1746,6 +1794,9 @@ async def get_briefing(
     if focus_areas:
         focus_memories = await _prefetch_focus_areas(ctx, focus_areas)
 
+    # Get linked projects summary
+    linked_summary = await _get_linked_projects_summary(ctx)
+
     # Build actionable message
     message = _build_briefing_message(
         stats=stats,
@@ -1768,6 +1819,7 @@ async def get_briefing(
         "git_changes": git_changes,
         "focus_areas": focus_memories,
         "bootstrap": bootstrap_result,
+        "linked_projects": linked_summary,
         "message": message
     }
 

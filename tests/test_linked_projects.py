@@ -254,3 +254,57 @@ class TestCrossProjectRecall:
         # Should find memories from both projects
         all_content = str(result)
         assert "FastAPI" in all_content or "React Query" in all_content
+
+
+class TestLinkedBriefing:
+    """Test get_briefing includes linked project context."""
+
+    @pytest.mark.asyncio
+    async def test_briefing_shows_linked_projects(self, tmp_path):
+        """get_briefing should mention linked projects."""
+        from pathlib import Path
+        from daem0nmcp import server
+        from daem0nmcp.database import DatabaseManager
+        from daem0nmcp.links import LinkManager
+        from daem0nmcp.memory import MemoryManager
+
+        server._project_contexts.clear()
+
+        # Use the same storage path pattern as the server
+        backend_path = str(Path(tmp_path / "backend").resolve())
+        client_path = str(Path(tmp_path / "client").resolve())
+
+        # Create storage directories using server's pattern
+        backend_storage = str(Path(backend_path) / ".daem0nmcp" / "storage")
+        client_storage = str(Path(client_path) / ".daem0nmcp" / "storage")
+
+        # Initialize backend DB
+        backend_db = DatabaseManager(backend_storage)
+        await backend_db.init_db()
+
+        # Initialize client DB
+        client_db = DatabaseManager(client_storage)
+        await client_db.init_db()
+
+        # Add warning to client
+        client_memory = MemoryManager(client_db)
+        await client_memory.remember(
+            category="warning",
+            content="Don't use localStorage for auth tokens",
+            project_path=client_path
+        )
+
+        # Link backend -> client (use normalized path to match get_project_context)
+        backend_links = LinkManager(backend_db)
+        await backend_links.link_projects(
+            source_path=backend_path,
+            linked_path=client_path,
+            relationship="same-project"
+        )
+
+        # Get briefing for backend
+        result = await server.get_briefing(project_path=backend_path)
+
+        assert "linked_projects" in result
+        assert len(result["linked_projects"]) == 1
+        assert result["linked_projects"][0]["path"] == client_path
