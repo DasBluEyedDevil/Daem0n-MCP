@@ -13,6 +13,15 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v2.13.0
+
+- **Passive Capture (Auto-Remember)**: Memories without manual calls
+  - Pre-edit hook: Auto-recalls memories for files being modified
+  - Post-edit hook: Suggests remember() for significant changes
+  - Stop hook: Auto-extracts decisions from Claude's responses
+  - CLI `remember` command for hook integration
+  - See `hooks/settings.json.example` for configuration
+
 ## What's New in v2.12.0
 
 - **Endless Mode (Context Compression)**: Reduce token usage by 50-75%
@@ -363,6 +372,43 @@ Add to `.claude/settings.json`:
 }
 ```
 
+### Passive Capture Hooks
+
+For fully automatic memory capture, enable all hooks in `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Edit|Write|NotebookEdit",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_pre_edit_hook.py\""
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "Edit|Write",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_post_edit_hook.py\""
+      }]
+    }],
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_stop_hook.py\""
+      }]
+    }]
+  }
+}
+```
+
+**What each hook does:**
+- **Pre-edit**: Shows warnings, patterns, and past decisions for files before you modify them
+- **Post-edit**: Suggests calling `remember()` when you make significant changes
+- **Stop**: Auto-extracts decisions from Claude's responses and creates memories
+
 ### Protocol Skill
 
 For Superpowers users, a skill is included at `.claude/skills/daem0nmcp-protocol/SKILL.md` that enforces the memory protocol.
@@ -575,4 +621,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.12.0: Endless Mode with context compression—reduce token usage by 50-75% while maintaining full semantic recall.*
+*Daem0nMCP v2.13.0: Passive Capture—automatic memory capture without manual calls, plus all previous features.*
