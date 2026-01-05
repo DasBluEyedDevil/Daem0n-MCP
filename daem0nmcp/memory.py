@@ -619,6 +619,12 @@ class MemoryManager:
 
         return detect_conflict(content, existing, similarity_threshold=0.5)
 
+    def _truncate_content(self, content: str, max_length: int = 150) -> str:
+        """Truncate content to max_length, adding ellipsis if truncated."""
+        if len(content) <= max_length:
+            return content
+        return content[:max_length] + "..."
+
     async def _increment_recall_counts(self, memory_ids: List[int]) -> None:
         """Increment recall_count for accessed memories (for saliency-based pruning)."""
         if not memory_ids:
@@ -829,19 +835,33 @@ class MemoryManager:
         for mem, final_score, base_score, decay in paginated_memories:
             cat_key = mem.category + 's'  # decision -> decisions
             if cat_key in by_category and len(by_category[cat_key]) < limit:
-                mem_dict = {
-                    'id': mem.id,
-                    'content': mem.content,
-                    'rationale': mem.rationale,
-                    'context': mem.context,
-                    'tags': mem.tags,
-                    'relevance': round(final_score, 3),
-                    'semantic_match': round(base_score, 3),
-                    'recency_weight': round(decay, 3),
-                    'outcome': mem.outcome,
-                    'worked': mem.worked,
-                    'created_at': mem.created_at.isoformat()
-                }
+                # Build memory dict - condensed mode strips verbose fields
+                if condensed:
+                    mem_dict = {
+                        'id': mem.id,
+                        'content': self._truncate_content(mem.content),
+                        'rationale': None,
+                        'context': None,
+                        'tags': mem.tags,
+                        'relevance': round(final_score, 3),
+                        'outcome': mem.outcome,
+                        'worked': mem.worked,
+                        'created_at': mem.created_at.isoformat()
+                    }
+                else:
+                    mem_dict = {
+                        'id': mem.id,
+                        'content': mem.content,
+                        'rationale': mem.rationale,
+                        'context': mem.context,
+                        'tags': mem.tags,
+                        'relevance': round(final_score, 3),
+                        'semantic_match': round(base_score, 3),
+                        'recency_weight': round(decay, 3),
+                        'outcome': mem.outcome,
+                        'worked': mem.worked,
+                        'created_at': mem.created_at.isoformat()
+                    }
 
                 # Add warning annotation for failed decisions
                 if mem.worked is False:
