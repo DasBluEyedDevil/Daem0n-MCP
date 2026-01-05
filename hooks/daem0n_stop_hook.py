@@ -62,6 +62,19 @@ EXPLORATION_PATTERNS = [
     r"\bbased\s+on\s+my\s+(?:research|analysis|exploration)\b",
 ]
 
+# Patterns that indicate a decision was made (for auto-extraction)
+DECISION_PATTERNS = [
+    (r"(?:i(?:'ll|'m going to| will| decided to))\s+(?:use|implement|add|create|choose)\s+(.{20,150})", "decision"),
+    (r"(?:chose|selected|picked|went with)\s+(.{20,100})\s+(?:because|since|for)", "decision"),
+    (r"(?:the (?:best|right|correct) (?:approach|solution|way) is)\s+(.{20,150})", "decision"),
+    (r"(?:pattern|approach|convention):\s*(.{20,150})", "pattern"),
+    (r"(?:warning|caution|avoid|don't|do not):\s*(.{20,150})", "warning"),
+    (r"(?:learned|discovered|found out|realized)\s+(?:that\s+)?(.{20,150})", "learning"),
+]
+
+# File association patterns
+FILE_MENTION_PATTERN = r"(?:in|to|from|at|file)\s+[`'\"]?([a-zA-Z0-9_/.-]+\.[a-zA-Z0-9]+)[`'\"]?"
+
 
 def get_state_file() -> Path:
     """Get the state file path for the current session."""
@@ -207,6 +220,86 @@ def has_pending_decisions(text: str, tool_calls: list[str]) -> bool:
     return False
 
 
+def extract_decisions(text: str) -> list[dict]:
+    """
+    Extract potential decisions from Claude's response text.
+
+    Returns list of dicts with: category, content, file_path (if found)
+    """
+    decisions = []
+    seen_content = set()  # Avoid duplicates
+
+    for pattern, category in DECISION_PATTERNS:
+        matches = re.finditer(pattern, text, re.IGNORECASE)
+        for match in matches:
+            content = match.group(1).strip()
+            # Clean up content
+            content = re.sub(r'\s+', ' ', content)
+            content = content.rstrip('.,;:')
+
+            # Skip if too short or duplicate
+            if len(content) < 20 or content.lower() in seen_content:
+                continue
+
+            seen_content.add(content.lower())
+
+            # Try to find associated file
+            file_match = re.search(FILE_MENTION_PATTERN, text[max(0, match.start()-200):match.end()+200])
+            file_path = file_match.group(1) if file_match else None
+
+            decisions.append({
+                "category": category,
+                "content": content[:200],  # Limit length
+                "file_path": file_path
+            })
+
+    return decisions[:5]  # Limit to 5 decisions per response
+
+
+def auto_remember_decisions(decisions: list[dict]) -> list[int]:
+    """
+    Auto-create memories for extracted decisions via CLI.
+
+    Returns list of created memory IDs.
+    """
+    import subprocess
+
+    memory_ids = []
+
+    for decision in decisions:
+        try:
+            cmd = [
+                sys.executable, "-m", "daem0nmcp.cli",
+                "remember",
+                "--category", decision["category"],
+                "--content", decision["content"],
+                "--rationale", "Auto-captured from conversation",
+                "--project-path", PROJECT_DIR,
+                "--json"
+            ]
+
+            if decision.get("file_path"):
+                cmd.extend(["--file-path", decision["file_path"]])
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=PROJECT_DIR
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout)
+                if data.get("id"):
+                    memory_ids.append(data["id"])
+
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+            continue
+
+    return memory_ids
+
+
 def main():
     """Main hook logic."""
     # Load state
@@ -245,6 +338,28 @@ def main():
         # Already recorded, clear state and exit
         clear_state()
         sys.exit(0)
+
+    # Check for auto-extractable decisions
+    extracted = extract_decisions(recent_content)
+
+    if extracted:
+        # Auto-remember the extracted decisions
+        memory_ids = auto_remember_decisions(extracted)
+
+        if memory_ids:
+            # Report what was auto-captured
+            reminder = {
+                "decision": "block",
+                "reason": (
+                    f"[Daem0n auto-captured] {len(memory_ids)} decision(s) from your response:\n"
+                    + "\n".join(f"  - {d['content'][:80]}..." for d in extracted[:3])
+                    + f"\n\nMemory IDs: {memory_ids}. "
+                    "Remember to record_outcome() when you know if they worked."
+                )
+            }
+            print(json.dumps(reminder))
+            save_state(state)
+            sys.exit(0)
 
     # Completion detected but no outcome recorded - send reminder
     state["reminder_count"] = state.get("reminder_count", 0) + 1
