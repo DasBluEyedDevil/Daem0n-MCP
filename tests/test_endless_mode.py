@@ -107,3 +107,5 @@ class TestCondensedRecall:
         decision = result["decisions"][0]
         assert decision["rationale"] == "Fast in-memory store"
         assert decision["context"] == {"alternatives": ["Memcached"]}
+        assert "semantic_match" in decision
+        assert "recency_weight" in decision
