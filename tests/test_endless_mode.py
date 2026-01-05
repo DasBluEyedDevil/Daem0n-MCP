@@ -109,3 +109,24 @@ class TestCondensedRecall:
         assert decision["context"] == {"alternatives": ["Memcached"]}
         assert "semantic_match" in decision
         assert "recency_weight" in decision
+
+    @pytest.mark.asyncio
+    async def test_condensed_and_full_cached_separately(self, memory_manager):
+        """Condensed and non-condensed results should be cached separately."""
+        await memory_manager.remember(
+            category="decision",
+            content="Test caching behavior",
+            rationale="Important rationale"
+        )
+
+        # First call: condensed
+        result1 = await memory_manager.recall("caching", condensed=True)
+        assert result1["decisions"][0].get("rationale") is None
+
+        # Second call: non-condensed (should NOT return cached condensed result)
+        result2 = await memory_manager.recall("caching", condensed=False)
+        assert result2["decisions"][0]["rationale"] == "Important rationale"
+
+        # Third call: condensed again (should return cached condensed result)
+        result3 = await memory_manager.recall("caching", condensed=True)
+        assert result3["decisions"][0].get("rationale") is None

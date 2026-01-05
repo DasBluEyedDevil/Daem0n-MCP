@@ -697,7 +697,8 @@ class MemoryManager:
             since.isoformat() if since else None,
             until.isoformat() if until else None,
             include_warnings, decay_half_life_days,
-            include_linked
+            include_linked,
+            condensed  # Include condensed in cache key for separate caching
         )
         found, cached_result = cache.get(cache_key)
         if found and cached_result is not None:
