@@ -172,3 +172,102 @@ class TestCondensedBriefing:
         # Should have called recall with condensed=True
         assert len(called_with_condensed) > 0, "recall should have been called"
         assert called_with_condensed[0] is True, "Should use condensed=True for focus areas"
+
+
+class TestEndlessModeMCP:
+    """Test Endless Mode exposed via MCP tools."""
+
+    @pytest.fixture
+    def db_manager(self, tmp_path):
+        from daem0nmcp.database import DatabaseManager
+        return DatabaseManager(str(tmp_path / "storage"))
+
+    @pytest.mark.asyncio
+    async def test_recall_tool_accepts_condensed(self, db_manager):
+        """MCP recall tool should accept condensed parameter."""
+        await db_manager.init_db()
+
+        from daem0nmcp import server
+        server._project_contexts.clear()
+
+        project_path = str(db_manager.storage_path.parent.parent)
+
+        # First, call get_briefing to satisfy Sacred Covenant
+        await server.get_briefing(project_path=project_path)
+
+        # Use context_check to satisfy counsel requirement
+        await server.context_check(
+            description="Testing condensed parameter",
+            project_path=project_path
+        )
+
+        await server.remember(
+            category="decision",
+            content="Use JWT tokens for authentication",
+            rationale="Need stateless auth for horizontal scaling",
+            project_path=project_path
+        )
+
+        # Call recall with condensed=True via MCP tool
+        # Search with content keywords for reliable matching
+        result = await server.recall(
+            topic="JWT authentication",
+            project_path=project_path,
+            condensed=True
+        )
+
+        # Should have results
+        assert "decisions" in result, f"Expected 'decisions' key in result: {result}"
+        assert len(result["decisions"]) > 0, f"Expected at least one decision: {result}"
+
+        # Condensed output should NOT have rationale
+        decision = result["decisions"][0]
+        assert decision.get("rationale") is None, f"Condensed mode should strip rationale, got: {decision}"
+
+    @pytest.mark.asyncio
+    async def test_recall_tool_condensed_vs_full(self, db_manager):
+        """Verify condensed=True strips fields, condensed=False preserves them."""
+        await db_manager.init_db()
+
+        from daem0nmcp import server
+        server._project_contexts.clear()
+
+        project_path = str(db_manager.storage_path.parent.parent)
+
+        # First, call get_briefing to satisfy Sacred Covenant
+        await server.get_briefing(project_path=project_path)
+
+        # Use context_check to satisfy counsel requirement
+        await server.context_check(
+            description="Testing condensed vs full mode",
+            project_path=project_path
+        )
+
+        await server.remember(
+            category="decision",
+            content="Use PostgreSQL database for persistence",
+            rationale="We chose PostgreSQL because of ACID compliance",
+            project_path=project_path
+        )
+
+        # Call with condensed=False (default)
+        full_result = await server.recall(
+            topic="PostgreSQL database",
+            project_path=project_path,
+            condensed=False
+        )
+
+        # Call with condensed=True
+        condensed_result = await server.recall(
+            topic="PostgreSQL database",
+            project_path=project_path,
+            condensed=True
+        )
+
+        # Full should have rationale
+        assert len(full_result["decisions"]) > 0, f"Expected decisions in full result: {full_result}"
+        assert full_result["decisions"][0]["rationale"] == "We chose PostgreSQL because of ACID compliance"
+
+        # Condensed should NOT have rationale
+        assert len(condensed_result["decisions"]) > 0, f"Expected decisions in condensed result: {condensed_result}"
+        assert condensed_result["decisions"][0].get("rationale") is None

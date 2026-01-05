@@ -638,7 +638,8 @@ async def recall(
     since: Optional[str] = None,
     until: Optional[str] = None,
     project_path: Optional[str] = None,
-    include_linked: bool = False
+    include_linked: bool = False,
+    condensed: bool = False
 ) -> Dict[str, Any]:
     """
     Recall memories relevant to a topic using SEMANTIC SIMILARITY.
@@ -666,6 +667,9 @@ async def recall(
         until: Only include memories created before this date (ISO format)
         project_path: Project root path (for multi-project HTTP server support)
         include_linked: If True, also search memories from linked projects (read-only)
+        condensed: If True, return compressed output (~75% token reduction) by stripping
+            rationale, context, and truncating content to 150 chars. Ideal for AI agents
+            in long sessions (Endless Mode).
 
     Returns:
         Categorized memories with relevance scores, pagination metadata, and failure warnings
@@ -678,6 +682,7 @@ async def recall(
         recall("sync calls", file_path="api/handlers.py")  # Only for specific file
         recall("API", offset=10, limit=10)  # Get second page
         recall("auth", since="2025-01-01T00:00:00Z")  # Only recent memories
+        recall("auth", condensed=True)  # Compressed output for token efficiency
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -709,7 +714,8 @@ async def recall(
         since=since_dt,
         until=until_dt,
         project_path=ctx.project_path,
-        include_linked=include_linked
+        include_linked=include_linked,
+        condensed=condensed
     )
 
 
