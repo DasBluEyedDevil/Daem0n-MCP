@@ -644,7 +644,8 @@ class MemoryManager:
         project_path: Optional[str] = None,
         include_warnings: bool = True,
         decay_half_life_days: float = 30.0,
-        include_linked: bool = False
+        include_linked: bool = False,
+        condensed: bool = False  # Endless Mode compression
     ) -> Dict[str, Any]:
         """
         Recall memories relevant to a topic using semantic similarity.
@@ -677,6 +678,8 @@ class MemoryManager:
             include_warnings: Always include warnings even if not in categories
             decay_half_life_days: How quickly old memories lose relevance
             include_linked: If True, also search linked projects (read-only)
+            condensed: If True, return compressed output (strips rationale, context,
+                       truncates content). Reduces token usage by ~75%. Default: False.
 
         Returns:
             Dict with categorized memories and relevance scores
