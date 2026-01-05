@@ -13,6 +13,14 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v2.12.0
+
+- **Endless Mode (Context Compression)**: Reduce token usage by 50-75%
+  - `recall(topic, condensed=True)` - Returns compressed memories
+  - Strips rationale, context fields; truncates content to 150 chars
+  - Focus areas in briefings use condensed mode automatically
+  - Inspired by memvid-mind's token efficiency approach
+
 ## What's New in v2.11.0
 
 - **Linked Projects (Multi-Repo Support)**: Work across related repositories
@@ -179,7 +187,7 @@ Or use `start_daem0nmcp_server.bat`
 |------|---------|
 | `remember` | Store a memory with conflict detection |
 | `remember_batch` | Store multiple memories efficiently in one transaction |
-| `recall` | Semantic memory retrieval by topic |
+| `recall` | Semantic memory retrieval by topic (supports `condensed=True` for token savings) |
 | `recall_for_file` | Get memories linked to a specific file |
 | `search_memories` | Search across all memories |
 | `find_related` | Discover connected memories |
@@ -286,6 +294,20 @@ get_briefing(focus_areas=["authentication", "API"])
 # First run: Creates 6-7 memories from project structure, README, manifests, etc.
 # Returns: stats, recent decisions, warnings, failed approaches,
 # git changes, bootstrap summary, plus pre-fetched context for focus areas
+```
+
+### Endless Mode (Token Compression)
+```python
+# Full recall (default) - ~40KB response
+recall("authentication")
+
+# Condensed recall - ~10KB response (75% smaller)
+recall("authentication", condensed=True)
+# Returns: truncated content, no rationale/context, minimal fields
+
+# Briefings automatically use condensed mode for focus areas
+get_briefing(focus_areas=["auth", "database", "api"])
+# Focus area results are pre-compressed
 ```
 
 ### Import External Docs
@@ -553,4 +575,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.10.0: Code understanding layer with multi-language AST parsing—the Daem0n now understands your code structure.*
+*Daem0nMCP v2.12.0: Endless Mode with context compression—reduce token usage by 50-75% while maintaining full semantic recall.*
