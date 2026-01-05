@@ -1619,7 +1619,8 @@ async def _prefetch_focus_areas(
 
     for area in focus_areas[:3]:  # Limit to 3 areas
         memories = await ctx.memory_manager.recall(
-            area, limit=5, project_path=ctx.project_path
+            area, limit=5, project_path=ctx.project_path,
+            condensed=True  # Use condensed mode for token efficiency
         )
         focus_memories[area] = {
             "found": memories.get("found", 0),

@@ -130,3 +130,45 @@ class TestCondensedRecall:
         # Third call: condensed again (should return cached condensed result)
         result3 = await memory_manager.recall("caching", condensed=True)
         assert result3["decisions"][0].get("rationale") is None
+
+
+class TestCondensedBriefing:
+    """Test condensed mode in briefings."""
+
+    @pytest.mark.asyncio
+    async def test_prefetch_focus_areas_uses_condensed(self, memory_manager):
+        """Focus area prefetch should use condensed mode by default."""
+        # Create memories for focus area
+        await memory_manager.remember(
+            category="decision",
+            content="Auth decision with long rationale",
+            rationale="This is very detailed rationale that would bloat the response"
+        )
+
+        # Import server and call _prefetch_focus_areas
+        from daem0nmcp.server import _prefetch_focus_areas, ProjectContext
+
+        # Create a minimal project context
+        ctx = ProjectContext(
+            memory_manager=memory_manager,
+            rules_engine=None,
+            db_manager=None,
+            project_path="/test",
+            storage_path="/test/.daem0nmcp"
+        )
+
+        # Mock recall to capture the condensed parameter
+        original_recall = memory_manager.recall
+        called_with_condensed = []
+
+        async def tracking_recall(*args, **kwargs):
+            called_with_condensed.append(kwargs.get("condensed", False))
+            return await original_recall(*args, **kwargs)
+
+        memory_manager.recall = tracking_recall
+
+        await _prefetch_focus_areas(ctx, ["authentication"])
+
+        # Should have called recall with condensed=True
+        assert len(called_with_condensed) > 0, "recall should have been called"
+        assert called_with_condensed[0] is True, "Should use condensed=True for focus areas"
