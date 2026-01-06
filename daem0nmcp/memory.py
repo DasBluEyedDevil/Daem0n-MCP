@@ -626,6 +626,58 @@ class MemoryManager:
                 for v in versions
             ]
 
+    async def get_memory_at_time(
+        self,
+        memory_id: int,
+        point_in_time: datetime
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get the state of a memory as it was at a specific point in time.
+
+        Uses version history to reconstruct the memory state.
+
+        Args:
+            memory_id: The memory to query
+            point_in_time: The timestamp to query at
+
+        Returns:
+            Memory state dict at that time, or None if memory didn't exist
+        """
+        # Normalize to UTC for comparison
+        if point_in_time.tzinfo:
+            query_time = point_in_time.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            query_time = point_in_time
+
+        async with self.db.get_session() as session:
+            # Find the latest version that existed at or before point_in_time
+            result = await session.execute(
+                select(MemoryVersion)
+                .where(
+                    MemoryVersion.memory_id == memory_id,
+                    MemoryVersion.changed_at <= query_time
+                )
+                .order_by(MemoryVersion.version_number.desc())
+                .limit(1)
+            )
+            version = result.scalar_one_or_none()
+
+            if not version:
+                return None
+
+            return {
+                "id": memory_id,
+                "version_number": version.version_number,
+                "content": version.content,
+                "rationale": version.rationale,
+                "context": version.context,
+                "tags": version.tags,
+                "outcome": version.outcome,
+                "worked": version.worked,
+                "as_of": point_in_time.isoformat(),
+                "version_created_at": version.changed_at.isoformat() if version.changed_at else None
+            }
+
     async def _check_conflicts(
         self,
         content: str,

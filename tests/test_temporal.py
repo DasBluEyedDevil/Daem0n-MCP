@@ -138,3 +138,34 @@ async def test_record_outcome_creates_version(memory_manager):
     assert versions[1]["change_type"] == "outcome_recorded"
     assert versions[1]["outcome"] == "Redis worked great, 10x faster"
     assert versions[1]["worked"] == True
+
+
+@pytest.mark.asyncio
+async def test_get_memory_at_time(memory_manager):
+    """Should return memory state as it was at a specific time."""
+    from datetime import timedelta
+
+    result = await memory_manager.remember(
+        category="decision",
+        content="Original content"
+    )
+    memory_id = result["id"]
+
+    # Get the creation time
+    versions = await memory_manager.get_memory_versions(memory_id)
+    creation_time = versions[0]["changed_at"]
+
+    # Record an outcome (creates version 2)
+    await memory_manager.record_outcome(
+        memory_id=memory_id,
+        outcome="It worked",
+        worked=True
+    )
+
+    # Query memory at creation time (before outcome)
+    query_time = datetime.fromisoformat(creation_time)
+    historical = await memory_manager.get_memory_at_time(memory_id, query_time)
+
+    assert historical is not None
+    assert historical["content"] == "Original content"
+    assert historical["outcome"] is None  # No outcome at that time
