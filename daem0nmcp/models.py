@@ -456,3 +456,57 @@ class MemoryCommunity(Base):
 
     # ORM relationship for hierarchy
     parent = orm_relationship("MemoryCommunity", remote_side=[id], backref="children")
+
+
+class ExtractedEntity(Base):
+    """
+    An entity extracted from memory content.
+
+    Entity types:
+    - function: Function or method names (e.g., authenticate_user)
+    - class: Class names (e.g., UserService)
+    - file: File paths (e.g., auth/service.py)
+    - concept: Domain concepts (e.g., authentication, caching)
+    - variable: Variable names mentioned
+    - module: Module/package names
+
+    Auto-extracted from memory content using pattern matching.
+    Links to code_entities table when possible for richer context.
+    """
+    __tablename__ = "extracted_entities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_path = Column(String, nullable=False, index=True)
+    entity_type = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False, index=True)
+    qualified_name = Column(String, nullable=True, index=True)
+    mention_count = Column(Integer, default=1)
+    code_entity_id = Column(String, nullable=True, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                       onupdate=lambda: datetime.now(timezone.utc))
+
+
+class MemoryEntityRef(Base):
+    """
+    Links a memory to an extracted entity.
+
+    Relationship types:
+    - mentions: Memory mentions this entity
+    - about: Memory is primarily about this entity
+    - modifies: Memory describes changes to this entity
+    - introduces: Memory introduces this entity
+    - deprecates: Memory deprecates this entity
+    """
+    __tablename__ = "memory_entity_refs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    memory_id = Column(Integer, ForeignKey("memories.id", ondelete="CASCADE"), nullable=False, index=True)
+    entity_id = Column(Integer, ForeignKey("extracted_entities.id", ondelete="CASCADE"), nullable=False, index=True)
+    relationship = Column(String, default="mentions")
+    context_snippet = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # ORM relationships
+    memory = orm_relationship("Memory", backref="entity_refs")
+    entity = orm_relationship("ExtractedEntity", backref="memory_refs")
