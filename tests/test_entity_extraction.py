@@ -110,3 +110,119 @@ class TestEntityExtractor:
 
         assert "src/auth/service.py" in names
         assert "tests/test_auth.py" in names
+
+
+import tempfile
+import shutil
+
+
+@pytest.fixture
+def temp_storage():
+    """Create a temporary storage directory."""
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@pytest.fixture
+async def entity_manager(temp_storage):
+    """Create an entity manager with temporary storage."""
+    from daem0nmcp.database import DatabaseManager
+    from daem0nmcp.entity_manager import EntityManager
+
+    db = DatabaseManager(temp_storage)
+    await db.init_db()
+    manager = EntityManager(db)
+    yield manager
+    await db.close()
+
+
+@pytest.mark.asyncio
+async def test_process_memory_extracts_entities(entity_manager, temp_storage):
+    """Processing a memory should extract and store entities."""
+    from daem0nmcp.memory import MemoryManager
+    from daem0nmcp.database import DatabaseManager
+
+    db = DatabaseManager(temp_storage)
+    await db.init_db()
+    mem_manager = MemoryManager(db)
+
+    # Create a memory with entity references
+    mem = await mem_manager.remember(
+        category="decision",
+        content="Use authenticate_user() in the UserService class for auth"
+    )
+
+    # Process it
+    result = await entity_manager.process_memory(
+        memory_id=mem["id"],
+        content=mem["content"],
+        project_path=temp_storage
+    )
+
+    assert result["entities_found"] > 0
+    assert result["refs_created"] > 0
+
+    # Verify entities were stored
+    entities = await entity_manager.get_entities_for_memory(mem["id"])
+    assert len(entities) > 0
+
+    await db.close()
+
+
+@pytest.mark.asyncio
+async def test_get_memories_for_entity(entity_manager, temp_storage):
+    """Should retrieve memories by entity name."""
+    from daem0nmcp.memory import MemoryManager
+    from daem0nmcp.database import DatabaseManager
+
+    db = DatabaseManager(temp_storage)
+    await db.init_db()
+    mem_manager = MemoryManager(db)
+
+    mem = await mem_manager.remember(
+        category="decision",
+        content="Use UserService for auth operations"
+    )
+    await entity_manager.process_memory(
+        memory_id=mem["id"],
+        content=mem["content"],
+        project_path=temp_storage
+    )
+
+    result = await entity_manager.get_memories_for_entity(
+        entity_name="UserService",
+        project_path=temp_storage
+    )
+
+    assert result["found"] is True
+    assert len(result["memories"]) == 1
+    await db.close()
+
+
+@pytest.mark.asyncio
+async def test_get_popular_entities(entity_manager, temp_storage):
+    """Should return most mentioned entities."""
+    from daem0nmcp.memory import MemoryManager
+    from daem0nmcp.database import DatabaseManager
+
+    db = DatabaseManager(temp_storage)
+    await db.init_db()
+    mem_manager = MemoryManager(db)
+
+    # Create multiple memories mentioning same entity
+    for i in range(3):
+        mem = await mem_manager.remember(
+            category="decision",
+            content=f"Call authenticate_user() for step {i}"
+        )
+        await entity_manager.process_memory(
+            memory_id=mem["id"],
+            content=mem["content"],
+            project_path=temp_storage
+        )
+
+    popular = await entity_manager.get_popular_entities(temp_storage, limit=5)
+
+    assert len(popular) > 0
+    await db.close()
