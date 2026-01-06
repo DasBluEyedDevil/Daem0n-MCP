@@ -100,6 +100,59 @@ def _not_archived_condition():
     return or_(Memory.archived == False, Memory.archived.is_(None))  # noqa: E712
 
 
+def _infer_tags(content: str, category: str, existing_tags: Optional[List[str]] = None) -> List[str]:
+    """
+    Infer semantic tags from memory content and category.
+
+    Auto-detects common patterns to improve search recall:
+    - bugfix: mentions of fixing bugs, errors, issues
+    - tech-debt: TODOs, hacks, workarounds, temporary solutions
+    - perf: performance, optimization, speed improvements
+    - warning: category-based or explicit warnings
+
+    Args:
+        content: The memory content text
+        category: Memory category (decision, pattern, warning, learning)
+        existing_tags: Already-provided tags (won't duplicate)
+
+    Returns:
+        List of inferred tags (excludes duplicates from existing_tags)
+    """
+    inferred: List[str] = []
+    existing = set(t.lower() for t in (existing_tags or []))
+    content_lower = content.lower()
+
+    # Bugfix patterns
+    bugfix_patterns = ['fix', 'bug', 'error', 'issue', 'broken', 'crash', 'failure']
+    if any(p in content_lower for p in bugfix_patterns):
+        if 'bugfix' not in existing:
+            inferred.append('bugfix')
+
+    # Tech debt patterns
+    debt_patterns = ['todo', 'hack', 'workaround', 'temporary', 'temp fix', 'quick fix', 'tech debt', 'refactor later']
+    if any(p in content_lower for p in debt_patterns):
+        if 'tech-debt' not in existing:
+            inferred.append('tech-debt')
+
+    # Performance patterns
+    perf_patterns = ['perf', 'performance', 'slow', 'fast', 'optim', 'speed', 'latency', 'cach']
+    if any(p in content_lower for p in perf_patterns):
+        if 'perf' not in existing:
+            inferred.append('perf')
+
+    # Warning category auto-tag
+    if category == 'warning':
+        if 'warning' not in existing:
+            inferred.append('warning')
+
+    # Explicit warning mentions in non-warning categories
+    if category != 'warning' and ('warn' in content_lower or 'avoid' in content_lower or "don't" in content_lower):
+        if 'warning' not in existing:
+            inferred.append('warning')
+
+    return inferred
+
+
 class MemoryManager:
     """
     Manages AI memories - storing, retrieving, and learning from them.
@@ -295,6 +348,11 @@ class MemoryManager:
         valid_categories = {'decision', 'pattern', 'warning', 'learning'}
         if category not in valid_categories:
             return {"error": f"Invalid category. Must be one of: {valid_categories}"}
+
+        # Infer semantic tags from content
+        inferred_tags = _infer_tags(content, category, tags)
+        if inferred_tags:
+            tags = list(tags or []) + inferred_tags
 
         # Extract keywords for backward compat (legacy search)
         keywords = extract_keywords(content, tags)

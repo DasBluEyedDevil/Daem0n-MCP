@@ -41,6 +41,48 @@ class TestSearchConfig:
             Settings(search_diversity_max_per_file=-1)
 
 
+class TestInferTags:
+    """Test lightweight tag inference."""
+
+    def test_infer_bugfix_from_fix(self):
+        """Detects 'fix' as bugfix."""
+        from daem0nmcp.memory import _infer_tags
+        tags = _infer_tags("Fixed the login bug", "decision")
+        assert "bugfix" in tags
+
+    def test_infer_tech_debt_from_todo(self):
+        """Detects 'TODO' as tech-debt."""
+        from daem0nmcp.memory import _infer_tags
+        tags = _infer_tags("TODO: refactor this later", "pattern")
+        assert "tech-debt" in tags
+
+    def test_infer_perf_from_cache(self):
+        """Detects 'cache' as perf."""
+        from daem0nmcp.memory import _infer_tags
+        tags = _infer_tags("Added caching layer", "decision")
+        assert "perf" in tags
+
+    def test_infer_warning_from_category(self):
+        """Warning category auto-adds warning tag."""
+        from daem0nmcp.memory import _infer_tags
+        tags = _infer_tags("Don't use this API", "warning")
+        assert "warning" in tags
+
+    def test_no_duplicate_with_existing_tags(self):
+        """Doesn't duplicate existing tags."""
+        from daem0nmcp.memory import _infer_tags
+        tags = _infer_tags("Fixed a bug", "decision", existing_tags=["bugfix"])
+        assert tags.count("bugfix") == 0  # Not added again
+
+    def test_multiple_tags_inferred(self):
+        """Can infer multiple tags from one content."""
+        from daem0nmcp.memory import _infer_tags
+        tags = _infer_tags("Temporary fix for slow performance", "decision")
+        assert "tech-debt" in tags  # 'temporary'
+        assert "perf" in tags  # 'slow', 'performance'
+        assert "bugfix" in tags  # 'fix'
+
+
 class TestHybridWeightWiring:
     """Test hybrid weight is used from config."""
 
