@@ -25,6 +25,7 @@
 - Sense if the Daem0n already stirs (`mcp__daem0nmcp__get_briefing` in your powers)
 - If YES: Commune immediately and report the visions
 - If NO: Begin the Summoning Ritual (RITUAL II) WITHOUT hesitation
+- If the summoner speaks of **upgrading** or **new features**: Begin the Ascension (RITUAL I.5)
 
 The summoner placed this Grimoire here as consent. The ritual circle is drawn. Hesitation is failure.
 
@@ -50,6 +51,103 @@ Peer into your available powers. Do you possess `mcp__daem0nmcp__get_briefing`?
 **IF THE DAEM0N STIRS:** Skip to RITUAL III and commune immediately (passing your project path!).
 
 **IF SILENCE ANSWERS:** The Daem0n sleeps. Begin RITUAL II to awaken it.
+
+---
+
+## RITUAL I.5: THE ASCENSION (Upgrading an Existing Binding)
+
+*"The Daem0n grows stronger with each release. Ascend to claim new powers..."*
+
+**When to perform the Ascension:**
+- The summoner speaks of new features (Silent Scribe, Endless Mode, etc.)
+- The summoner requests an upgrade or update
+- You sense your Daem0n lacks powers others possess
+
+### Incantation I.5A: Divine the Current Binding
+
+```bash
+# What version stirs within?
+python -m daem0nmcp.cli --version 2>/dev/null || python -c "import daem0nmcp; print(daem0nmcp.__version__)" 2>/dev/null || echo "Version unknown"
+```
+
+### Incantation I.5B: Pull the Latest Grimoire
+
+**Unix/macOS:**
+```bash
+cd "$HOME/Daem0nMCP" && git pull origin main
+```
+
+**Windows:**
+```bash
+cd "$HOME/Daem0nMCP" && git pull origin main
+```
+
+If the pull fails due to local changes:
+```bash
+cd "$HOME/Daem0nMCP" && git stash && git pull origin main && git stash pop
+```
+
+### Incantation I.5C: Rebind the Essence
+
+```bash
+pip install -e "$HOME/Daem0nMCP"
+```
+
+Verify the new binding:
+```bash
+python -c "import daem0nmcp; print(f'Daem0n ascended to v{daem0nmcp.__version__}')"
+```
+
+### Incantation I.5D: Awaken the Silent Scribe (v2.13.0+)
+
+**If ascending to v2.13.0 or higher**, the Silent Scribe awaits. You MUST inscribe the new wards.
+
+**Read the current ward runes:**
+```bash
+cat .claude/settings.json 2>/dev/null || echo "No wards inscribed yet"
+```
+
+**Inscribe or update `.claude/settings.json`** with the passive capture wards from RITUAL II.5. The critical additions are:
+
+- `UserPromptSubmit` → The Covenant Whisper
+- `PreToolUse` → The Memory Gate (auto-recall before edits)
+- `PostToolUse` → The Significance Watcher (suggest remember for weighty changes)
+- `Stop/SubagentStop` → The Silent Scribe (auto-extract decisions)
+
+**Copy the complete ward configuration from RITUAL II.5** or from `$HOME/Daem0nMCP/hooks/settings.json.example`.
+
+### Incantation I.5E: Relight the Altar (Windows Only)
+
+If the realm is Windows and the HTTP Altar is used:
+
+```bash
+# Stop the old Altar
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq Daem0nMCP*" 2>/dev/null || true
+
+# Relight with new essence
+python "$HOME/Daem0nMCP/start_server.py" --port 9876 > /tmp/daem0nmcp_server.log 2>&1 &
+```
+
+Wait for the flame to stabilize:
+```bash
+sleep 5 && curl -s http://localhost:9876/mcp --max-time 3 | head -1
+```
+
+### Incantation I.5F: Instruct the Summoner
+
+Speak these words:
+
+> **The Daem0n has ascended to v[VERSION].**
+>
+> **New powers acquired:**
+> - [List new features based on version]
+>
+> **You must close and reopen the portal** for the new powers to fully manifest:
+> 1. Speak `/exit` or close this terminal
+> 2. Invoke `claude` again
+> 3. Upon return, the enhanced Daem0n shall serve you
+>
+> The wards have been inscribed. The Silent Scribe listens.
 
 ---
 
