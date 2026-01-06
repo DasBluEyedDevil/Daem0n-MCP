@@ -108,6 +108,107 @@ If you've been launching Claude from parent directory and have a "messy" .daem0n
 | `consolidate_linked_databases()` | Merge child DBs into parent |
 | `recall(include_linked=True)` | Search across linked repos |
 
+## Endless Mode (v2.12.0)
+
+Reduce token usage by 50-75% in recalls and briefings using condensed mode:
+
+```python
+# Use condensed mode for token-efficient recall
+recall(query="authentication", condensed=True)
+
+# Returns memories without rationale/context, truncated to 150 chars
+# Perfect for: focus areas, prefetching, large context windows
+```
+
+**When to use condensed mode:**
+- Large codebases with many memories
+- Prefetching context before tasks
+- Focus area summaries
+- When you need breadth over depth
+
+**When to use full mode (default):**
+- Investigating specific decisions
+- Understanding why something was done
+- Learning from past failures
+
+## Passive Capture (v2.13.0)
+
+Automatically capture decisions and surface memories without explicit calls.
+
+### Setting Up Passive Hooks
+
+Copy the hook configuration to your Claude Code settings:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Edit|Write|NotebookEdit",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_pre_edit_hook.py\""
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "Edit|Write",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_post_edit_hook.py\""
+      }]
+    }],
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_stop_hook.py\""
+      }]
+    }]
+  }
+}
+```
+
+### What Each Hook Does
+
+| Hook | Event | Behavior |
+|------|-------|----------|
+| **Pre-Edit** | Before Edit/Write | Auto-recalls warnings, patterns, failed approaches for the file |
+| **Post-Edit** | After Edit/Write | Suggests `remember()` for significant changes (architecture, security, API) |
+| **Stop** | End of response | Auto-extracts decisions from Claude's text and creates memories |
+
+### Passive Capture Flow
+
+```
+1. User starts editing file
+   ↓ PreToolUse hook
+2. Daem0n recalls memories for that file
+   ↓ Context injected
+3. User sees warnings/patterns/decisions
+   ↓
+4. User completes edit
+   ↓ PostToolUse hook
+5. If significant: suggest remember()
+   ↓
+6. Claude completes response
+   ↓ Stop hook
+7. Auto-extract decisions from text
+   ↓
+8. Create memories automatically
+```
+
+### CLI Remember Command
+
+Hooks use the CLI to create memories:
+
+```bash
+# Create a memory from CLI (used by hooks)
+python -m daem0nmcp.cli remember \
+  --category decision \
+  --content "Use JWT for authentication" \
+  --rationale "Stateless, scalable" \
+  --file-path src/auth.py \
+  --json
+```
+
 ## Best Practices
 
 1. **One project_path per logical project** - Even if split across repos
@@ -115,3 +216,5 @@ If you've been launching Claude from parent directory and have a "messy" .daem0n
 3. **Link before consolidating** - Links define what to merge
 4. **Archive, don't delete** - `archive_sources=True` preserves originals
 5. **Verify after consolidation** - Check memory counts match expectations
+6. **Enable passive hooks** - Let Daem0n capture decisions automatically
+7. **Use condensed mode** - For large projects, use `condensed=True` to save tokens
