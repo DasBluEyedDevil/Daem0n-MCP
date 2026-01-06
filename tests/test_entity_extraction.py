@@ -226,3 +226,32 @@ async def test_get_popular_entities(entity_manager, temp_storage):
 
     assert len(popular) > 0
     await db.close()
+
+
+@pytest.mark.asyncio
+async def test_remember_auto_extracts_entities(temp_storage):
+    """remember() should auto-extract entities."""
+    from daem0nmcp.database import DatabaseManager
+    from daem0nmcp.memory import MemoryManager
+    from daem0nmcp.entity_manager import EntityManager
+
+    db = DatabaseManager(temp_storage)
+    await db.init_db()
+    mem_manager = MemoryManager(db)
+    ent_manager = EntityManager(db)
+
+    # Create memory (should auto-extract)
+    mem = await mem_manager.remember(
+        category="decision",
+        content="Call authenticate_user() in UserService",
+        project_path=temp_storage
+    )
+
+    # Check entities were extracted
+    entities = await ent_manager.get_entities_for_memory(mem["id"])
+
+    await db.close()
+
+    assert len(entities) > 0
+    names = [e["name"] for e in entities]
+    assert "authenticate_user" in names

@@ -397,6 +397,20 @@ class MemoryManager:
         # Clear recall cache since memories changed
         get_recall_cache().clear()
 
+        # Auto-extract entities if project_path provided
+        if project_path:
+            try:
+                from .entity_manager import EntityManager
+                ent_manager = EntityManager(self.db)
+                await ent_manager.process_memory(
+                    memory_id=memory_id,
+                    content=content,
+                    project_path=project_path,
+                    rationale=rationale
+                )
+            except Exception as e:
+                logger.debug(f"Entity extraction failed (non-fatal): {e}")
+
         # Track in session state for enforcement
         if category == "decision" and project_path:
             try:
