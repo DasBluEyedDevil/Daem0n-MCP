@@ -32,6 +32,14 @@ Track how memories evolve over time:
 - `get_memory_at_time(memory_id, timestamp)` - Query historical state
 - Enables questions like "What did we believe about X last month?"
 
+### Hierarchical Summarization
+GraphRAG-style community detection and layered recall:
+- `rebuild_communities()` - Detect clusters by tag co-occurrence
+- `list_communities()` - Get summaries for high-level overview
+- `get_community_details(id)` - Drill down to member memories
+- `recall_hierarchical(topic)` - Layered retrieval: summaries then details
+- Auto-generated community names from dominant tags
+
 ## What's New in v2.13.0
 
 - **Passive Capture (Auto-Remember)**: Memories without manual calls
@@ -207,7 +215,7 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Core Tools (38 Total)
+## Core Tools (42 Total)
 
 ### Memory Tools
 
@@ -254,6 +262,15 @@ Or use `start_daem0nmcp_server.bat`
 | `unlink_memories` | Remove relationships between memories |
 | `trace_chain` | Traverse memory graph (forward/backward) |
 | `get_graph` | Visualize memory relationships (JSON or Mermaid) |
+
+### Hierarchical Summarization Tools
+
+| Tool | Purpose |
+|------|---------|
+| `rebuild_communities` | Detect memory clusters by tag co-occurrence |
+| `list_communities` | Get community summaries for high-level overview |
+| `get_community_details` | Drill down to member memories in a community |
+| `recall_hierarchical` | Layered retrieval: community summaries then details |
 
 ### Code Understanding Tools
 
@@ -652,4 +669,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.14.0: Active Working Context and Temporal Versioning—MemGPT-style hot memory layer plus memory history tracking.*
+*Daem0nMCP v2.14.0: Active Working Context, Temporal Versioning, and Hierarchical Summarization—MemGPT-style hot memory layer, memory history tracking, and GraphRAG-style community detection.*
