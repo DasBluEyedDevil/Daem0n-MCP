@@ -510,3 +510,55 @@ class MemoryEntityRef(Base):
     # ORM relationships
     memory = orm_relationship("Memory", backref="entity_refs")
     entity = orm_relationship("ExtractedEntity", backref="memory_refs")
+
+
+class ContextTrigger(Base):
+    """
+    A trigger that auto-recalls memories when patterns match.
+
+    Trigger types:
+    - file_pattern: Glob pattern for file paths (e.g., "src/auth/**/*.py")
+    - tag_match: Regex pattern for memory tags (e.g., "auth|security")
+    - entity_match: Regex pattern for entity names (e.g., ".*Service$")
+
+    When a trigger matches:
+    1. Auto-recall memories for the specified topic
+    2. Filter by recall_categories if specified
+    3. Inject into tool response context
+
+    Use cases:
+    - Auto-surface auth decisions when editing auth files
+    - Show database warnings when touching migration files
+    - Recall API patterns when adding new endpoints
+    """
+    __tablename__ = "context_triggers"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Which project this trigger belongs to
+    project_path = Column(String, nullable=False, index=True)
+
+    # Type of trigger: file_pattern, tag_match, entity_match
+    trigger_type = Column(String, nullable=False)
+
+    # The pattern to match (glob for files, regex for tags/entities)
+    pattern = Column(String, nullable=False)
+
+    # Topic to recall when triggered
+    recall_topic = Column(String, nullable=False)
+
+    # Optional: limit to specific categories
+    recall_categories = Column(JSON, default=list)
+
+    # Enable/disable without deleting
+    is_active = Column(Boolean, default=True)
+
+    # Higher priority triggers are evaluated first
+    priority = Column(Integer, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Usage tracking
+    trigger_count = Column(Integer, default=0)
+    last_triggered = Column(DateTime, nullable=True)
