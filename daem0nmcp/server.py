@@ -4240,6 +4240,97 @@ async def clear_active_context(
 
 
 # ============================================================================
+# TEMPORAL VERSIONING - Memory History Tools
+# ============================================================================
+
+
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def get_memory_versions(
+    memory_id: int,
+    limit: int = 50,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get version history for a memory.
+
+    Shows how a memory has evolved over time, including:
+    - Content changes
+    - Outcome recordings
+    - Relationship changes
+
+    Args:
+        memory_id: The memory to get versions for
+        limit: Maximum versions to return (default: 50)
+        project_path: Project root path (REQUIRED)
+
+    Returns:
+        List of versions in chronological order
+
+    Example:
+        get_memory_versions(42)  # Get all versions of memory 42
+    """
+    if project_path is None and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    versions = await ctx.memory_manager.get_memory_versions(memory_id, limit)
+
+    return {
+        "memory_id": memory_id,
+        "version_count": len(versions),
+        "versions": versions
+    }
+
+
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def get_memory_at_time(
+    memory_id: int,
+    timestamp: str,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get a memory's state at a specific point in time.
+
+    Use this to answer questions like:
+    - "What did we believe about auth last month?"
+    - "How has this decision evolved?"
+
+    Args:
+        memory_id: The memory to query
+        timestamp: ISO format timestamp (e.g., "2025-01-01T00:00:00Z")
+        project_path: Project root path (REQUIRED)
+
+    Returns:
+        Memory state at that time, or error if it didn't exist yet
+
+    Example:
+        get_memory_at_time(42, "2025-01-01T00:00:00Z")
+    """
+    if project_path is None and not _default_project_path:
+        return _missing_project_path_error()
+
+    try:
+        point_in_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+    except ValueError as e:
+        return {"error": f"Invalid timestamp format: {e}"}
+
+    ctx = await get_project_context(project_path)
+    historical = await ctx.memory_manager.get_memory_at_time(memory_id, point_in_time)
+
+    if historical is None:
+        return {
+            "error": "NOT_FOUND",
+            "message": f"Memory {memory_id} did not exist at {timestamp}"
+        }
+
+    return historical
+
+
+# ============================================================================
 # MCP RESOURCES - Automatic Context Injection
 # ============================================================================
 # These resources are automatically injected into the context window

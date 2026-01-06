@@ -169,3 +169,108 @@ async def test_get_memory_at_time(memory_manager):
     assert historical is not None
     assert historical["content"] == "Original content"
     assert historical["outcome"] is None  # No outcome at that time
+
+
+# ============================================================================
+# MCP Tool Tests
+# ============================================================================
+# Note: These tests use the covenant_compliant_project fixture from conftest.py
+
+
+@pytest.mark.asyncio
+async def test_mcp_get_memory_versions_tool(covenant_compliant_project):
+    """Test the MCP tool for getting memory versions."""
+    from daem0nmcp import server
+
+    # Create a memory
+    result = await server.remember(
+        category="decision",
+        content="Test decision",
+        project_path=covenant_compliant_project
+    )
+    memory_id = result["id"]
+
+    # Get versions via MCP tool
+    versions = await server.get_memory_versions(
+        memory_id=memory_id,
+        project_path=covenant_compliant_project
+    )
+
+    assert "versions" in versions
+    assert len(versions["versions"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_mcp_get_memory_at_time_tool(covenant_compliant_project):
+    """Test the MCP tool for getting memory state at a specific time."""
+    from daem0nmcp import server
+
+    # Create a memory
+    result = await server.remember(
+        category="decision",
+        content="Original content for time travel",
+        project_path=covenant_compliant_project
+    )
+    memory_id = result["id"]
+
+    # Get the creation time from versions
+    versions = await server.get_memory_versions(
+        memory_id=memory_id,
+        project_path=covenant_compliant_project
+    )
+    creation_time = versions["versions"][0]["changed_at"]
+
+    # Record an outcome
+    await server.record_outcome(
+        memory_id=memory_id,
+        outcome="It worked great!",
+        worked=True,
+        project_path=covenant_compliant_project
+    )
+
+    # Query memory at creation time (before outcome)
+    historical = await server.get_memory_at_time(
+        memory_id=memory_id,
+        timestamp=creation_time,
+        project_path=covenant_compliant_project
+    )
+
+    assert "error" not in historical
+    assert historical["content"] == "Original content for time travel"
+    assert historical["outcome"] is None  # No outcome at that time
+
+
+@pytest.mark.asyncio
+async def test_mcp_get_memory_at_time_invalid_timestamp(covenant_compliant_project):
+    """Test get_memory_at_time with invalid timestamp format."""
+    from daem0nmcp import server
+
+    # Create a memory
+    result = await server.remember(
+        category="decision",
+        content="Test decision",
+        project_path=covenant_compliant_project
+    )
+    memory_id = result["id"]
+
+    # Try with invalid timestamp
+    historical = await server.get_memory_at_time(
+        memory_id=memory_id,
+        timestamp="not-a-valid-timestamp",
+        project_path=covenant_compliant_project
+    )
+
+    assert "error" in historical
+    assert "Invalid timestamp format" in historical["error"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_get_memory_versions_missing_project_path():
+    """Test that get_memory_versions requires project_path."""
+    from daem0nmcp import server
+
+    # Call without project_path
+    result = await server.get_memory_versions(memory_id=1)
+
+    assert "error" in result
+    assert result["error"] == "MISSING_PROJECT_PATH"
