@@ -264,6 +264,18 @@ mcp__daem0nmcp__unlink_memories(
 )
 ```
 
+## OpenSpec Integration
+
+If the project uses OpenSpec (spec-driven development), the `openspec-daem0n-bridge` skill provides bidirectional integration:
+
+**Auto-detection:** After `get_briefing()`, if `openspec/` directory exists, specs are automatically imported as patterns and rules.
+
+**Before creating proposals:** Use "prepare proposal for [feature]" to query past decisions and failures.
+
+**After archiving changes:** Use "record outcome for [change-id]" to convert completed work to learnings.
+
+See the `openspec-daem0n-bridge` skill for full workflow details.
+
 ## The Bottom Line
 
 **Memory tools exist. Use them correctly.**

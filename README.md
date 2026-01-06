@@ -13,6 +13,23 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v2.13.0
+
+- **Passive Capture (Auto-Remember)**: Memories without manual calls
+  - Pre-edit hook: Auto-recalls memories for files being modified
+  - Post-edit hook: Suggests remember() for significant changes
+  - Stop hook: Auto-extracts decisions from Claude's responses
+  - CLI `remember` command for hook integration
+  - See `hooks/settings.json.example` for configuration
+
+## What's New in v2.12.0
+
+- **Endless Mode (Context Compression)**: Reduce token usage by 50-75%
+  - `recall(topic, condensed=True)` - Returns compressed memories
+  - Strips rationale, context fields; truncates content to 150 chars
+  - Focus areas in briefings use condensed mode automatically
+  - Inspired by memvid-mind's token efficiency approach
+
 ## What's New in v2.11.0
 
 - **Linked Projects (Multi-Repo Support)**: Work across related repositories
@@ -179,7 +196,7 @@ Or use `start_daem0nmcp_server.bat`
 |------|---------|
 | `remember` | Store a memory with conflict detection |
 | `remember_batch` | Store multiple memories efficiently in one transaction |
-| `recall` | Semantic memory retrieval by topic |
+| `recall` | Semantic memory retrieval by topic (supports `condensed=True` for token savings) |
 | `recall_for_file` | Get memories linked to a specific file |
 | `search_memories` | Search across all memories |
 | `find_related` | Discover connected memories |
@@ -288,6 +305,20 @@ get_briefing(focus_areas=["authentication", "API"])
 # git changes, bootstrap summary, plus pre-fetched context for focus areas
 ```
 
+### Endless Mode (Token Compression)
+```python
+# Full recall (default) - ~40KB response
+recall("authentication")
+
+# Condensed recall - ~10KB response (75% smaller)
+recall("authentication", condensed=True)
+# Returns: truncated content, no rationale/context, minimal fields
+
+# Briefings automatically use condensed mode for focus areas
+get_briefing(focus_areas=["auth", "database", "api"])
+# Focus area results are pre-compressed
+```
+
 ### Import External Docs
 ```python
 ingest_doc("https://stripe.com/docs/api/charges", "stripe")
@@ -340,6 +371,43 @@ Add to `.claude/settings.json`:
   }
 }
 ```
+
+### Passive Capture Hooks
+
+For fully automatic memory capture, enable all hooks in `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Edit|Write|NotebookEdit",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_pre_edit_hook.py\""
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "Edit|Write",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_post_edit_hook.py\""
+      }]
+    }],
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_stop_hook.py\""
+      }]
+    }]
+  }
+}
+```
+
+**What each hook does:**
+- **Pre-edit**: Shows warnings, patterns, and past decisions for files before you modify them
+- **Post-edit**: Suggests calling `remember()` when you make significant changes
+- **Stop**: Auto-extracts decisions from Claude's responses and creates memories
 
 ### Protocol Skill
 
@@ -553,4 +621,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.10.0: Code understanding layer with multi-language AST parsing—the Daem0n now understands your code structure.*
+*Daem0nMCP v2.13.0: Passive Capture—automatic memory capture without manual calls, plus all previous features.*

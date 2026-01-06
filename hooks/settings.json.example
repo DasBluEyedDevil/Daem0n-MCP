@@ -11,13 +11,24 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_prompt_hook.py\""
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n whispers] Consult my memories before altering files...'"
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_pre_edit_hook.py\""
           }
         ]
       }
@@ -28,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n whispers] Consider recording this change with remember()...'"
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_post_edit_hook.py\""
           }
         ]
       }

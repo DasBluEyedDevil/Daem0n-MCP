@@ -17,6 +17,7 @@ Usage:
     python -m daem0nmcp.cli uninstall-hooks
     python -m daem0nmcp.cli watch [--debounce SECONDS] [--no-system] [--no-log] [--no-poll]
     python -m daem0nmcp.cli index [--path PATH] [--patterns *.py *.ts ...]
+    python -m daem0nmcp.cli remember --category CATEGORY --content CONTENT [--rationale TEXT] [--file-path PATH] [--tags TAGS]
 
 Global Options:
     --json              Output as JSON for automation/scripting
@@ -311,6 +312,16 @@ def main():
     index_parser.add_argument("--patterns", nargs="*", default=None,
                               help="Glob patterns for files (e.g., **/*.py **/*.ts)")
 
+    # remember command (for hooks to create memories via CLI)
+    remember_parser = subparsers.add_parser("remember", help="Create a memory from the command line (for hooks)")
+    remember_parser.add_argument("--category", required=True,
+                                 choices=["decision", "pattern", "warning", "learning"],
+                                 help="Memory category")
+    remember_parser.add_argument("--content", required=True, help="The memory content")
+    remember_parser.add_argument("--rationale", default=None, help="Why this is important")
+    remember_parser.add_argument("--file-path", default=None, help="Associated file path")
+    remember_parser.add_argument("--tags", default=None, help="Comma-separated tags")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -604,6 +615,38 @@ def main():
             if result.get('error'):
                 print(f"\nError: {result['error']}")
                 sys.exit(1)
+
+    elif args.command == "remember":
+        # Create memory via CLI (for hooks)
+        project_path = args.project_path or os.getcwd()
+        storage_path_resolved = Path(project_path).resolve() / ".daem0nmcp" / "storage"
+        storage_path_resolved.mkdir(parents=True, exist_ok=True)
+
+        # Use dedicated db/memory for this project
+        db_remember = DatabaseManager(str(storage_path_resolved))
+        memory_remember = MemoryManager(db_remember)
+
+        async def _remember():
+            await db_remember.init_db()
+
+            tag_list = [t.strip() for t in args.tags.split(",")] if args.tags else None
+
+            result = await memory_remember.remember(
+                category=args.category,
+                content=args.content,
+                rationale=args.rationale,
+                file_path=getattr(args, 'file_path', None),
+                tags=tag_list
+            )
+
+            return result
+
+        result = asyncio.run(_remember())
+
+        if args.json:
+            print(json.dumps(result, default=str))
+        else:
+            print(f"Memory created: ID {result.get('id')}")
 
 
 if __name__ == "__main__":
