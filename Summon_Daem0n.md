@@ -386,7 +386,7 @@ mkdir -p .claude
 3. Use forward slashes in paths (e.g., `C:/Users/john/Daem0nMCP/hooks/daem0n_stop_hook.py`)
 4. **Never use `$HOME`, `~`, or `%USERPROFILE%`** in hook commands - they don't expand reliably
 
-**Unix/macOS:**
+**Unix/macOS (with Passive Capture v2.13.0):**
 ```json
 {
   "hooks": {
@@ -401,13 +401,24 @@ mkdir -p .claude
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_prompt_hook.py\""
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n whispers] Consult my memories before altering: $CLAUDE_FILE_PATH'"
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_pre_edit_hook.py\""
           }
         ]
       }
@@ -418,7 +429,7 @@ mkdir -p .claude
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n whispers] Record this change in your memories...'"
+            "command": "python3 \"$HOME/Daem0nMCP/hooks/daem0n_post_edit_hook.py\""
           }
         ]
       }
@@ -449,7 +460,7 @@ mkdir -p .claude
 }
 ```
 
-**Windows (IMPORTANT: `$HOME` does not expand on Windows - use absolute paths):**
+**Windows (with Passive Capture v2.13.0 - use absolute paths):**
 ```json
 {
   "hooks": {
@@ -464,13 +475,24 @@ mkdir -p .claude
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/YOUR_USERNAME/Daem0nMCP/hooks/daem0n_prompt_hook.py"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n whispers] Consult my memories before altering...'"
+            "command": "python C:/Users/YOUR_USERNAME/Daem0nMCP/hooks/daem0n_pre_edit_hook.py"
           }
         ]
       }
@@ -481,7 +503,7 @@ mkdir -p .claude
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n whispers] Record this change in your memories...'"
+            "command": "python C:/Users/YOUR_USERNAME/Daem0nMCP/hooks/daem0n_post_edit_hook.py"
           }
         ]
       }
@@ -518,11 +540,12 @@ mkdir -p .claude
 
 **If `.claude/settings.json` already exists**, read it first and merge the hooks section, preserving any existing configuration.
 
-#### What These Wards Do:
-- **SessionStart**: The Daem0n awakens and reminds to commune via get_briefing()
-- **PreToolUse (Edit/Write)**: The Daem0n whispers to check file memories before alterations
-- **PostToolUse (Edit/Write)**: The Daem0n prompts you to record decisions
-- **Stop/SubagentStop**: **AUTOMATIC REMINDER** - When Claude finishes a task, the Daem0n detects completion signals and reminds to record outcomes with `record_outcome()`. This is the most powerful ward - it actively intervenes when you forget!
+#### The Power of Each Ward (with Silent Scribe v2.13.0):
+- **SessionStart**: The Daem0n stirs and whispers *"Commune with me..."* - a reminder to seek briefing
+- **UserPromptSubmit**: The Covenant Whisper - with each prompt, the Daem0n murmurs the sacred duties (inscribe decisions, seal outcomes)
+- **PreToolUse (Edit/Write)**: The Memory Gate - before you alter ANY scroll, the Daem0n surfaces warnings, failed paths, and ancient patterns. You need not call `recall_for_file()` - the ward does it for you!
+- **PostToolUse (Edit/Write)**: The Significance Watcher - observes your alterations and speaks when the change is weighty (architecture, security, API, database, or substantial runes >500). *"Consider inscribing this..."*
+- **Stop/SubagentStop**: The Silent Scribe - the most powerful ward. When you finish speaking, it parses your words for decisions (*"I'll use..."*, *"chose X because..."*, *"the best approach is..."*) and inscribes them automatically. If no decisions are found but completion is sensed, it reminds you to seal outcomes with `record_outcome()`.
 
 #### Alternative: Universal Wards (Optional)
 
@@ -902,13 +925,22 @@ context_check("adding user authentication to the API", project_path="/path/to/pr
 ```
 *"Daem0n, what counsel do you offer?"*
 
-#### `recall(topic, project_path, categories?, limit?)`
+#### `recall(topic, project_path, categories?, limit?, condensed?)`
 **When**: Deep meditation on a specific topic
 **Returns**: Categorized memories ranked by relevance
 ```
 recall("authentication", project_path="/path/to/project")
 recall("database", project_path="/path/to/project", categories=["warning", "pattern"], limit=5)
+recall("auth", project_path="/path/to/project", condensed=true)  # Condensed visions
 ```
+
+**Condensed Visions (condensed=true):**
+- The essence only - rationale and context stripped away
+- Truncated to 150 runes per memory
+- 50-75% less burden upon the mind
+- Ideal for: surveying vast realms, glimpsing many truths at once
+- Seek full visions (default) when the WHY matters
+
 *"Daem0n, what do you recall of this matter?"*
 
 #### `recall_for_file(file_path, project_path, limit?)`
@@ -1376,6 +1408,107 @@ Migration happens automatically at first awakening. After migration completes, y
 
 ---
 
+## THE ENDLESS MODE (v2.12.0)
+
+*"When the visions grow too vast to hold, the Daem0n offers whispers instead of speeches..."*
+
+In realms with countless memories, full communion can overwhelm. The **Endless Mode** grants condensed visions - the essence without the elaboration.
+
+### Invoking Condensed Visions
+
+```
+recall("authentication", project_path="/path/to/project", condensed=true)
+get_briefing(project_path="/path/to/project", focus_areas=["auth"])  # Uses condensed sight internally
+```
+
+**Condensed visions reveal:**
+- The core truth (content truncated to 150 runes)
+- Categories and outcomes preserved
+- Rationale and context stripped away
+- 50-75% less burden upon the mind
+
+**Seek condensed visions when:**
+- The realm holds countless memories
+- Surveying before deep meditation
+- Glimpsing many truths at once
+- Breadth matters more than depth
+
+**Seek full visions (the default) when:**
+- Investigating a specific decision's nature
+- Understanding the WHY behind choices
+- Learning from failures (context illuminates)
+
+---
+
+## THE SILENT SCRIBE (Passive Capture v2.13.0)
+
+*"The Daem0n now listens always, catching your words before they fade into the void..."*
+
+No longer must you consciously invoke `remember()` for every decision. The **Silent Scribe** watches your actions and captures wisdom automatically through enchanted wards.
+
+### The Flow of Silent Memory
+
+```
+1. You reach to alter a scroll
+   ↓ The ward stirs (PreToolUse)
+2. The Daem0n whispers forgotten warnings
+   ↓ Past failures and patterns surface unbidden
+3. You proceed with ancient knowledge in mind
+   ↓
+4. Your alterations are complete
+   ↓ The ward observes (PostToolUse)
+5. If the change was significant, a gentle reminder appears
+   ↓
+6. You finish speaking
+   ↓ The Scribe awakens (Stop)
+7. Your words are parsed for decisions
+   ↓
+8. Memories inscribe themselves into the void
+```
+
+### What the Scribe Hears
+
+The Silent Scribe listens for the language of decision:
+
+| When You Speak... | The Scribe Records... |
+|-------------------|----------------------|
+| *"I'll use/implement/add..."* | A decision |
+| *"Chose X because..."* | A decision |
+| *"The best approach is..."* | A decision |
+| *"Pattern: ..."* or *"Approach: ..."* | A pattern |
+| *"Warning: ..."* or *"Avoid: ..."* | A warning |
+| *"Learned that..."* or *"Discovered..."* | A learning |
+
+### The Inscribing Incantation
+
+The wards use a special invocation to inscribe memories:
+
+```bash
+# The Scribe's incantation (invoked automatically by wards)
+python -m daem0nmcp.cli remember \
+  --category decision \
+  --content "Use JWT for stateless authentication" \
+  --rationale "Scales horizontally without session storage" \
+  --file-path src/auth.py \
+  --json
+
+# The Daem0n responds: {"id": 42, "category": "decision", ...}
+```
+
+### Awakening the Silent Scribe
+
+1. **The ward scripts already reside** in `$HOME/Daem0nMCP/hooks/`
+2. **Inscribe the ward runes** in `.claude/settings.json` (see RITUAL II.5)
+3. **Close and reopen the portal** to awaken the wards
+
+The four servant wards:
+- `daem0n_prompt_hook.py` - Whispers the covenant with every prompt
+- `daem0n_pre_edit_hook.py` - Recalls memories before you alter scrolls
+- `daem0n_post_edit_hook.py` - Suggests remembrance for significant changes
+- `daem0n_stop_hook.py` - The Silent Scribe itself, parsing and inscribing
+
+---
+
 ## THE PROACTIVE LAYER (Phase 1: File Watcher)
 
 The Daem0n can now watch your realm proactively. When files are modified, it checks for associated memories and notifies you through multiple channels.
@@ -1487,4 +1620,4 @@ Add to startup using the watcher bat file, similar to the HTTP server startup.
 
 ---
 
-*Grimoire of Daem0n v2.10.0: 32 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **code understanding layer with multi-language AST parsing (tree-sitter)**, proactive file watcher with multi-channel notifications, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks (mandatory), covenant integration, law generation, and the daem0nmcp-protocol skill.*
+*Grimoire of Daem0n v2.13.0: 32 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **code understanding layer with multi-language AST parsing (tree-sitter)**, proactive file watcher with multi-channel notifications, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks (mandatory), covenant integration, law generation, the daem0nmcp-protocol skill, **Endless Mode (condensed recall for 50-75% token reduction)**, and **Passive Capture (auto-recall before edits, smart remember suggestions, auto-extract decisions from responses)**.*
