@@ -19,10 +19,13 @@ A smarter MCP server that provides:
 13. Code understanding via tree-sitter parsing
 14. Active working context (MemGPT-style always-hot memories)
 
-39 Tools:
+42 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - recall_for_file: Get all memories for a specific file
+- recall_by_entity: Get all memories mentioning a specific code entity
+- list_entities: List most frequently mentioned entities
+- backfill_entities: Extract entities from all existing memories
 - add_rule: Add a decision tree node
 - check_rules: Validate an action against rules
 - record_outcome: Track whether a decision worked
@@ -4494,6 +4497,170 @@ async def recall_hierarchical(
         include_members=include_members,
         limit=limit
     )
+
+
+# ============================================================================
+# Entity Query Tools - Query memories by extracted entities
+# ============================================================================
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def recall_by_entity(
+    entity_name: str,
+    entity_type: Optional[str] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get all memories mentioning a specific entity.
+
+    This enables queries like "show everything related to UserService"
+    or "find all decisions about the authenticate function".
+
+    Args:
+        entity_name: Name of the entity to search for (e.g., "UserService", "authenticate_user")
+        entity_type: Optional type filter (e.g., "class", "function", "file")
+        project_path: Project root path (REQUIRED)
+
+    Returns:
+        Dict with entity info and list of memories referencing it
+
+    Examples:
+        recall_by_entity("UserService")
+        recall_by_entity("authenticate_user", entity_type="function")
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Import EntityManager locally
+    try:
+        from .entity_manager import EntityManager
+    except ImportError:
+        from daem0nmcp.entity_manager import EntityManager
+
+    entity_manager = EntityManager(ctx.db_manager)
+    return await entity_manager.get_memories_for_entity(
+        entity_name=entity_name,
+        project_path=ctx.project_path,
+        entity_type=entity_type
+    )
+
+
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def list_entities(
+    entity_type: Optional[str] = None,
+    limit: int = 20,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    List most frequently mentioned entities.
+
+    Returns entities ordered by mention count - useful for understanding
+    which code elements are most discussed in the memory system.
+
+    Args:
+        entity_type: Optional filter by type (e.g., "class", "function", "file")
+        limit: Maximum number of entities to return (default: 20)
+        project_path: Project root path (REQUIRED)
+
+    Returns:
+        Dict with list of entities and their mention counts
+
+    Examples:
+        list_entities()  # All entity types
+        list_entities(entity_type="class")  # Only classes
+        list_entities(limit=10)  # Top 10 entities
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Import EntityManager locally
+    try:
+        from .entity_manager import EntityManager
+    except ImportError:
+        from daem0nmcp.entity_manager import EntityManager
+
+    entity_manager = EntityManager(ctx.db_manager)
+    entities = await entity_manager.get_popular_entities(
+        project_path=ctx.project_path,
+        entity_type=entity_type,
+        limit=limit
+    )
+
+    return {
+        "count": len(entities),
+        "entities": entities
+    }
+
+
+@mcp.tool()
+@with_request_id
+@requires_communion
+async def backfill_entities(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Extract entities from all existing memories.
+
+    Use this to populate entity data for memories created before
+    auto-extraction was enabled. Safe to run multiple times -
+    won't create duplicate entity references.
+
+    Args:
+        project_path: Project root path (REQUIRED)
+
+    Returns:
+        Summary of how many memories were processed and entities extracted
+
+    Example:
+        backfill_entities()  # Process all existing memories
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Import EntityManager locally
+    try:
+        from .entity_manager import EntityManager
+    except ImportError:
+        from daem0nmcp.entity_manager import EntityManager
+
+    entity_manager = EntityManager(ctx.db_manager)
+
+    # Query all non-archived memories
+    async with ctx.db_manager.get_session() as session:
+        result = await session.execute(
+            select(Memory).where(
+                or_(Memory.archived == False, Memory.archived.is_(None))
+            )
+        )
+        memories = result.scalars().all()
+
+    memories_processed = 0
+    total_entities_extracted = 0
+
+    for memory in memories:
+        extraction_result = await entity_manager.process_memory(
+            memory_id=memory.id,
+            content=memory.content,
+            project_path=ctx.project_path,
+            rationale=memory.rationale
+        )
+        memories_processed += 1
+        total_entities_extracted += extraction_result.get("entities_found", 0)
+
+    return {
+        "status": "completed",
+        "memories_processed": memories_processed,
+        "entities_extracted": total_entities_extracted,
+        "message": f"Processed {memories_processed} memories, extracted {total_entities_extracted} entities"
+    }
 
 
 # ============================================================================
