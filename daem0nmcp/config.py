@@ -8,6 +8,7 @@ Example: DAEM0NMCP_LOG_LEVEL=DEBUG
 import shutil
 from pathlib import Path
 from typing import Optional, List
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -62,6 +63,10 @@ class Settings(BaseSettings):
     watcher_editor_poll: bool = True  # Enable editor poll channel
     watcher_skip_patterns: List[str] = []  # Additional patterns to skip (added to defaults)
     watcher_watch_extensions: List[str] = []  # File extensions to watch (empty = all)
+
+    # Search tuning
+    hybrid_vector_weight: float = Field(default=0.3, ge=0.0, le=1.0)  # 0.0 = TF-IDF only, 1.0 = vectors only
+    search_diversity_max_per_file: int = Field(default=3, ge=0)  # Max results from same source file (0=unlimited)
 
     def _migrate_legacy_storage(self, project_path: Path, new_storage: Path) -> bool:
         """
