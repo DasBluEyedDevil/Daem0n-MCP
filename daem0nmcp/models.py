@@ -7,7 +7,7 @@ Tables:
 - memory_relationships: Graph edges between memories for causal reasoning
 """
 
-from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, Boolean, LargeBinary, Float, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, Boolean, LargeBinary, Float, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import relationship as orm_relationship
 from datetime import datetime, timezone
@@ -562,3 +562,18 @@ class ContextTrigger(Base):
     # Usage tracking
     trigger_count = Column(Integer, default=0)
     last_triggered = Column(DateTime, nullable=True)
+
+
+class FileHash(Base):
+    """Tracks content hashes for indexed files."""
+    __tablename__ = "file_hashes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_path = Column(String, nullable=False, index=True)
+    file_path = Column(String, nullable=False)  # Relative to project
+    content_hash = Column(String(64), nullable=False)  # SHA256
+    indexed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint('project_path', 'file_path', name='uix_file_project'),
+    )

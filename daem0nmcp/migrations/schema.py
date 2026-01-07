@@ -210,6 +210,19 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         "CREATE INDEX IF NOT EXISTS idx_project_links_source ON project_links(source_path);",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_project_links_unique ON project_links(source_path, linked_path);"
     ]),
+    (11, "Add file_hashes table for incremental indexing", [
+        """
+        CREATE TABLE IF NOT EXISTS file_hashes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_path TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(project_path, file_path)
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_file_hashes_project ON file_hashes(project_path);",
+    ]),
 ]
 
 
