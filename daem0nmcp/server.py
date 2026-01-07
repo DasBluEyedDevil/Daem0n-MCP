@@ -82,7 +82,7 @@ try:
     from .database import DatabaseManager
     from .memory import MemoryManager
     from .rules import RulesEngine
-    from .models import Memory, Rule
+    from .models import Memory, Rule, CodeEntity
     from . import __version__
     from . import vectors
     from .logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
@@ -93,12 +93,12 @@ except ImportError:
     from daem0nmcp.database import DatabaseManager
     from daem0nmcp.memory import MemoryManager
     from daem0nmcp.rules import RulesEngine
-    from daem0nmcp.models import Memory, Rule
+    from daem0nmcp.models import Memory, Rule, CodeEntity
     from daem0nmcp import __version__
     from daem0nmcp import vectors
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from daem0nmcp.covenant import requires_communion, requires_counsel, set_context_callback
-from sqlalchemy import select, delete, or_
+from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
 
 # Configure logging
@@ -515,42 +515,17 @@ async def remember(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Store a decision, pattern, warning, or learning in long-term memory.
-
-    FEATURES:
-    - Conflict detection: Warns if this contradicts a past failure
-    - File association: Link memories to specific files
-    - Auto-permanent: Patterns and warnings don't decay (they're project facts)
-
-    Use this immediately when:
-    - Making an architectural decision
-    - Establishing a pattern to follow
-    - Encountering something that should be avoided (warning)
-    - Learning something useful from experience
+    Store a memory (decision/pattern/warning/learning).
+    Auto-detects conflicts with past failures. Patterns and warnings are permanent.
 
     Args:
         category: One of 'decision', 'pattern', 'warning', 'learning'
-        content: The actual content to remember
-        rationale: Why this is important / the reasoning behind it
-        context: Structured context (files involved, alternatives considered, etc.)
-        tags: Tags for easier retrieval (e.g., ['auth', 'security', 'api'])
-        file_path: Optional file path to associate this memory with
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        The created memory with its ID, plus any conflict warnings
-
-    Examples:
-        remember("decision", "Use JWT tokens instead of sessions",
-                 rationale="Need stateless auth for horizontal scaling",
-                 tags=["auth", "architecture"])
-
-        remember("warning", "Don't use sync DB calls in request handlers",
-                 rationale="Caused timeout issues in production",
-                 file_path="api/handlers.py")
-
-        remember("pattern", "All API routes must have rate limiting",
-                 file_path="api/routes.py")
+        content: What to remember
+        rationale: Why this matters
+        context: Structured context dict
+        tags: List of tags for retrieval
+        file_path: Associate with a file
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -579,29 +554,11 @@ async def remember_batch(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Store multiple memories in a single transaction.
-
-    More efficient than calling remember() multiple times, especially for
-    bootstrapping or bulk imports. All memories are stored atomically.
+    Store multiple memories atomically. Efficient for bulk imports.
 
     Args:
-        memories: List of memory dicts, each with:
-            - category: One of 'decision', 'pattern', 'warning', 'learning' (required)
-            - content: The actual content to remember (required)
-            - rationale: Why this is important (optional)
-            - tags: List of tags for retrieval (optional)
-            - file_path: Associated file path (optional)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Summary with created_count, error_count, ids list, and any errors
-
-    Examples:
-        remember_batch([
-            {"category": "pattern", "content": "Use TypeScript for all new code"},
-            {"category": "warning", "content": "Don't use var, use const/let"},
-            {"category": "decision", "content": "Chose React over Vue", "rationale": "Team expertise"}
-        ])
+        memories: List of dicts with category, content, rationale (opt), tags (opt), file_path (opt)
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -650,47 +607,18 @@ async def recall(
     condensed: bool = False
 ) -> Dict[str, Any]:
     """
-    Recall memories relevant to a topic using SEMANTIC SIMILARITY.
-
-    This uses TF-IDF matching, not just keywords - it understands related concepts.
-    Results are weighted by:
-    - Semantic relevance to your query
-    - Recency (recent memories score higher)
-    - Importance (warnings and failed decisions are boosted)
-
-    Call this before working on any feature to get:
-    - Past decisions about this area
-    - Patterns that should be followed
-    - Warnings about what to avoid (including failed approaches)
-    - Learnings from previous work
+    Semantic search for memories using TF-IDF. Results weighted by relevance, recency, importance.
 
     Args:
-        topic: What you're looking for (e.g., "authentication", "database schema")
-        categories: Limit to specific categories (default: all)
-        tags: Filter to memories with specific tags
-        file_path: Filter to memories for a specific file
-        offset: Number of results to skip for pagination (default: 0)
-        limit: Max memories per category (default: 10)
-        since: Only include memories created after this date (ISO format)
-        until: Only include memories created before this date (ISO format)
-        project_path: Project root path (for multi-project HTTP server support)
-        include_linked: If True, also search memories from linked projects (read-only)
-        condensed: If True, return compressed output (~75% token reduction) by stripping
-            rationale, context, and truncating content to 150 chars. Ideal for AI agents
-            in long sessions (Endless Mode).
-
-    Returns:
-        Categorized memories with relevance scores, pagination metadata, and failure warnings
-
-    Examples:
-        recall("authentication")  # Get all memories about auth
-        recall("API endpoints", categories=["pattern", "warning"])
-        recall("database")  # Before making DB changes
-        recall("Redis", tags=["cache"])  # Only memories tagged with cache
-        recall("sync calls", file_path="api/handlers.py")  # Only for specific file
-        recall("API", offset=10, limit=10)  # Get second page
-        recall("auth", since="2025-01-01T00:00:00Z")  # Only recent memories
-        recall("auth", condensed=True)  # Compressed output for token efficiency
+        topic: What to search for
+        categories: Filter by category
+        tags: Filter by tags
+        file_path: Filter by file
+        offset/limit: Pagination
+        since/until: Date range (ISO format)
+        project_path: Project root
+        include_linked: Search linked projects
+        condensed: Compress output (~75% token reduction)
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -743,43 +671,16 @@ async def add_rule(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Add a rule to the decision tree. Rules provide automatic guidance.
-
-    Rules are matched SEMANTICALLY - you don't need exact keyword matches.
-    "adding API endpoint" will match "creating a new REST route".
-
-    When an action matches a rule's trigger, the AI gets guidance on:
-    - What MUST be done
-    - What MUST NOT be done
-    - What questions to ask first
-    - What warnings to consider
+    Add a decision tree rule. Rules are matched semantically.
 
     Args:
-        trigger: What activates this rule (natural language, e.g., "adding new API endpoint")
-        must_do: Things that must be done when this rule applies
-        must_not: Things that must be avoided
-        ask_first: Questions to consider before proceeding
-        warnings: Warnings from past experience
-        priority: Higher priority rules are shown first (default: 0)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        The created rule
-
-    Examples:
-        add_rule(
-            trigger="adding new API endpoint",
-            must_do=["Add rate limiting", "Add to OpenAPI spec", "Write integration test"],
-            must_not=["Use synchronous database calls"],
-            ask_first=["Is this a breaking change?", "Does this need authentication?"]
-        )
-
-        add_rule(
-            trigger="modifying database schema",
-            must_do=["Create migration", "Test rollback", "Update seed data"],
-            warnings=["Schema change on 2024-10-01 caused 2hr outage"],
-            priority=10  # High priority
-        )
+        trigger: What activates this rule (natural language)
+        must_do: Required actions
+        must_not: Forbidden actions
+        ask_first: Questions to consider
+        warnings: Past experience warnings
+        priority: Higher = shown first
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -808,28 +709,12 @@ async def check_rules(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Check if an action triggers any rules and get guidance.
-
-    Uses SEMANTIC matching - "creating REST endpoint" will match rules about "adding API routes".
-
-    Call this BEFORE taking any significant action to get:
-    - Matching rules for this type of action
-    - Combined must_do / must_not guidance
-    - Relevant warnings
-    - Questions to consider
+    Check if an action matches any rules. Call before significant changes.
 
     Args:
-        action: Description of what you're about to do
-        context: Optional context (files involved, etc.)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Matching rules and combined guidance with severity indicator
-
-    Examples:
-        check_rules("adding a new REST endpoint for user profiles")
-        check_rules("modifying the authentication middleware")
-        check_rules("updating the database schema to add a new column")
+        action: What you're about to do
+        context: Optional context dict
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -852,27 +737,13 @@ async def record_outcome(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Record the outcome of a decision to learn from it.
-
-    IMPORTANT: Failed decisions become implicit warnings that get BOOSTED
-    in future recalls. This is how the system learns.
-
-    Use this after implementing a decision to track:
-    - What actually happened
-    - Whether it worked out
+    Record whether a decision worked. Failed outcomes get boosted in future searches.
 
     Args:
-        memory_id: The ID of the memory (returned from 'remember')
-        outcome: Description of what happened
-        worked: Did it work? True/False
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Updated memory, with suggestions if it failed
-
-    Examples:
-        record_outcome(42, "JWT auth works well, no session issues", worked=True)
-        record_outcome(43, "Caching caused stale data bugs", worked=False)
+        memory_id: ID from remember()
+        outcome: What happened
+        worked: True/False
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -1758,30 +1629,11 @@ async def get_briefing(
     focus_areas: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
-    Get everything needed to start a session - call this FIRST.
-
-    Returns:
-    - Memory statistics and learning insights
-    - Recent decisions (what changed lately)
-    - Active warnings (what to watch out for)
-    - High-priority rules (what to always check)
-    - Failed approaches (what not to repeat)
-    - Git changes since last memory (what happened while you were away)
-    - Active context (always-hot memories for current session)
-
-    If you provide focus_areas, you'll also get relevant memories for those topics.
+    Session start - call FIRST. Returns stats, recent decisions, warnings, failed approaches, git changes.
 
     Args:
-        project_path: Project root path (IMPORTANT for multi-project support - pass your current working directory)
-        focus_areas: Optional list of topics to pre-fetch memories for
-
-    Returns:
-        Complete session briefing with actionable context
-
-    Example:
-        get_briefing()  # Basic briefing
-        get_briefing(project_path="/path/to/project")  # Explicit project
-        get_briefing(focus_areas=["authentication", "API"])  # With pre-loaded context
+        project_path: Project root (REQUIRED)
+        focus_areas: Topics to pre-fetch
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -1877,26 +1729,15 @@ async def search_memories(
     project_path: Optional[str] = None
 ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    Search across all memories with semantic similarity.
-
-    Use this when you need to find specific memories by content.
-    Uses TF-IDF matching for better results than exact text search.
-    Optionally includes highlighted excerpts showing matched terms.
+    Full-text search across all memories with TF-IDF ranking.
 
     Args:
         query: Search text
-        limit: Maximum results (default: 20)
-        offset: Number of results to skip (default: 0)
-        include_meta: Return pagination metadata with results
-        highlight: If True, include highlighted excerpts in results
-        highlight_start: Opening tag for matched terms (default: <b>)
-        highlight_end: Closing tag for matched terms (default: </b>)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Matching memories ranked by relevance.
-        If highlight=True, each result includes an 'excerpt' field with
-        highlighted matches.
+        limit/offset: Pagination
+        include_meta: Return pagination metadata
+        highlight: Include matched term excerpts
+        highlight_start/end: Tags for highlighting
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -1951,12 +1792,9 @@ async def list_rules(
     List all configured rules.
 
     Args:
-        enabled_only: Only show enabled rules (default: True)
-        limit: Maximum results (default: 50)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        List of rules with their guidance
+        enabled_only: Only show enabled rules
+        limit: Max results
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -1986,17 +1824,11 @@ async def update_rule(
     Update an existing rule.
 
     Args:
-        rule_id: ID of the rule to update
-        must_do: New must_do list (replaces existing)
-        must_not: New must_not list (replaces existing)
-        ask_first: New ask_first list (replaces existing)
-        warnings: New warnings list (replaces existing)
+        rule_id: ID of rule to update
+        must_do/must_not/ask_first/warnings: New lists (replace existing)
         priority: New priority
-        enabled: Enable/disable rule
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Updated rule or error
+        enabled: Enable/disable
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -2026,22 +1858,12 @@ async def find_related(
     project_path: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    Find memories related to a specific memory.
-
-    Useful for exploring connected decisions and understanding context.
-    Uses semantic similarity to find related content.
+    Find memories semantically related to a specific memory.
 
     Args:
-        memory_id: ID of the memory to find related content for
-        limit: Maximum related memories to return (default: 5)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        List of related memories with similarity scores
-
-    Example:
-        # After seeing a decision about auth, find related patterns/warnings
-        find_related(42)
+        memory_id: Memory to find relations for
+        limit: Max results
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -2062,20 +1884,11 @@ async def context_check(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Quick check for any relevant memories and rules for what you're about to do.
-
-    Combines recall and check_rules in one call. Use this as a fast
-    pre-flight check before making changes.
+    Pre-flight check combining recall + check_rules. Issues preflight token valid for 5 min.
 
     Args:
-        description: Brief description of what you're working on
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Combined results: relevant memories, matching rules, and any warnings
-
-    Example:
-        context_check("modifying the user authentication flow")
+        description: What you're about to do
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -2169,23 +1982,10 @@ async def recall_for_file(
     """
     Get all memories associated with a specific file.
 
-    Use this when opening or modifying a file to see:
-    - Past decisions about this file
-    - Patterns that apply
-    - Warnings about potential issues
-    - Failed approaches to avoid
-
     Args:
-        file_path: The file path to look up
-        limit: Max memories to return (default: 10)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Memories organized by category with warning indicators
-
-    Example:
-        recall_for_file("api/handlers.py")
-        recall_for_file("src/components/Auth.tsx")
+        file_path: File to look up
+        limit: Max results
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -2337,24 +2137,13 @@ async def scan_todos(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Scan the codebase for TODO, FIXME, HACK, XXX, and BUG comments.
-
-    Tech debt finder - discovers and optionally tracks code comments that
-    indicate incomplete work, known issues, or workarounds.
+    Scan codebase for TODO/FIXME/HACK/XXX/BUG comments.
 
     Args:
-        path: Directory to scan (defaults to project directory)
-        auto_remember: If True, automatically create warning memories for each TODO
-        types: Filter to specific types (e.g., ["FIXME", "HACK"]) - default: all
-        project_path: Path to the project root (for multi-project support)
-
-    Returns:
-        List of found items grouped by type, with file locations
-
-    Examples:
-        scan_todos()  # Scan current directory
-        scan_todos(types=["FIXME", "HACK"])  # Only critical items
-        scan_todos(auto_remember=True)  # Scan and save as warnings
+        path: Directory to scan
+        auto_remember: Save as warning memories
+        types: Filter to specific types
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -2693,29 +2482,13 @@ async def ingest_doc(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Fetch external documentation and store it as permanent learnings.
-
-    Use this to import knowledge from external sources:
-    - API documentation (Stripe, Twilio, etc.)
-    - Library docs (React, Django, etc.)
-    - Team wikis or RFCs
-    - Best practices guides
-
-    The content is chunked and stored as permanent learnings that can be
-    recalled later. Each chunk is tagged with the topic for easy retrieval.
+    Fetch external docs from URL and store as learnings. Content is chunked.
 
     Args:
-        url: The URL to fetch documentation from
-        topic: Topic tag for organizing the docs (e.g., "stripe", "react-hooks")
-        chunk_size: Max characters per memory chunk (default: 2000)
-        project_path: Path to the project root (for multi-project support)
-
-    Returns:
-        Summary of ingested content
-
-    Examples:
-        ingest_doc("https://stripe.com/docs/api/charges", "stripe-charges")
-        ingest_doc("https://react.dev/reference/react/hooks", "react-hooks")
+        url: URL to fetch
+        topic: Tag for organizing
+        chunk_size: Max chars per chunk
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -2800,29 +2573,11 @@ async def propose_refactor(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Generate refactor suggestions for a file based on memory context.
-
-    Combines:
-    - File-specific memories (past decisions, warnings)
-    - Causal history (what decisions LED TO the current state)
-    - TODO/FIXME comments in the file
-    - Relevant rules and patterns
-
-    Returns structured context that helps the AI agent propose
-    informed refactoring decisions, including WHY the code evolved
-    the way it did.
+    Generate refactor suggestions combining file memories, causal history, TODOs, and rules.
 
     Args:
-        file_path: The file to analyze for refactoring
-        project_path: Path to the project root (for multi-project support)
-
-    Returns:
-        Combined context with memories, causal_history, todos, and suggested actions.
-        The causal_history field traces backward through linked memories to show
-        what decisions led to each memory associated with the file.
-
-    Example:
-        propose_refactor("src/auth/handlers.py")
+        file_path: File to analyze
+        project_path: Project root
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -2953,16 +2708,10 @@ async def rebuild_index(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Force rebuild of all search indexes.
-
-    Use this if search results seem stale or after bulk database operations.
-    Rebuilds both memory TF-IDF/vector indexes and rule indexes.
+    Force rebuild of TF-IDF/vector indexes. Use if search seems stale.
 
     Args:
-        project_path: Project root path
-
-    Returns:
-        Statistics about the rebuild
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -2988,16 +2737,11 @@ async def export_data(
     include_vectors: bool = False
 ) -> Dict[str, Any]:
     """
-    Export all memories and rules as JSON.
-
-    Use for backup, migration, or sharing project knowledge.
+    Export all memories and rules as JSON for backup/migration.
 
     Args:
-        project_path: Project root path
-        include_vectors: Include vector embeddings (large, default False)
-
-    Returns:
-        JSON structure with all memories and rules
+        project_path: Project root
+        include_vectors: Include embeddings (large)
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3070,15 +2814,12 @@ async def import_data(
     merge: bool = True
 ) -> Dict[str, Any]:
     """
-    Import memories and rules from exported JSON.
+    Import memories/rules from exported JSON.
 
     Args:
-        data: Exported data structure (from export_data)
-        project_path: Project root path
-        merge: If True, add to existing data. If False, replace all.
-
-    Returns:
-        Import statistics
+        data: Exported data structure
+        merge: Add to existing (True) or replace all (False)
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3181,17 +2922,12 @@ async def pin_memory(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Pin or unpin a memory.
-
-    Pinned memories:
-    - Never pruned automatically
-    - Get relevance boost in recall
-    - Treated as permanent project knowledge
+    Pin/unpin a memory. Pinned: never pruned, boosted in recall, permanent.
 
     Args:
-        memory_id: Memory to pin/unpin
+        memory_id: Memory to pin
         pinned: True to pin, False to unpin
-        project_path: Project root path
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3233,28 +2969,14 @@ async def link_memories(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Create an explicit relationship between two memories.
-
-    Use this to build a knowledge graph of how decisions connect:
-    - "led_to": Decision A caused or resulted in Pattern B
-    - "supersedes": New approach replaces an old one
-    - "depends_on": Pattern A requires Decision B to be valid
-    - "conflicts_with": Warning contradicts a decision
-    - "related_to": General association
+    Create relationship between memories. Types: led_to, supersedes, depends_on, conflicts_with, related_to.
 
     Args:
-        source_id: The "from" memory ID
-        target_id: The "to" memory ID
-        relationship: One of: led_to, supersedes, depends_on, conflicts_with, related_to
-        description: Optional context explaining this relationship
-        project_path: Project root path
-
-    Returns:
-        Status of the link operation
-
-    Examples:
-        link_memories(42, 58, "led_to", "Database choice led to this caching pattern")
-        link_memories(99, 42, "supersedes", "New auth approach replaces old one")
+        source_id: From memory ID
+        target_id: To memory ID
+        relationship: Relationship type
+        description: Optional context
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3278,16 +3000,13 @@ async def unlink_memories(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Remove a relationship between two memories.
+    Remove relationship between memories.
 
     Args:
-        source_id: The "from" memory ID
-        target_id: The "to" memory ID
-        relationship: Specific relationship to remove (if None, removes all between the pair)
-        project_path: Project root path
-
-    Returns:
-        Status of the unlink operation
+        source_id: From memory ID
+        target_id: To memory ID
+        relationship: Specific type to remove (None = all)
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3311,26 +3030,14 @@ async def trace_chain(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Traverse the memory graph from a starting point.
-
-    Use this to understand causal chains and dependencies:
-    - "What decisions led to this pattern?"
-    - "What depends on this library choice?"
-    - "What's the full context around this warning?"
+    Traverse memory graph to understand causal chains and dependencies.
 
     Args:
-        memory_id: Starting memory ID
-        direction: "forward" (descendants), "backward" (ancestors), or "both"
-        relationship_types: Filter to specific types (default: all)
-        max_depth: How far to traverse (default: 10)
-        project_path: Project root path
-
-    Returns:
-        Chain of connected memories with relationship info
-
-    Examples:
-        trace_chain(42, direction="backward")  # What led to this?
-        trace_chain(42, direction="forward", relationship_types=["depends_on"])
+        memory_id: Starting point
+        direction: forward/backward/both
+        relationship_types: Filter by type
+        max_depth: How far to traverse
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3354,23 +3061,13 @@ async def get_graph(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Get a subgraph of memories and their relationships.
-
-    Returns nodes (memories) and edges (relationships) for visualization
-    or analysis. Can output as JSON or Mermaid diagram.
+    Get subgraph of memories and relationships as JSON or Mermaid diagram.
 
     Args:
-        memory_ids: Specific memory IDs to include
-        topic: Topic to search for (alternative to memory_ids)
-        format: "json" or "mermaid" for diagram output
-        project_path: Project root path
-
-    Returns:
-        Graph structure with nodes, edges, and optional mermaid diagram
-
-    Examples:
-        get_graph(memory_ids=[42, 58, 99])
-        get_graph(topic="authentication", format="mermaid")
+        memory_ids: Specific IDs to include
+        topic: Alternative to memory_ids
+        format: json or mermaid
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3395,23 +3092,15 @@ async def prune_memories(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Prune old, low-value memories with saliency-based protection.
-
-    By default, only affects episodic memories (decisions, learnings).
-    Protected memories (never pruned):
-    - Permanent memories (patterns, warnings)
-    - Pinned memories
-    - Memories with outcomes recorded
-    - Frequently accessed memories (recall_count >= min_recall_count)
-    - Successful decisions (worked=True) if protect_successful is True
+    Prune old low-value memories. Protected: permanent, pinned, with outcomes, frequently accessed.
 
     Args:
-        older_than_days: Only prune memories older than this
-        categories: Limit to these categories (default: decision, learning)
-        min_recall_count: Protect memories accessed at least this many times (default: 5)
-        protect_successful: Protect memories with worked=True (default: True)
-        dry_run: If True, just report what would be pruned
-        project_path: Project root path
+        older_than_days: Age threshold
+        categories: Limit to these categories
+        min_recall_count: Protect if accessed >= N times
+        protect_successful: Protect worked=True
+        dry_run: Preview only
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3486,14 +3175,12 @@ async def archive_memory(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Archive or unarchive a memory.
-
-    Archived memories are hidden from recall but preserved for history.
+    Archive/unarchive a memory. Archived = hidden from recall but preserved.
 
     Args:
-        memory_id: Memory to archive/unarchive
+        memory_id: Memory to archive
         archived: True to archive, False to restore
-        project_path: Project root path
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3528,25 +3215,12 @@ async def cleanup_memories(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Clean up stale and duplicate memories.
-
-    Identifies duplicates by:
-    - Same category + normalized content + file_path
-
-    In dry_run mode: returns preview of what would be cleaned
-    When merging: keeps newest, preserves outcomes from others
+    Merge duplicate memories (same category + content + file_path). Keeps newest.
 
     Args:
-        dry_run: Preview what would be cleaned (default: True)
-        merge_duplicates: Merge duplicate memories (keep newest, preserve outcomes)
-        project_path: Project root path
-
-    Returns:
-        Preview of duplicates (dry_run=True) or merge results (dry_run=False)
-
-    Examples:
-        cleanup_memories()  # Preview duplicates
-        cleanup_memories(dry_run=False)  # Actually merge duplicates
+        dry_run: Preview only
+        merge_duplicates: Actually merge
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3664,25 +3338,14 @@ async def compact_memories(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Compact recent episodic memories into a single summary.
-
-    Consolidates multiple decision/learning memories into one summary,
-    archives the originals, and preserves history via graph edges.
-    Use this to reduce recall noise while maintaining audit trails.
+    Consolidate recent episodic memories into a summary. Originals archived with graph links.
 
     Args:
-        summary: The summary text (must be at least 50 characters)
-        limit: Max number of memories to compact (default: 10)
-        topic: Optional topic filter (matches content, rationale, or tags)
-        dry_run: Preview candidates without changes (default: True)
-        project_path: Project root path (for multi-project HTTP server support)
-
-    Returns:
-        Result with status, summary_id, compacted_count, etc.
-
-    Examples:
-        compact_memories("Summary of auth work...", limit=5, dry_run=True)
-        compact_memories("Summary of DB decisions...", topic="database", dry_run=False)
+        summary: Summary text (min 50 chars)
+        limit: Max memories to compact
+        topic: Filter by topic
+        dry_run: Preview only
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3703,16 +3366,10 @@ async def health(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Get server health and version information.
-
-    Returns version, statistics, and configuration info.
-    Useful for debugging and monitoring.
+    Get server health, version, and statistics.
 
     Args:
-        project_path: Project root path
-
-    Returns:
-        Health status with version and statistics
+        project_path: Project root
     """
     import time
 
@@ -3725,6 +3382,30 @@ async def health(
     # Get rule count
     rules = await ctx.rules_engine.list_rules(enabled_only=False, limit=1000)
 
+    # Code entity stats
+    async with ctx.db_manager.get_session() as session:
+        result = await session.execute(select(func.count(CodeEntity.id)))
+        entity_count = result.scalar() or 0
+
+        result = await session.execute(select(func.max(CodeEntity.indexed_at)))
+        last_indexed = result.scalar()
+
+        result = await session.execute(
+            select(CodeEntity.entity_type, func.count(CodeEntity.id))
+            .group_by(CodeEntity.entity_type)
+        )
+        entities_by_type = {row[0]: row[1] for row in result.all()}
+
+    # Index freshness
+    index_age_seconds = None
+    index_stale = False
+    if last_indexed:
+        now = datetime.now(timezone.utc)
+        if last_indexed.tzinfo is None:
+            last_indexed = last_indexed.replace(tzinfo=timezone.utc)
+        index_age_seconds = (now - last_indexed).total_seconds()
+        index_stale = index_age_seconds > 86400  # 24 hours
+
     return {
         "status": "healthy",
         "version": __version__,
@@ -3735,7 +3416,13 @@ async def health(
         "by_category": stats.get("by_category", {}),
         "contexts_cached": len(_project_contexts),
         "vectors_enabled": vectors.is_available(),
-        "timestamp": time.time()
+        "timestamp": time.time(),
+        # Code index stats
+        "code_entities_count": entity_count,
+        "entities_by_type": entities_by_type,
+        "last_indexed_at": last_indexed.isoformat() if last_indexed else None,
+        "index_age_seconds": index_age_seconds,
+        "index_stale": index_stale,
     }
 
 
@@ -3752,23 +3439,12 @@ async def index_project(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Index a project's code structure for understanding.
-
-    Parses source files using tree-sitter to extract:
-    - Classes, functions, methods
-    - Signatures and docstrings
-    - File locations
-
-    Indexed entities can be searched with find_code() and
-    analyzed with analyze_impact().
+    Index code structure using tree-sitter. Extracts classes, functions, methods with signatures.
 
     Args:
-        path: Path to index (defaults to project root)
-        patterns: Glob patterns for files (defaults to all supported languages)
-        project_path: Project root path
-
-    Returns:
-        Indexing statistics (entities indexed, files processed)
+        path: Path to index
+        patterns: Glob patterns for files
+        project_path: Project root
     """
     try:
         from .code_indexer import CodeIndexManager, is_available
@@ -3815,23 +3491,12 @@ async def find_code(
     limit: int = 20
 ) -> Dict[str, Any]:
     """
-    Semantic search across indexed code entities.
-
-    Finds classes, functions, and methods that match your query.
-    Uses vector similarity for natural language understanding.
-
-    Example queries:
-    - "user authentication"
-    - "database connection handling"
-    - "API request validation"
+    Semantic search across indexed code entities using vector similarity.
 
     Args:
-        query: Search query (natural language)
-        project_path: Project root path
-        limit: Maximum results (default: 20)
-
-    Returns:
-        Matching code entities with relevance scores
+        query: Natural language query
+        limit: Max results
+        project_path: Project root
     """
     try:
         from .code_indexer import CodeIndexManager, is_available
@@ -3877,19 +3542,11 @@ async def analyze_impact(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Analyze what would be affected by changing a code entity.
-
-    Helps understand the blast radius of changes by finding:
-    - Files that would be affected
-    - Other entities that depend on this one
-    - Call sites and usage patterns
+    Analyze blast radius of changing a code entity. Finds affected files and dependents.
 
     Args:
-        entity_name: Name of the function/class/method to analyze
-        project_path: Project root path
-
-    Returns:
-        Impact analysis with affected files and entities
+        entity_name: Function/class/method name
+        project_path: Project root
     """
     try:
         from .code_indexer import CodeIndexManager, is_available
@@ -3928,29 +3585,13 @@ async def link_projects(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Create a link between the current project and another project.
-
-    Links enable reading memories from related projects while maintaining
-    strict write isolation (each project only writes to its own database).
-
-    Relationship types:
-    - same-project: Different repos in the same logical project (frontend/backend)
-    - upstream: A dependency or library this project uses
-    - downstream: A project that depends on this one
-    - related: General association
+    Link to another project for cross-project memory reading (write isolation preserved).
 
     Args:
-        linked_path: Path to the project to link to
-        relationship: Type of relationship (same-project, upstream, downstream, related)
+        linked_path: Path to link
+        relationship: same-project/upstream/downstream/related
         label: Optional human-readable label
-        project_path: Current project root path
-
-    Returns:
-        Status dict with link details
-
-    Examples:
-        link_projects("/repos/client", "same-project", label="Frontend app")
-        link_projects("/repos/shared-lib", "upstream")
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -3979,17 +3620,11 @@ async def unlink_projects(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Remove a link between the current project and another project.
+    Remove project link.
 
     Args:
-        linked_path: Path to the project to unlink
-        project_path: Current project root path
-
-    Returns:
-        Status dict
-
-    Example:
-        unlink_projects("/repos/client")
+        linked_path: Path to unlink
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4015,16 +3650,10 @@ async def list_linked_projects(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    List all projects linked from the current project.
+    List all linked projects.
 
     Args:
-        project_path: Current project root path
-
-    Returns:
-        Dict with 'links' array containing linked project details
-
-    Example:
-        list_linked_projects()  # Returns {"links": [...]}
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4049,28 +3678,11 @@ async def consolidate_linked_databases(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Merge memories from all linked project databases into this one.
-
-    Use this when consolidating multiple child repos into a parent project,
-    or when transitioning from a multi-repo to a monorepo setup.
-
-    All merged memories will have _merged_from in their context, preserving
-    the original source project path for traceability.
+    Merge memories from all linked projects into this one. For monorepo transitions.
 
     Args:
-        archive_sources: If True, rename source .daem0nmcp dirs to .daem0nmcp.archived
-        project_path: Current project root path (target for consolidation)
-
-    Returns:
-        Dict with:
-        - status: "consolidated" or "no_links"
-        - memories_merged: Number of memories copied
-        - sources_processed: List of source project paths
-        - archived: Whether sources were archived
-
-    Examples:
-        consolidate_linked_databases()  # Merge all linked project DBs
-        consolidate_linked_databases(archive_sources=True)  # Merge and archive sources
+        archive_sources: Rename source .daem0nmcp to .daem0nmcp.archived
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4104,25 +3716,14 @@ async def set_active_context(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Add a memory to the active working context.
-
-    Active context memories are always-hot - they're auto-included in
-    briefings and available for injection into other responses.
-
-    Use this for:
-    - Critical decisions that must inform all work
-    - Active warnings that should never be forgotten
-    - Current focus areas
+    Add memory to always-hot working context. Auto-included in briefings.
 
     Args:
-        memory_id: Memory to add to active context
-        reason: Why this memory should stay hot (helps future understanding)
-        priority: Higher = shown first (default: 0)
-        expires_in_hours: Auto-remove after N hours (default: never)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Status of the operation
+        memory_id: Memory to add
+        reason: Why it should stay hot
+        priority: Higher = shown first
+        expires_in_hours: Auto-remove after N hours
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4155,16 +3756,10 @@ async def get_active_context(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Get all memories in the active working context.
-
-    These are the always-hot memories that inform all work.
-    Returns full memory content, ordered by priority.
+    Get all always-hot memories ordered by priority.
 
     Args:
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        List of active context items with full memory content
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4188,14 +3783,11 @@ async def remove_from_active_context(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Remove a memory from the active working context.
+    Remove memory from active context.
 
     Args:
-        memory_id: Memory to remove from active context
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Status of the operation
+        memory_id: Memory to remove
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4218,15 +3810,10 @@ async def clear_active_context(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Clear all memories from the active working context.
-
-    Use this when switching focus or starting fresh.
+    Clear all active context memories. Use when switching focus.
 
     Args:
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Number of items removed
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4256,23 +3843,12 @@ async def get_memory_versions(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Get version history for a memory.
-
-    Shows how a memory has evolved over time, including:
-    - Content changes
-    - Outcome recordings
-    - Relationship changes
+    Get version history showing how a memory evolved over time.
 
     Args:
-        memory_id: The memory to get versions for
-        limit: Maximum versions to return (default: 50)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        List of versions in chronological order
-
-    Example:
-        get_memory_versions(42)  # Get all versions of memory 42
+        memory_id: Memory to query
+        limit: Max versions
+        project_path: Project root
     """
     if project_path is None and not _default_project_path:
         return _missing_project_path_error()
@@ -4296,22 +3872,12 @@ async def get_memory_at_time(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Get a memory's state at a specific point in time.
-
-    Use this to answer questions like:
-    - "What did we believe about auth last month?"
-    - "How has this decision evolved?"
+    Get memory state at a specific point in time.
 
     Args:
-        memory_id: The memory to query
-        timestamp: ISO format timestamp (e.g., "2025-01-01T00:00:00Z")
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Memory state at that time, or error if it didn't exist yet
-
-    Example:
-        get_memory_at_time(42, "2025-01-01T00:00:00Z")
+        memory_id: Memory to query
+        timestamp: ISO format timestamp
+        project_path: Project root
     """
     if project_path is None and not _default_project_path:
         return _missing_project_path_error()
@@ -4346,21 +3912,11 @@ async def rebuild_communities(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Detect and save memory communities based on tag co-occurrence.
-
-    Communities are clusters of related memories that share tags.
-    Each community gets an auto-generated summary.
-
-    Use this to:
-    - Get high-level overviews of memory clusters
-    - Enable hierarchical recall (summary -> details)
+    Detect memory communities based on tag co-occurrence. Auto-generates summaries.
 
     Args:
-        min_community_size: Minimum members for a community (default: 2)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Number of communities created
+        min_community_size: Min members per community
+        project_path: Project root
     """
     if project_path is None and not _default_project_path:
         return _missing_project_path_error()
@@ -4397,16 +3953,11 @@ async def list_communities(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    List all memory communities with their summaries.
-
-    Use this for high-level overview before drilling into specifics.
+    List all memory communities with summaries.
 
     Args:
-        level: Filter by hierarchy level (0=most specific)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        List of communities with summaries
+        level: Filter by hierarchy level
+        project_path: Project root
     """
     if project_path is None and not _default_project_path:
         return _missing_project_path_error()
@@ -4435,16 +3986,11 @@ async def get_community_details(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Get full details for a community including all member memories.
-
-    Use this to "drill down" from a community summary to specifics.
+    Get full community details including all member memories.
 
     Args:
-        community_id: ID of the community to expand
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Community summary and all member memories
+        community_id: Community to expand
+        project_path: Project root
     """
     if project_path is None and not _default_project_path:
         return _missing_project_path_error()
@@ -4467,24 +4013,13 @@ async def recall_hierarchical(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Hierarchical recall - community summaries first, then individual memories.
-
-    Use this for a GraphRAG-style layered response:
-    1. First shows relevant community summaries (high-level overview)
-    2. Then shows individual memories (detailed)
-
-    Example workflow:
-    1. recall_hierarchical("authentication") -> see auth community summary
-    2. get_community_details(community_id) -> drill into specifics
+    GraphRAG-style layered recall: community summaries first, then individual memories.
 
     Args:
-        topic: What you're looking for
-        include_members: Include full member content in community results
+        topic: What to search for
+        include_members: Include full member content
         limit: Max results per layer
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Communities section (summaries) and memories section (details)
+        project_path: Project root
     """
     if project_path is None and not _default_project_path:
         return _missing_project_path_error()
@@ -4511,22 +4046,12 @@ async def recall_by_entity(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Get all memories mentioning a specific entity.
-
-    This enables queries like "show everything related to UserService"
-    or "find all decisions about the authenticate function".
+    Get all memories mentioning a specific entity (class/function/file).
 
     Args:
-        entity_name: Name of the entity to search for (e.g., "UserService", "authenticate_user")
-        entity_type: Optional type filter (e.g., "class", "function", "file")
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Dict with entity info and list of memories referencing it
-
-    Examples:
-        recall_by_entity("UserService")
-        recall_by_entity("authenticate_user", entity_type="function")
+        entity_name: Entity to search for
+        entity_type: Optional type filter
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4558,21 +4083,10 @@ async def list_entities(
     """
     List most frequently mentioned entities.
 
-    Returns entities ordered by mention count - useful for understanding
-    which code elements are most discussed in the memory system.
-
     Args:
-        entity_type: Optional filter by type (e.g., "class", "function", "file")
-        limit: Maximum number of entities to return (default: 20)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Dict with list of entities and their mention counts
-
-    Examples:
-        list_entities()  # All entity types
-        list_entities(entity_type="class")  # Only classes
-        list_entities(limit=10)  # Top 10 entities
+        entity_type: Optional type filter
+        limit: Max results
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4605,20 +4119,10 @@ async def backfill_entities(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Extract entities from all existing memories.
-
-    Use this to populate entity data for memories created before
-    auto-extraction was enabled. Safe to run multiple times -
-    won't create duplicate entity references.
+    Extract entities from all existing memories. Safe to run multiple times.
 
     Args:
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Summary of how many memories were processed and entities extracted
-
-    Example:
-        backfill_entities()  # Process all existing memories
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4679,39 +4183,15 @@ async def add_context_trigger(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Create an auto-recall trigger.
-
-    Triggers automatically recall memories when certain patterns match:
-    - file_pattern: Glob pattern matching file paths (e.g., "src/auth/**/*.py")
-    - tag_match: Regex pattern matching memory tags (e.g., "auth|security")
-    - entity_match: Regex pattern matching entity names (e.g., ".*Service$")
-
-    When a trigger matches, the specified topic is automatically recalled.
+    Create auto-recall trigger. Types: file_pattern (glob), tag_match (regex), entity_match (regex).
 
     Args:
-        trigger_type: One of: file_pattern, tag_match, entity_match
-        pattern: The pattern to match (glob for files, regex for tags/entities)
-        recall_topic: Topic to recall when this trigger matches
-        recall_categories: Optional list of categories to filter recall
-        priority: Higher priority triggers are evaluated first (default: 0)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Status dict with trigger_id
-
-    Examples:
-        add_context_trigger(
-            trigger_type="file_pattern",
-            pattern="src/auth/**/*.py",
-            recall_topic="authentication"
-        )
-
-        add_context_trigger(
-            trigger_type="tag_match",
-            pattern="database|sql",
-            recall_topic="database decisions",
-            recall_categories=["warning", "pattern"]
-        )
+        trigger_type: file_pattern/tag_match/entity_match
+        pattern: Glob or regex pattern
+        recall_topic: Topic to recall when triggered
+        recall_categories: Optional category filter
+        priority: Higher = evaluated first
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4747,15 +4227,8 @@ async def list_context_triggers(
     List all configured context triggers.
 
     Args:
-        active_only: If True, only return active triggers (default: True)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Dict with list of triggers
-
-    Example:
-        list_context_triggers()  # Get all active triggers
-        list_context_triggers(active_only=False)  # Include inactive
+        active_only: Only return active triggers
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4793,14 +4266,8 @@ async def remove_context_trigger(
     Remove a context trigger.
 
     Args:
-        trigger_id: ID of the trigger to remove
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Status dict
-
-    Example:
-        remove_context_trigger(trigger_id=42)
+        trigger_id: ID of trigger to remove
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
@@ -4832,27 +4299,14 @@ async def check_context_triggers(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Check which triggers match the given context and get auto-recalled memories.
-
-    This is the full auto-recall flow:
-    1. Check which triggers match the context
-    2. For each matching trigger, recall relevant memories
-    3. Return combined results
+    Check which triggers match context and get auto-recalled memories.
 
     Args:
-        file_path: Optional file path to match against file_pattern triggers
-        tags: Optional tags to match against tag_match triggers
-        entities: Optional entity names to match against entity_match triggers
-        limit: Max memories per trigger topic (default: 5)
-        project_path: Project root path (REQUIRED)
-
-    Returns:
-        Dict with matching triggers and their associated memories
-
-    Examples:
-        check_context_triggers(file_path="src/auth/service.py")
-        check_context_triggers(tags=["security", "validation"])
-        check_context_triggers(entities=["UserService", "AuthRepository"])
+        file_path: Match against file_pattern triggers
+        tags: Match against tag_match triggers
+        entities: Match against entity_match triggers
+        limit: Max memories per trigger
+        project_path: Project root
     """
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
