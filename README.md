@@ -13,6 +13,35 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v2.16.0
+
+### Sacred Covenant Enforcement
+The Sacred Covenant is now **enforced**, not just advisory:
+
+- **`requires_communion`**: Tools block with `COMMUNION_REQUIRED` until `get_briefing()` is called
+- **`requires_counsel`**: Mutating tools block with `COUNSEL_REQUIRED` until `context_check()` is called
+- **Preflight tokens**: `context_check()` returns a cryptographic token valid for 5 minutes
+- **Remedies**: Each block includes the exact tool call needed to fix it
+
+**Affected tools:**
+- Communion required: `remember`, `remember_batch`, `add_rule`, `update_rule`, `record_outcome`, `link_memories`, `pin_memory`, `archive_memory`, `prune_memories`, `cleanup_memories`, `compact_memories`
+- Exempt (read-only): `recall`, `recall_for_file`, `search_memories`, `find_code`, `analyze_impact`, `check_rules`, `list_rules`
+
+### MCP Resources (Dynamic Context Injection)
+Resources that Claude Desktop/Code can subscribe to for automatic context:
+
+| Resource URI | Content |
+|-------------|---------|
+| `daem0n://warnings/{project_path}` | All active warnings |
+| `daem0n://failed/{project_path}` | Failed approaches to avoid |
+| `daem0n://rules/{project_path}` | All configured rules |
+| `daem0n://context/{project_path}` | Combined context (warnings + failed + rules) |
+| `daem0n://triggered/{file_path}` | Auto-recalled context for a file |
+
+### Claude Code 2.1.3 Compatibility
+- Fixed `daem0n_pre_edit_hook.py` to use MCP HTTP instead of removed `check-triggers` CLI command
+- Hooks now communicate directly with MCP server for context triggers
+
 ## What's New in v2.15.0
 
 ### Iteration 1: Search Quality
@@ -543,17 +572,18 @@ Environment variables (prefix: `DAEM0NMCP_`):
 
 ```
 daem0nmcp/
-├── server.py       # MCP server with 32 tools (FastMCP)
+├── server.py       # MCP server with 42+ tools (FastMCP)
 ├── memory.py       # Memory storage & semantic retrieval
 ├── rules.py        # Rule engine with TF-IDF matching
 ├── similarity.py   # TF-IDF index, decay, conflict detection
 ├── vectors.py      # Vector embeddings (sentence-transformers)
+├── covenant.py     # Sacred Covenant enforcement decorators & preflight tokens
 ├── code_indexer.py # Code understanding via tree-sitter (Phase 2)
 ├── watcher.py      # Proactive file watcher daemon (Phase 1)
 ├── database.py     # SQLite async database
-├── models.py       # 7 tables: memories, rules, memory_relationships,
-│                   #           session_state, enforcement_bypass_log,
-│                   #           code_entities, memory_code_refs
+├── models.py       # 10+ tables: memories, rules, memory_relationships,
+│                   #             session_state, code_entities, memory_code_refs,
+│                   #             communities, context_triggers, memory_versions, etc.
 ├── enforcement.py  # Pre-commit enforcement & session tracking
 ├── hooks.py        # Git hook templates & installation
 ├── cli.py          # Command-line interface
@@ -660,6 +690,46 @@ python -m daem0nmcp.cli index
 
 This parses your code with tree-sitter (supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP) and enables semantic code search via `find_code()` and impact analysis via `analyze_impact()`.
 
+## Troubleshooting
+
+### MCP Tools Not Available in Claude Session
+
+**Symptom:** `claude mcp list` shows daem0nmcp connected, but Claude can't use `mcp__daem0nmcp__*` tools.
+
+**Cause:** Known Claude Code bug ([#2682](https://github.com/anthropics/claude-code/issues/2682)) where MCP tools are discovered but not injected into Claude's toolbox.
+
+**Fixes:**
+
+1. **Start server before Claude Code:**
+   ```bash
+   # Terminal 1: Start Daem0n server first
+   python ~/Daem0nMCP/start_server.py --port 9876
+
+   # Wait for "Uvicorn running on http://localhost:9876"
+
+   # Terminal 2: Then start Claude Code
+   claude
+   ```
+
+2. **Re-register the server:**
+   ```bash
+   claude mcp remove daem0nmcp -s user
+   claude mcp add daem0nmcp http://localhost:9876/mcp -s user
+   ```
+
+3. **Verify tools are available:**
+   - Claude should show `mcp__daem0nmcp__*` tools in its toolbox
+   - If Claude tries `claude mcp call` bash commands instead, the tools aren't injected
+
+### Hooks Not Firing
+
+**Symptom:** Pre-edit hooks don't show Daem0n context.
+
+**Check:**
+1. MCP server running: `curl http://localhost:9876/mcp` should respond
+2. Hooks configured in `.claude/settings.json`
+3. Project has `.daem0nmcp/` directory
+
 ## Development
 
 ```bash
@@ -708,4 +778,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.15.0: Enhanced Search & Indexing—configurable hybrid weight, tag inference, qualified entity names, stable IDs, incremental indexing, and parse tree caching.*
+*Daem0nMCP v2.16.0: Sacred Covenant Enforcement—rigid enforcement decorators, preflight tokens, MCP Resources for dynamic context injection, Claude Code 2.1.3 compatibility.*
