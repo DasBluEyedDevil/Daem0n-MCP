@@ -79,29 +79,81 @@ def recall_for_file_sync(file_path: str) -> dict | None:
 
 def check_triggers_sync(file_path: str) -> dict | None:
     """
-    Check context triggers via the Daem0n CLI (synchronous).
+    Check context triggers via the Daem0n MCP server (synchronous HTTP).
 
     Returns triggered context with auto-recalled memories.
+    Note: The check-triggers CLI command was removed - using MCP HTTP instead.
     """
-    import subprocess
+    import urllib.request
+    import uuid
 
     try:
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "daem0nmcp.cli",
-                "check-triggers", file_path,
-                "--project-path", PROJECT_DIR,
-                "--json"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            cwd=PROJECT_DIR
+        # First, initialize session
+        init_payload = json.dumps({
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "clientInfo": {"name": "daem0n-hook", "version": "1.0.0"},
+                "capabilities": {}
+            }
+        }).encode('utf-8')
+
+        init_req = urllib.request.Request(
+            MCP_URL,
+            data=init_payload,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream"
+            },
+            method="POST"
         )
 
-        if result.returncode == 0 and result.stdout.strip():
-            return json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+        with urllib.request.urlopen(init_req, timeout=3) as resp:
+            session_id = resp.headers.get("mcp-session-id")
+
+        if not session_id:
+            return None
+
+        # Now call check_context_triggers
+        trigger_payload = json.dumps({
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "tools/call",
+            "params": {
+                "name": "check_context_triggers",
+                "arguments": {
+                    "file_path": file_path,
+                    "project_path": PROJECT_DIR
+                }
+            }
+        }).encode('utf-8')
+
+        trigger_req = urllib.request.Request(
+            MCP_URL,
+            data=trigger_payload,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "mcp-session-id": session_id
+            },
+            method="POST"
+        )
+
+        with urllib.request.urlopen(trigger_req, timeout=3) as resp:
+            response_text = resp.read().decode('utf-8')
+            # Parse SSE format
+            for line in response_text.split('\n'):
+                if line.startswith('data: '):
+                    data = json.loads(line[6:])
+                    if 'result' in data and 'content' in data['result']:
+                        content = data['result']['content']
+                        if content and content[0].get('type') == 'text':
+                            return json.loads(content[0]['text'])
+
+    except Exception:
+        # Silently fail - hooks should not block the user
         pass
 
     return None
