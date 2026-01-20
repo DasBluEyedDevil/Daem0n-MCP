@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=0.2.0",
+    "fastmcp>=3.0.0b1",
     "sqlalchemy>=2.0.0",
     "aiosqlite>=0.19.0",
     "greenlet>=3.0.0",  # Required for SQLAlchemy async
