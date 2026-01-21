@@ -175,3 +175,78 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 
 ### Index Maintenance
 - [ ] rebuild_index
+
+---
+
+## Deprecated Decorators (covenant.py)
+
+**File:** `daem0nmcp/covenant.py:440-596`
+**Test File:** `tests/test_covenant.py` (14 tests)
+
+### FastMCP 3.0 Issues - VERIFIED
+
+- [X] **Decorators deprecated but functional** - VERIFIED
+  - `_deprecated_decorator_warning()` helper emits `DeprecationWarning` at decoration time (line 444-452)
+  - `@requires_communion` decorator (line 488-523) - emits warning via `_deprecated_decorator_warning("requires_communion")`
+  - `@requires_counsel` decorator (line 526-596) - emits warning via `_deprecated_decorator_warning("requires_counsel")`
+  - Warning message includes FastMCP 3.0 migration guidance
+  - Uses `stacklevel=4` to point to the decorator application site
+
+- [X] **Fallback enforcement works** - VERIFIED
+  - Decorators still apply full enforcement logic when middleware unavailable
+  - 14 tests in `tests/test_covenant.py` all pass
+  - State retrieval via `_get_context_callback` and `_get_context_state()` functions
+
+- [X] **No conflicts with middleware** - VERIFIED ("belt and suspenders" works)
+  - Middleware enforces at MCP layer (before tool function is called)
+  - Decorators enforce inside tool function (if middleware passes)
+  - Double-enforcement is harmless - both check same state
+  - When middleware blocks, decorator is never reached
+  - When middleware allows, decorator re-validates (redundant but safe)
+
+### Test Coverage - GOOD
+
+All 14 tests pass in `tests/test_covenant.py`:
+- Violation response structure (2 tests)
+- Preflight token generation and validation (4 tests)
+- CovenantEnforcer class (7 tests)
+- Integration with server (1 test)
+
+51 deprecation warnings emitted during test run (expected behavior).
+
+### Deprecation Timeline
+
+- [ ] **v3.0** (current): Decorators deprecated with warnings, still functional
+- [ ] **v4.0** (proposed): Consider removal of decorator-based enforcement
+  - Depends on FastMCP 3.0 middleware stability
+  - Monitor for any environments where middleware is unavailable
+
+### Technical Enhancements (Future)
+
+- [ ] **Decorator-to-middleware forwarding**
+  - Could replace decorator logic with simple middleware invocation
+  - Would eliminate duplicate enforcement code
+  - Trade-off: Adds FastMCP dependency to decorators
+
+### Efficiency Improvements
+
+- [ ] **Remove duplicate enforcement** (decorators + middleware)
+  - Current: Both layers check same conditions
+  - Impact: ~2x redundant state lookups per protected tool call
+  - Severity: Low (lookups are cheap dict operations)
+  - Recommendation: Leave as-is until v4.0 removal
+
+### Code Quality Notes
+
+1. **Clean deprecation pattern:**
+   - Centralized warning helper (`_deprecated_decorator_warning`)
+   - Clear migration message mentioning `CovenantMiddleware`
+   - Appropriate stacklevel for accurate warning locations
+
+2. **Backwards compatibility maintained:**
+   - Decorators applied to 51 tools in server.py
+   - All continue to function during transition period
+
+3. **Belt-and-suspenders safety:**
+   - If middleware is bypassed or fails silently, decorators catch violations
+   - Defense in depth until decorator removal is safe
