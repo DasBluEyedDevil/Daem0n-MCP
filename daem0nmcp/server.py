@@ -88,6 +88,7 @@ try:
     from .logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from .covenant import set_context_callback
     from .transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+    from .rwlock import RWLock
 except ImportError:
     # For fastmcp run which executes server.py directly
     from daem0nmcp.config import settings
@@ -100,6 +101,7 @@ except ImportError:
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from daem0nmcp.covenant import set_context_callback
     from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+    from daem0nmcp.rwlock import RWLock
 from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
 
@@ -145,7 +147,7 @@ class ProjectContext:
 # Cache of project contexts by normalized path
 _project_contexts: Dict[str, ProjectContext] = {}
 _context_locks: Dict[str, asyncio.Lock] = {}
-_contexts_lock = asyncio.Lock()  # Lock for modifying the dicts themselves
+_contexts_lock = RWLock()  # RWLock for context access: multiple readers, exclusive writers
 _task_contexts: Dict[asyncio.Task, Dict[str, int]] = {}
 _task_contexts_lock = asyncio.Lock()
 _last_eviction: float = 0.0
@@ -332,7 +334,11 @@ set_release_callback(_release_current_task_contexts)
 async def get_project_context(project_path: Optional[str] = None) -> ProjectContext:
     """
     Get or create a ProjectContext for the given project path.
-    Thread-safe with per-project locking to prevent race conditions.
+    Thread-safe with RWLock for concurrent access to prevent race conditions.
+
+    Uses double-checked locking pattern with RWLock:
+    - Fast path uses read lock (allows concurrent readers)
+    - Slow path uses write lock (exclusive access for context creation)
 
     This enables the HTTP server to handle multiple projects simultaneously,
     each with its own isolated database.
@@ -354,29 +360,42 @@ async def get_project_context(project_path: Optional[str] = None) -> ProjectCont
         raise ValueError("project_path is required when DAEM0NMCP_PROJECT_ROOT is not set")
     normalized = _normalize_path(project_path)
 
-    # Fast path: context exists and is initialized
-    if normalized in _project_contexts:
-        ctx = _project_contexts[normalized]
-        if ctx.initialized:
-            now = time.time()
-            ctx.last_accessed = now
-            # Opportunistic eviction: trigger background cleanup if over limit
-            if len(_project_contexts) > MAX_PROJECT_CONTEXTS:
-                asyncio.create_task(evict_stale_contexts())
-            else:
-                _maybe_schedule_eviction(now)
-            await _track_task_context(ctx)
-            return ctx
+    # Fast path with read lock: context exists and is initialized
+    # Multiple concurrent readers can check simultaneously
+    async with _contexts_lock.read():
+        if normalized in _project_contexts:
+            ctx = _project_contexts[normalized]
+            if ctx.initialized:
+                now = time.time()
+                ctx.last_accessed = now
+                # Opportunistic eviction: trigger background cleanup if over limit
+                if len(_project_contexts) > MAX_PROJECT_CONTEXTS:
+                    asyncio.create_task(evict_stale_contexts())
+                else:
+                    _maybe_schedule_eviction(now)
+                await _track_task_context(ctx)
+                return ctx
 
-    # Get or create lock for this project
-    async with _contexts_lock:
+    # Slow path: need to create context, requires write lock
+    async with _contexts_lock.write():
+        # Double-check after acquiring write lock (another writer may have created it)
+        if normalized in _project_contexts:
+            ctx = _project_contexts[normalized]
+            if ctx.initialized:
+                now = time.time()
+                ctx.last_accessed = now
+                _maybe_schedule_eviction(now)
+                await _track_task_context(ctx)
+                return ctx
+
+        # Get or create per-project lock for initialization
         if normalized not in _context_locks:
             _context_locks[normalized] = asyncio.Lock()
         lock = _context_locks[normalized]
 
-    # Initialize under project-specific lock
+    # Initialize under project-specific lock (outside RWLock to avoid holding it during I/O)
     async with lock:
-        # Double-check after acquiring lock
+        # Triple-check: another task may have initialized while we waited for per-project lock
         if normalized in _project_contexts:
             ctx = _project_contexts[normalized]
             if ctx.initialized:
@@ -406,7 +425,9 @@ async def get_project_context(project_path: Optional[str] = None) -> ProjectCont
         await db_mgr.init_db()
         ctx.initialized = True
 
-        _project_contexts[normalized] = ctx
+        # Store in cache under write lock
+        async with _contexts_lock.write():
+            _project_contexts[normalized] = ctx
         logger.info(f"Created project context for: {normalized} (storage: {storage_path})")
 
         _maybe_schedule_eviction(time.time())
@@ -442,7 +463,7 @@ async def evict_stale_contexts() -> int:
 
     # Phase 1: Collect TTL candidates (no nested locks)
     ttl_candidates = []
-    async with _contexts_lock:
+    async with _contexts_lock.read():
         for path, ctx in _project_contexts.items():
             if (now - ctx.last_accessed) <= CONTEXT_TTL_SECONDS:
                 continue
@@ -453,7 +474,7 @@ async def evict_stale_contexts() -> int:
 
     # Phase 2: Process TTL candidates individually
     for path in ttl_candidates:
-        async with _contexts_lock:
+        async with _contexts_lock.write():
             ctx = _project_contexts.get(path)
             if ctx is None:
                 continue  # Already evicted by another task
@@ -475,7 +496,7 @@ async def evict_stale_contexts() -> int:
 
     # Phase 3: LRU eviction if still over limit
     while True:
-        async with _contexts_lock:
+        async with _contexts_lock.write():
             if len(_project_contexts) <= MAX_PROJECT_CONTEXTS:
                 break
 
@@ -511,7 +532,7 @@ async def evict_stale_contexts() -> int:
             logger.info(f"Evicted LRU context: {oldest_path}")
 
     # Phase 4: Clean up orphaned locks
-    async with _contexts_lock:
+    async with _contexts_lock.write():
         orphaned_locks = set(_context_locks.keys()) - set(_project_contexts.keys())
         for path in orphaned_locks:
             del _context_locks[path]
