@@ -100,8 +100,8 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 - [X] remember_batch - AUDITED (see below)
 - [X] recall - AUDITED (see below)
 - [X] recall_for_file - AUDITED (see below)
-- [ ] search_memories
-- [ ] find_related
+- [X] search_memories - AUDITED (see Advanced Memory Tools)
+- [X] find_related - AUDITED (see Advanced Memory Tools)
 - [ ] pin_memory
 - [ ] archive_memory
 - [ ] prune_memories
@@ -139,10 +139,10 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 - [ ] rebuild_communities
 - [ ] list_communities
 - [ ] get_community_details
-- [ ] recall_hierarchical
+- [X] recall_hierarchical - AUDITED (see Advanced Memory Tools)
 
 ### Entity Tracking
-- [ ] recall_by_entity
+- [X] recall_by_entity - AUDITED (see Advanced Memory Tools)
 - [ ] list_entities
 - [ ] backfill_entities
 
@@ -575,3 +575,198 @@ All 14 tests pass in `tests/test_covenant.py`:
 | recall_for_file | [X] v3.0.0 | Dict[str, Any] | Error dicts | (indirect) |
 
 **All 29 memory-related tests pass.** No issues found during audit.
+
+---
+
+## Advanced Memory Tools
+
+**Files:** `daem0nmcp/server.py:1756-1914`, `daem0nmcp/server.py:4047-4114`, `daem0nmcp/memory.py:1391-1418`, `daem0nmcp/memory.py:2231-2311`, `daem0nmcp/entity_manager.py`
+**Test File:** `tests/test_communities.py` (9 tests)
+
+### recall_by_entity
+
+**Server Definition:** `daem0nmcp/server.py:4081-4113`
+**Implementation:** `daem0nmcp/entity_manager.py:159-235`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 4081)
+  - Return type is `Dict[str, Any]` with structured response
+  - Returns error dict for missing project_path
+  - Lazy import of `EntityManager` for module isolation (lines 4103-4106)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Searches by entity name OR qualified_name (line 174-177)
+  - Entity type filtering already implemented (line 179-180)
+  - Returns entity metadata plus all referencing memories
+  - Uses `MemoryEntityRef` join table for efficient lookups
+
+### Technical Enhancements (Future)
+
+- [ ] **Add entity type filtering** - ALREADY IMPLEMENTED
+  - `entity_type` parameter filters by type (class/function/file)
+  - Applied in WHERE clause when provided
+
+- [ ] **Pre-index entity mentions in database**
+  - `MemoryEntityRef` table already provides this index
+  - Entity mentions tracked via `EntityExtractor.extract_all()`
+  - `mention_count` field tracks frequency
+
+### Efficiency Improvements (Low Priority)
+
+- [ ] **Batch entity lookup**
+  - Currently single entity per call
+  - Could support `entity_names: List[str]` for bulk queries
+  - Trade-off: API complexity vs. reduced round trips
+
+---
+
+### recall_hierarchical
+
+**Server Definition:** `daem0nmcp/server.py:4047-4075`
+**Implementation:** `daem0nmcp/memory.py:2231-2311`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 4047)
+  - Return type is `Dict[str, Any]` with layered response
+  - Returns error dict for missing project_path
+  - Project path handling correct via `get_project_context()`
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **GraphRAG Implementation** - REVIEWED
+  - Two-layer response: community summaries then individual memories
+  - Community matching via name/summary/tag substring (lines 2276-2283)
+  - Optional `include_members` parameter for drill-down
+  - Falls through to standard `recall()` for individual memories
+
+### Technical Enhancements (Future)
+
+- [ ] **Configurable layer depths**
+  - Currently fixed at communities + memories
+  - Could add `layers: List[str]` parameter (e.g., `["communities", "entities", "memories"]`)
+  - Use case: Skip community layer when not needed
+
+- [ ] **Semantic community matching**
+  - TODO noted in code (line 2274-2275)
+  - Currently uses substring matching for topic relevance
+  - Could use TF-IDF or vector similarity for better recall
+  - Trade-off: Query complexity vs. relevance quality
+
+### Efficiency Improvements
+
+- [ ] **Cache community summaries**
+  - Summaries are static until `rebuild_communities()` called
+  - Could cache community list per project_path
+  - Invalidate on community rebuild
+  - Trade-off: Memory usage vs. repeated community lookups
+
+---
+
+### search_memories
+
+**Server Definition:** `daem0nmcp/server.py:1759-1818`
+**Implementation:** `daem0nmcp/memory.py:2313-2450`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 1759)
+  - Return type is `Union[List[Dict[str, Any]], Dict[str, Any]]` for flexible response
+  - Returns error dict for negative offset (line 1788)
+  - Returns error dict for missing project_path
+  - `include_meta` parameter for pagination metadata (lines 1808-1816)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **FTS5 Implementation** - REVIEWED
+  - Uses SQLite FTS5 full-text search (line 1795)
+  - BM25 ranking for relevance scoring (line 2362, 2373)
+  - Highlighting already implemented via `snippet()` function (line 2363)
+  - Configurable highlight markers (`highlight_start`, `highlight_end`)
+  - Excerpt token limit configurable (line 2322)
+
+### Technical Enhancements
+
+- [ ] **Add highlight snippets in results** - ALREADY IMPLEMENTED
+  - `highlight=True` parameter enables FTS5 snippet extraction
+  - Returns `content_excerpt` field with matched terms highlighted
+  - Configurable excerpt length via `excerpt_tokens` (default 32)
+
+### Efficiency Improvements
+
+- [ ] **Use FTS5 virtual table for faster full-text search** - ALREADY IMPLEMENTED
+  - `memories_fts` virtual table created in migrations
+  - BM25 scoring for relevance ranking
+  - Falls back to LIKE search if FTS5 unavailable (line 2327)
+
+- [ ] **Index pre-warming on startup**
+  - FTS5 index is cold on first query
+  - Could run dummy query during `init_db()` to warm cache
+  - Trade-off: Startup latency vs. first-query latency
+
+---
+
+### find_related
+
+**Server Definition:** `daem0nmcp/server.py:1893-1914`
+**Implementation:** `daem0nmcp/memory.py:1391-1418`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 1893)
+  - Return type is `List[Dict[str, Any]]`
+  - Returns empty list for non-existent memory_id (line 1408)
+  - Returns error dict for missing project_path
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Fetches source memory content + rationale (lines 1411-1413)
+  - Uses `search()` with combined text as query (line 1415)
+  - Filters out source memory from results (line 1418)
+  - Limit parameter controls max results
+
+### Technical Enhancements (Future)
+
+- [ ] **Configurable relationship type filtering**
+  - Currently semantic similarity only
+  - Could add `relationship_types` parameter to filter by graph edges
+  - Use case: "Find memories that led_to this one" vs. "Find all related"
+  - Could leverage `trace_chain()` internally for graph-based relations
+
+- [ ] **Minimum similarity threshold**
+  - Currently returns top N regardless of similarity score
+  - Could add `min_relevance: float` parameter
+  - Trade-off: May return fewer results than requested
+
+### Efficiency Improvements
+
+- [ ] **Graph traversal with depth limit** - ALREADY PRESENT IN trace_chain
+  - `find_related` uses semantic search, not graph traversal
+  - For graph-based relations, use `trace_chain()` tool
+  - `max_depth` parameter in `trace_chain()` prevents runaway traversals
+
+- [ ] **Cache related memories**
+  - Related memories are deterministic for a given memory_id
+  - Could cache results with invalidation on `remember()` or `link_memories()`
+  - Trade-off: Cache invalidation complexity vs. repeated lookups
+
+---
+
+## Advanced Memory Tools Summary
+
+| Tool | FastMCP 3.0 | Return Type | Async | Tests |
+|------|-------------|-------------|-------|-------|
+| recall_by_entity | [X] v3.0.0 | Dict[str, Any] | Yes | (indirect) |
+| recall_hierarchical | [X] v3.0.0 | Dict[str, Any] | Yes | 2 |
+| search_memories | [X] v3.0.0 | List/Dict | Yes | (covered by memory tests) |
+| find_related | [X] v3.0.0 | List[Dict] | Yes | (covered by memory tests) |
+
+**All 9 community tests pass.** GraphRAG-style hierarchical recall correctly implemented with two-layer response (community summaries + individual memories).
