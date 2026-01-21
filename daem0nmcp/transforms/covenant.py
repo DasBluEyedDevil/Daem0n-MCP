@@ -394,3 +394,136 @@ class CovenantTransform:
             f"counsel={len(self.counsel_required_tools)}"
             f")"
         )
+
+
+# ============================================================================
+# COVENANT MIDDLEWARE (FastMCP 3.0)
+# ============================================================================
+
+try:
+    from fastmcp.server.middleware import Middleware, MiddlewareContext, CallNext
+    from fastmcp.tools import ToolResult
+    from mcp import types as mt
+    _FASTMCP_MIDDLEWARE_AVAILABLE = True
+except ImportError:
+    _FASTMCP_MIDDLEWARE_AVAILABLE = False
+    # Define stubs for type hints when FastMCP 3.0 middleware is not available
+    Middleware = object  # type: ignore
+    MiddlewareContext = Any  # type: ignore
+    CallNext = Any  # type: ignore
+    ToolResult = Any  # type: ignore
+
+
+class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object):
+    """
+    FastMCP 3.0 Middleware for Sacred Covenant enforcement.
+
+    This middleware intercepts tool calls via the on_call_tool() hook to enforce
+    the Sacred Covenant protocol at the MCP layer, before tools are executed.
+
+    The middleware provides centralized enforcement, complementing (or eventually
+    replacing) the decorator-based approach in covenant.py.
+
+    Usage:
+        from daem0nmcp.transforms.covenant import CovenantMiddleware
+
+        # Create middleware with state callback
+        middleware = CovenantMiddleware(
+            get_state=lambda project_path: {
+                "briefed": True,
+                "context_checks": [{"timestamp": "..."}]
+            }
+        )
+
+        # Register with FastMCP server
+        mcp.add_middleware(middleware)
+
+    The middleware will:
+    1. Extract tool_name and project_path from the request
+    2. Check the covenant via CovenantTransform.check_tool_access()
+    3. Block with violation response if covenant is broken
+    4. Allow through to call_next() if covenant is satisfied
+    """
+
+    def __init__(
+        self,
+        get_state: Callable[[Optional[str]], Optional[Dict[str, Any]]],
+        counsel_ttl_seconds: int = COUNSEL_TTL_SECONDS,
+        exempt_tools: Optional[Set[str]] = None,
+        communion_required_tools: Optional[Set[str]] = None,
+        counsel_required_tools: Optional[Set[str]] = None,
+    ):
+        """
+        Initialize the CovenantMiddleware.
+
+        Args:
+            get_state: Callback to get session state for a project path.
+                      Should return dict with 'briefed' (bool) and
+                      'context_checks' (list of dicts with 'timestamp'),
+                      or None if no state exists for the project.
+            counsel_ttl_seconds: How long context_check remains valid (default 300s)
+            exempt_tools: Override the default exempt tools set
+            communion_required_tools: Override the default communion tools set
+            counsel_required_tools: Override the default counsel tools set
+        """
+        if _FASTMCP_MIDDLEWARE_AVAILABLE:
+            super().__init__()
+
+        self._get_state = get_state
+        self._transform = CovenantTransform(
+            counsel_ttl_seconds=counsel_ttl_seconds,
+            exempt_tools=exempt_tools,
+            communion_required_tools=communion_required_tools,
+            counsel_required_tools=counsel_required_tools,
+        )
+
+    async def on_call_tool(
+        self,
+        context: "MiddlewareContext[mt.CallToolRequestParams]",
+        call_next: "CallNext[mt.CallToolRequestParams, ToolResult]",
+    ) -> "ToolResult":
+        """
+        Intercept tool calls to enforce the Sacred Covenant.
+
+        This method is called by FastMCP before each tool execution.
+        It checks whether the covenant is satisfied and either:
+        - Blocks the call with a violation response
+        - Allows the call to proceed via call_next()
+
+        Args:
+            context: Middleware context containing the request message
+            call_next: Callback to proceed with the tool call
+
+        Returns:
+            ToolResult - either the violation response or the actual tool result
+        """
+        # Extract tool name and arguments from the request
+        tool_name = context.message.name
+        arguments = context.message.arguments or {}
+        project_path = arguments.get("project_path")
+
+        logger.debug(f"CovenantMiddleware: Checking tool '{tool_name}' for project '{project_path}'")
+
+        # Check covenant via the transform
+        violation = self._transform.check_tool_access(
+            tool_name=tool_name,
+            project_path=project_path,
+            get_state=self._get_state,
+        )
+
+        if violation is not None:
+            # Covenant violated - return blocking response
+            logger.info(
+                f"CovenantMiddleware: Blocked '{tool_name}' - {violation.get('violation', 'UNKNOWN')}"
+            )
+            # Return the violation as a ToolResult
+            # FastMCP 3.0 ToolResult can be constructed from various types
+            import json
+            return [{"type": "text", "text": json.dumps(violation, indent=2)}]
+
+        # Covenant satisfied - proceed with the tool call
+        logger.debug(f"CovenantMiddleware: Allowed '{tool_name}'")
+        return await call_next(context.message)
+
+    def __repr__(self) -> str:
+        return f"CovenantMiddleware({self._transform!r})"

@@ -87,6 +87,7 @@ try:
     from . import vectors
     from .logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from .covenant import requires_communion, requires_counsel, set_context_callback
+    from .transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
 except ImportError:
     # For fastmcp run which executes server.py directly
     from daem0nmcp.config import settings
@@ -98,6 +99,7 @@ except ImportError:
     from daem0nmcp import vectors
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from daem0nmcp.covenant import requires_communion, requires_counsel, set_context_callback
+    from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
 from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
 
@@ -168,6 +170,45 @@ def _get_context_for_covenant(project_path: str) -> Optional[ProjectContext]:
 
 # Register the callback for covenant enforcement
 set_context_callback(_get_context_for_covenant)
+
+
+def _get_context_state_for_middleware(project_path: Optional[str]) -> Optional[Dict[str, Any]]:
+    """
+    Get covenant state for middleware enforcement.
+
+    This callback is used by CovenantMiddleware to check session state.
+    It returns the state dict expected by CovenantTransform.check_tool_access().
+
+    Args:
+        project_path: Project path to look up (may be None for some tools)
+
+    Returns:
+        Dict with 'briefed' and 'context_checks' keys, or None if no context
+    """
+    if project_path is None:
+        return None
+
+    ctx = _get_context_for_covenant(project_path)
+    if ctx is None:
+        return None
+
+    return {
+        "briefed": ctx.briefed,
+        "context_checks": ctx.context_checks,
+    }
+
+
+# Register CovenantMiddleware with FastMCP server (if available)
+if _FASTMCP_MIDDLEWARE_AVAILABLE:
+    _covenant_middleware = CovenantMiddleware(
+        get_state=_get_context_state_for_middleware,
+    )
+    mcp.add_middleware(_covenant_middleware)
+    logger.info("CovenantMiddleware registered with FastMCP server")
+else:
+    logger.warning(
+        "FastMCP 3.0 middleware not available - falling back to decorator-based enforcement"
+    )
 
 
 def _missing_project_path_error() -> Dict[str, Any]:

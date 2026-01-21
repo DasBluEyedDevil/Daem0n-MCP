@@ -280,3 +280,266 @@ async def test_covenant_transform_missing_state():
     assert result is not None
     assert result["status"] == "blocked"
     assert result["violation"] == "COMMUNION_REQUIRED"
+
+
+# ============================================================================
+# COVENANT MIDDLEWARE TESTS
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_covenant_middleware_exists():
+    """Verify CovenantMiddleware can be imported."""
+    from daem0nmcp.transforms.covenant import CovenantMiddleware
+    assert CovenantMiddleware is not None
+
+
+@pytest.mark.asyncio
+async def test_covenant_middleware_inherits_from_fastmcp_middleware():
+    """Verify CovenantMiddleware inherits from FastMCP Middleware when available."""
+    from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+
+    if _FASTMCP_MIDDLEWARE_AVAILABLE:
+        from fastmcp.server.middleware import Middleware
+        assert issubclass(CovenantMiddleware, Middleware)
+    else:
+        # When FastMCP middleware is not available, it falls back to object
+        assert True  # Just verify it can be imported
+
+
+@pytest.mark.asyncio
+async def test_covenant_middleware_has_on_call_tool():
+    """Verify CovenantMiddleware has on_call_tool method."""
+    from daem0nmcp.transforms.covenant import CovenantMiddleware
+
+    middleware = CovenantMiddleware(get_state=lambda p: None)
+    assert hasattr(middleware, "on_call_tool")
+    assert callable(middleware.on_call_tool)
+
+
+@pytest.mark.asyncio
+async def test_covenant_middleware_blocks_via_transform():
+    """Verify CovenantMiddleware uses CovenantTransform for enforcement."""
+    from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+    import json
+
+    if not _FASTMCP_MIDDLEWARE_AVAILABLE:
+        pytest.skip("FastMCP 3.0 middleware not available")
+
+    # Create middleware with unbriefed state
+    middleware = CovenantMiddleware(
+        get_state=lambda p: {"briefed": False, "context_checks": []}
+    )
+
+    # Create mock context and call_next
+    from mcp import types as mt
+    from unittest.mock import AsyncMock
+
+    mock_message = mt.CallToolRequestParams(
+        name="remember",
+        arguments={"project_path": "/test/project", "content": "test"}
+    )
+
+    class MockContext:
+        message = mock_message
+
+    mock_call_next = AsyncMock()
+
+    # Call on_call_tool
+    result = await middleware.on_call_tool(MockContext(), mock_call_next)
+
+    # Should be blocked
+    assert result is not None
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["type"] == "text"
+
+    # Parse the JSON text to verify violation
+    violation = json.loads(result[0]["text"])
+    assert violation["status"] == "blocked"
+    assert violation["violation"] == "COMMUNION_REQUIRED"
+
+    # call_next should NOT have been called
+    mock_call_next.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_covenant_middleware_allows_valid_requests():
+    """Verify CovenantMiddleware allows requests that satisfy covenant."""
+    from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+
+    if not _FASTMCP_MIDDLEWARE_AVAILABLE:
+        pytest.skip("FastMCP 3.0 middleware not available")
+
+    # Create middleware with briefed state and fresh counsel
+    middleware = CovenantMiddleware(
+        get_state=lambda p: {
+            "briefed": True,
+            "context_checks": [
+                {"topic": "remember", "timestamp": datetime.now(timezone.utc).isoformat()}
+            ]
+        }
+    )
+
+    # Create mock context and call_next
+    from mcp import types as mt
+    from unittest.mock import AsyncMock
+
+    mock_message = mt.CallToolRequestParams(
+        name="remember",
+        arguments={"project_path": "/test/project", "content": "test"}
+    )
+
+    class MockContext:
+        message = mock_message
+
+    expected_result = [{"type": "text", "text": "Success!"}]
+    mock_call_next = AsyncMock(return_value=expected_result)
+
+    # Call on_call_tool
+    result = await middleware.on_call_tool(MockContext(), mock_call_next)
+
+    # Should be allowed
+    assert result == expected_result
+
+    # call_next SHOULD have been called
+    mock_call_next.assert_called_once_with(mock_message)
+
+
+@pytest.mark.asyncio
+async def test_covenant_middleware_allows_exempt_tools():
+    """Verify CovenantMiddleware allows exempt tools without checking state."""
+    from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+
+    if not _FASTMCP_MIDDLEWARE_AVAILABLE:
+        pytest.skip("FastMCP 3.0 middleware not available")
+
+    # Create middleware - state callback returns unbriefed
+    middleware = CovenantMiddleware(
+        get_state=lambda p: {"briefed": False, "context_checks": []}
+    )
+
+    # Create mock context for get_briefing (exempt tool)
+    from mcp import types as mt
+    from unittest.mock import AsyncMock
+
+    mock_message = mt.CallToolRequestParams(
+        name="get_briefing",
+        arguments={"project_path": "/test/project"}
+    )
+
+    class MockContext:
+        message = mock_message
+
+    expected_result = [{"type": "text", "text": "Briefing data..."}]
+    mock_call_next = AsyncMock(return_value=expected_result)
+
+    # Call on_call_tool
+    result = await middleware.on_call_tool(MockContext(), mock_call_next)
+
+    # Should be allowed even though not briefed
+    assert result == expected_result
+    mock_call_next.assert_called_once_with(mock_message)
+
+
+# ============================================================================
+# SERVER INTEGRATION TESTS
+# ============================================================================
+
+def test_server_has_covenant_middleware():
+    """Verify server has CovenantMiddleware registered."""
+    from daem0nmcp.transforms.covenant import _FASTMCP_MIDDLEWARE_AVAILABLE
+
+    if not _FASTMCP_MIDDLEWARE_AVAILABLE:
+        pytest.skip("FastMCP 3.0 middleware not available")
+
+    from daem0nmcp.server import mcp, _covenant_middleware
+
+    # Verify middleware exists
+    assert _covenant_middleware is not None
+
+    # Verify it's a CovenantMiddleware instance
+    from daem0nmcp.transforms.covenant import CovenantMiddleware
+    assert isinstance(_covenant_middleware, CovenantMiddleware)
+
+
+def test_server_middleware_callback_available():
+    """Verify server provides state callback for middleware."""
+    from daem0nmcp.server import _get_context_state_for_middleware
+
+    # Callback should exist
+    assert _get_context_state_for_middleware is not None
+    assert callable(_get_context_state_for_middleware)
+
+    # Should return None for non-existent project
+    result = _get_context_state_for_middleware("/non/existent/path")
+    assert result is None
+
+    # Should return None for None project_path
+    result = _get_context_state_for_middleware(None)
+    assert result is None
+
+
+def test_fastmcp_middleware_flag_available():
+    """Verify the _FASTMCP_MIDDLEWARE_AVAILABLE flag is exported."""
+    from daem0nmcp.transforms.covenant import _FASTMCP_MIDDLEWARE_AVAILABLE
+
+    # Should be a boolean
+    assert isinstance(_FASTMCP_MIDDLEWARE_AVAILABLE, bool)
+
+    # With fastmcp>=3.0.0b1 installed, should be True
+    assert _FASTMCP_MIDDLEWARE_AVAILABLE is True
+
+
+@pytest.mark.asyncio
+async def test_server_integration_briefing_enables_tools(tmp_path):
+    """Full integration test: get_briefing should enable tools via middleware."""
+    from daem0nmcp import server
+
+    # Clear any existing contexts
+    server._project_contexts.clear()
+
+    project_path = str(tmp_path)
+
+    # Before briefing, state should be None or unbriefed
+    state = server._get_context_state_for_middleware(project_path)
+    # State is None because project context doesn't exist yet
+    assert state is None
+
+    # Call get_briefing to initialize and brief the project
+    result = await server.get_briefing(project_path=project_path)
+    assert result is not None
+
+    # After briefing, state should show briefed=True
+    state = server._get_context_state_for_middleware(project_path)
+    assert state is not None
+    assert state["briefed"] is True
+
+
+@pytest.mark.asyncio
+async def test_server_integration_context_check_enables_counsel(tmp_path):
+    """Full integration test: context_check should add counsel."""
+    from daem0nmcp import server
+
+    # Clear any existing contexts
+    server._project_contexts.clear()
+
+    project_path = str(tmp_path)
+
+    # First, call get_briefing
+    await server.get_briefing(project_path=project_path)
+
+    # Before context_check, context_checks should be empty
+    state = server._get_context_state_for_middleware(project_path)
+    assert state["context_checks"] == []
+
+    # Call context_check
+    result = await server.context_check(
+        description="About to remember something",
+        project_path=project_path
+    )
+    assert result is not None
+
+    # After context_check, context_checks should have an entry
+    state = server._get_context_state_for_middleware(project_path)
+    assert len(state["context_checks"]) > 0
+    assert "timestamp" in state["context_checks"][0]
