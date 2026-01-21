@@ -15,6 +15,7 @@ import hmac
 import json
 import logging
 import os
+import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from functools import wraps
@@ -440,6 +441,17 @@ class CovenantEnforcer:
 # DECORATOR FUNCTIONS
 # ============================================================================
 
+def _deprecated_decorator_warning(name: str):
+    """Emit deprecation warning for legacy decorators."""
+    warnings.warn(
+        f"The {name} decorator is deprecated. "
+        "CovenantMiddleware now handles enforcement automatically in FastMCP 3.0. "
+        "These decorators will be removed in a future version.",
+        DeprecationWarning,
+        stacklevel=4,  # Skip wrapper frames to show caller location
+    )
+
+
 # Callback to get project context from server (set by server.py at import time)
 _get_project_context_callback: Optional[Callable[[str], Any]] = None
 
@@ -475,6 +487,8 @@ def _get_context_state(project_path: str) -> Optional[Dict[str, Any]]:
 
 def requires_communion(func: Callable) -> Callable:
     """
+    DEPRECATED: Use CovenantMiddleware instead.
+
     Decorator that enforces communion (get_briefing) before tool execution.
 
     Usage:
@@ -482,6 +496,8 @@ def requires_communion(func: Callable) -> Callable:
         async def remember(content: str, project_path: str, ...):
             ...
     """
+    _deprecated_decorator_warning("requires_communion")
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         # Extract project_path from kwargs or args
@@ -509,6 +525,8 @@ def requires_communion(func: Callable) -> Callable:
 
 def requires_counsel(func: Callable) -> Callable:
     """
+    DEPRECATED: Use CovenantMiddleware instead.
+
     Decorator that enforces counsel (context_check) before tool execution.
 
     This also implicitly enforces communion.
@@ -518,6 +536,8 @@ def requires_counsel(func: Callable) -> Callable:
         async def remember(content: str, project_path: str, ...):
             ...
     """
+    _deprecated_decorator_warning("requires_counsel")
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         # Extract project_path from kwargs or args
