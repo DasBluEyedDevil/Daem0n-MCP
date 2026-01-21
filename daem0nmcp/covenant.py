@@ -39,23 +39,12 @@ COVENANT_EXEMPT_TOOLS: Set[str] = {
     "get_briefing",      # Entry point - starts communion
     "health",            # Diagnostic - always available
     "context_check",     # Part of the covenant flow
-    "recall",            # Read-only query
-    "recall_for_file",   # Read-only query
-    "search_memories",   # Read-only query
-    "find_related",      # Read-only query
-    "check_rules",       # Read-only query
-    "list_rules",        # Read-only query
-    "find_code",         # Read-only query
-    "analyze_impact",    # Read-only analysis
-    "export_data",       # Read-only export
-    "scan_todos",        # Read-only scan (unless auto_remember=True)
-    "propose_refactor",  # Read-only analysis
-    "get_graph",         # Read-only query
-    "trace_chain",       # Read-only query
 }
 
 # Tools that REQUIRE communion (must call get_briefing first)
+# This includes all tools except the exempt entry points
 COMMUNION_REQUIRED_TOOLS: Set[str] = {
+    # Write operations (also need counsel)
     "remember",
     "remember_batch",
     "add_rule",
@@ -72,6 +61,20 @@ COMMUNION_REQUIRED_TOOLS: Set[str] = {
     "rebuild_index",
     "index_project",
     "ingest_doc",
+    # Read operations (communion only, no counsel)
+    "recall",
+    "recall_for_file",
+    "search_memories",
+    "find_related",
+    "check_rules",
+    "list_rules",
+    "find_code",
+    "analyze_impact",
+    "export_data",
+    "scan_todos",
+    "propose_refactor",
+    "get_graph",
+    "trace_chain",
 }
 
 # Tools that REQUIRE counsel (must call context_check before mutating)

@@ -227,6 +227,81 @@ def _missing_project_path_error() -> Dict[str, Any]:
     }
 
 
+def _check_covenant_communion(project_path: str) -> Optional[Dict[str, Any]]:
+    """
+    Check if communion (get_briefing) was performed for this project.
+
+    This function provides direct covenant enforcement for tool calls that
+    bypass the FastMCP middleware (e.g., direct function calls in tests).
+
+    Args:
+        project_path: Project to check
+
+    Returns:
+        Violation dict if communion required, None if communion complete
+    """
+    from .covenant import CovenantViolation
+
+    ctx = _get_context_for_covenant(project_path)
+    if ctx is None or not ctx.briefed:
+        return CovenantViolation.communion_required(project_path)
+    return None
+
+
+def _check_covenant_counsel(tool_name: str, project_path: str) -> Optional[Dict[str, Any]]:
+    """
+    Check if counsel (context_check) was sought for this project.
+
+    This function provides direct covenant enforcement for tool calls that
+    bypass the FastMCP middleware (e.g., direct function calls in tests).
+
+    Args:
+        tool_name: Name of the tool being called
+        project_path: Project to check
+
+    Returns:
+        Violation dict if counsel required, None if counsel is fresh
+    """
+    from .covenant import CovenantViolation, COUNSEL_TTL_SECONDS
+
+    # First check communion
+    communion_violation = _check_covenant_communion(project_path)
+    if communion_violation:
+        return communion_violation
+
+    ctx = _get_context_for_covenant(project_path)
+    if ctx is None:
+        return CovenantViolation.counsel_required(tool_name, project_path)
+
+    context_checks = ctx.context_checks
+    if not context_checks:
+        return CovenantViolation.counsel_required(tool_name, project_path)
+
+    # Find the most recent context check and verify it's still fresh
+    now = datetime.now(timezone.utc)
+    most_recent_age = None
+
+    for check in context_checks:
+        if isinstance(check, dict) and "timestamp" in check:
+            try:
+                check_time = datetime.fromisoformat(check["timestamp"])
+                if check_time.tzinfo is None:
+                    check_time = check_time.replace(tzinfo=timezone.utc)
+                age = (now - check_time).total_seconds()
+                if most_recent_age is None or age < most_recent_age:
+                    most_recent_age = age
+            except (ValueError, TypeError):
+                continue
+
+    if most_recent_age is None:
+        return CovenantViolation.counsel_required(tool_name, project_path)
+
+    if most_recent_age > COUNSEL_TTL_SECONDS:
+        return CovenantViolation.counsel_expired(tool_name, project_path, int(most_recent_age))
+
+    return None  # Counsel is fresh
+
+
 def _normalize_path(path: str) -> str:
     """Normalize a path for consistent cache keys."""
     if path is None:
@@ -592,6 +667,13 @@ async def remember(
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
 
+    effective_path = project_path or _default_project_path
+
+    # Covenant enforcement: remember requires counsel (which implies communion)
+    violation = _check_covenant_counsel("remember", effective_path)
+    if violation:
+        return violation
+
     ctx = await get_project_context(project_path)
     return await ctx.memory_manager.remember(
         category=category,
@@ -682,6 +764,13 @@ async def recall(
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
         return _missing_project_path_error()
+
+    effective_path = project_path or _default_project_path
+
+    # Covenant enforcement: recall requires communion (briefing)
+    violation = _check_covenant_communion(effective_path)
+    if violation:
+        return violation
 
     # Parse date strings if provided
     since_dt = None
