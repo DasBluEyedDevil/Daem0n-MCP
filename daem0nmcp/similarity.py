@@ -194,11 +194,15 @@ class TFIDFIndex:
     This is intentionally lightweight - no external ML deps required.
     """
 
-    def __init__(self):
+    def __init__(self, max_query_cache_size: int = 100):
         self.documents: Dict[int, List[str]] = {}  # doc_id -> tokens
         self.document_vectors: Dict[int, Dict[str, float]] = {}  # doc_id -> {term: tfidf}
         self.idf_cache: Dict[str, float] = {}
         self.doc_count = 0
+        # Query vector cache with LRU eviction
+        self._query_cache: Dict[str, Dict[str, float]] = {}
+        self._query_cache_order: List[str] = []  # Track insertion order for LRU
+        self._max_query_cache_size: int = max_query_cache_size
 
     def add_document(self, doc_id: int, text: str, tags: Optional[List[str]] = None) -> None:
         """Add a document to the index."""
@@ -227,6 +231,8 @@ class TFIDFIndex:
         """Clear cached computations."""
         self.idf_cache.clear()
         self.document_vectors.clear()
+        self._query_cache.clear()
+        self._query_cache_order.clear()
 
     def _compute_idf(self, term: str) -> float:
         """Compute IDF for a term."""
@@ -268,7 +274,20 @@ class TFIDFIndex:
         return vector
 
     def _query_vector(self, query: str, tags: Optional[List[str]] = None) -> Dict[str, float]:
-        """Convert a query to a TF-IDF vector."""
+        """Convert a query to a TF-IDF vector with caching."""
+        # Build cache key (query + sorted tags for consistency)
+        cache_key = query
+        if tags:
+            cache_key = f"{query}|{','.join(sorted(tags))}"
+
+        # Check cache first
+        if cache_key in self._query_cache:
+            # Move to end for LRU (most recently used)
+            if cache_key in self._query_cache_order:
+                self._query_cache_order.remove(cache_key)
+                self._query_cache_order.append(cache_key)
+            return self._query_cache[cache_key]
+
         tokens = tokenize(query)
 
         if tags:
@@ -286,6 +305,15 @@ class TFIDFIndex:
             tf_normalized = 0.5 + 0.5 * (count / max_tf)
             idf = self._compute_idf(term)
             vector[term] = tf_normalized * idf
+
+        # Cache the result with LRU eviction
+        if len(self._query_cache) >= self._max_query_cache_size:
+            # Evict oldest entry (LRU)
+            oldest_key = self._query_cache_order.pop(0)
+            del self._query_cache[oldest_key]
+
+        self._query_cache[cache_key] = vector
+        self._query_cache_order.append(cache_key)
 
         return vector
 

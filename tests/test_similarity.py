@@ -268,3 +268,99 @@ class TestConflictDetection:
         # Highly similar content should be flagged as potential duplicate
         if conflicts:
             assert any(c.get("conflict_type") == "potential_duplicate" for c in conflicts)
+
+
+class TestTFIDFVectorCaching:
+    """Verify TF-IDF vectors are cached for efficiency."""
+
+    def test_query_vector_cached(self):
+        """Same query should return cached vector."""
+        from daem0nmcp.similarity import TFIDFIndex
+
+        index = TFIDFIndex()
+        index.add_document(1, "hello world", [])
+        index.add_document(2, "goodbye world", [])
+
+        # First search computes vector
+        results1 = index.search("hello", top_k=1)
+
+        # Check cache exists
+        assert hasattr(index, '_query_cache')
+        assert "hello" in index._query_cache
+
+        # Second search uses cache
+        results2 = index.search("hello", top_k=1)
+        assert results1 == results2
+
+    def test_cache_invalidated_on_add(self):
+        """Adding document should invalidate query cache."""
+        from daem0nmcp.similarity import TFIDFIndex
+
+        index = TFIDFIndex()
+        index.add_document(1, "hello world", [])
+
+        # Populate cache
+        index.search("hello", top_k=1)
+        assert "hello" in index._query_cache
+
+        # Add document
+        index.add_document(2, "hello again", [])
+
+        # Cache should be cleared
+        assert len(index._query_cache) == 0
+
+    def test_cache_invalidated_on_remove(self):
+        """Removing document should invalidate query cache."""
+        from daem0nmcp.similarity import TFIDFIndex
+
+        index = TFIDFIndex()
+        index.add_document(1, "hello world", [])
+        index.add_document(2, "goodbye world", [])
+
+        # Populate cache
+        index.search("hello", top_k=1)
+        assert "hello" in index._query_cache
+
+        # Remove document
+        index.remove_document(2)
+
+        # Cache should be cleared
+        assert len(index._query_cache) == 0
+
+    def test_cache_lru_eviction(self):
+        """Cache should evict oldest entries when full."""
+        from daem0nmcp.similarity import TFIDFIndex
+
+        # Small cache for testing
+        index = TFIDFIndex(max_query_cache_size=3)
+        index.add_document(1, "apple banana cherry", [])
+
+        # Fill the cache
+        index.search("apple", top_k=1)
+        index.search("banana", top_k=1)
+        index.search("cherry", top_k=1)
+
+        assert len(index._query_cache) == 3
+        assert "apple" in index._query_cache
+
+        # Add one more, should evict oldest (apple)
+        index.search("date", top_k=1)
+
+        assert len(index._query_cache) == 3
+        assert "apple" not in index._query_cache
+        assert "date" in index._query_cache
+
+    def test_cache_with_tags(self):
+        """Cache should differentiate queries with different tags."""
+        from daem0nmcp.similarity import TFIDFIndex
+
+        index = TFIDFIndex()
+        index.add_document(1, "hello world", ["greeting"])
+
+        # Same query, different tags should be cached separately
+        index.search("hello", tags=["tag1"], top_k=1)
+        index.search("hello", tags=["tag2"], top_k=1)
+
+        # Both should be in cache with different keys
+        assert "hello|tag1" in index._query_cache
+        assert "hello|tag2" in index._query_cache
