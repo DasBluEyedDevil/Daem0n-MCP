@@ -86,7 +86,7 @@ try:
     from . import __version__
     from . import vectors
     from .logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
-    from .covenant import requires_communion, requires_counsel, set_context_callback
+    from .covenant import set_context_callback
     from .transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
 except ImportError:
     # For fastmcp run which executes server.py directly
@@ -98,7 +98,7 @@ except ImportError:
     from daem0nmcp import __version__
     from daem0nmcp import vectors
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
-    from daem0nmcp.covenant import requires_communion, requires_counsel, set_context_callback
+    from daem0nmcp.covenant import set_context_callback
     from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
 from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
@@ -545,7 +545,6 @@ logger.info(f"Daem0nMCP Server initialized (default storage: {storage_path})")
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def remember(
     category: str,
     content: str,
@@ -589,7 +588,6 @@ async def remember(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def remember_batch(
     memories: List[Dict[str, Any]],
     project_path: Optional[str] = None
@@ -633,7 +631,6 @@ async def remember_batch(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def recall(
     topic: str,
     categories: Optional[List[str]] = None,
@@ -701,7 +698,6 @@ async def recall(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def add_rule(
     trigger: str,
     must_do: Optional[List[str]] = None,
@@ -743,7 +739,6 @@ async def add_rule(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def check_rules(
     action: str,
     context: Optional[Dict[str, Any]] = None,
@@ -770,7 +765,6 @@ async def check_rules(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def record_outcome(
     memory_id: int,
     outcome: str,
@@ -1758,7 +1752,6 @@ async def get_briefing(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def search_memories(
     query: str,
     limit: int = 20,
@@ -1823,7 +1816,6 @@ async def search_memories(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def list_rules(
     enabled_only: bool = True,
     limit: int = 50,
@@ -1850,7 +1842,6 @@ async def list_rules(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def update_rule(
     rule_id: int,
     must_do: Optional[List[str]] = None,
@@ -1892,7 +1883,6 @@ async def update_rule(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def find_related(
     memory_id: int,
     limit: int = 5,
@@ -1919,7 +1909,6 @@ async def find_related(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def context_check(
     description: str,
     project_path: Optional[str] = None
@@ -2014,7 +2003,6 @@ async def context_check(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def recall_for_file(
     file_path: str,
     limit: int = 10,
@@ -2170,7 +2158,6 @@ def _scan_for_todos(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def scan_todos(
     path: Optional[str] = None,
     auto_remember: bool = False,
@@ -2515,7 +2502,6 @@ def _chunk_markdown_content(content: str, chunk_size: int, max_chunks: int) -> L
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def ingest_doc(
     url: str,
     topic: str,
@@ -2608,7 +2594,6 @@ async def ingest_doc(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def propose_refactor(
     file_path: str,
     project_path: Optional[str] = None
@@ -2744,7 +2729,6 @@ async def propose_refactor(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def rebuild_index(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -2772,7 +2756,6 @@ async def rebuild_index(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def export_data(
     project_path: Optional[str] = None,
     include_vectors: bool = False
@@ -2848,7 +2831,6 @@ async def export_data(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def import_data(
     data: Dict[str, Any],
     project_path: Optional[str] = None,
@@ -2956,7 +2938,6 @@ async def import_data(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def pin_memory(
     memory_id: int,
     pinned: bool = True,
@@ -3001,7 +2982,6 @@ async def pin_memory(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def link_memories(
     source_id: int,
     target_id: int,
@@ -3033,7 +3013,6 @@ async def link_memories(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def unlink_memories(
     source_id: int,
     target_id: int,
@@ -3062,7 +3041,6 @@ async def unlink_memories(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def trace_chain(
     memory_id: int,
     direction: str = "both",
@@ -3094,7 +3072,6 @@ async def trace_chain(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def get_graph(
     memory_ids: Optional[List[int]] = None,
     topic: Optional[str] = None,
@@ -3123,7 +3100,6 @@ async def get_graph(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def prune_memories(
     older_than_days: int = 90,
     categories: Optional[List[str]] = None,
@@ -3209,7 +3185,6 @@ async def prune_memories(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def archive_memory(
     memory_id: int,
     archived: bool = True,
@@ -3249,7 +3224,6 @@ async def archive_memory(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def cleanup_memories(
     dry_run: bool = True,
     merge_duplicates: bool = True,
@@ -3370,7 +3344,6 @@ async def cleanup_memories(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_counsel
 async def compact_memories(
     summary: str,
     limit: int = 10,
@@ -3473,7 +3446,6 @@ async def health(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def index_project(
     path: Optional[str] = None,
     patterns: Optional[List[str]] = None,
@@ -3525,7 +3497,6 @@ async def index_project(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def find_code(
     query: str,
     project_path: Optional[str] = None,
@@ -3577,7 +3548,6 @@ async def find_code(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def analyze_impact(
     entity_name: str,
     project_path: Optional[str] = None
@@ -3618,7 +3588,6 @@ async def analyze_impact(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def link_projects(
     linked_path: str,
     relationship: str = "related",
@@ -3655,7 +3624,6 @@ async def link_projects(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def unlink_projects(
     linked_path: str,
     project_path: Optional[str] = None
@@ -3686,7 +3654,6 @@ async def unlink_projects(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def list_linked_projects(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -3713,7 +3680,6 @@ async def list_linked_projects(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def consolidate_linked_databases(
     archive_sources: bool = False,
     project_path: Optional[str] = None
@@ -3748,7 +3714,6 @@ async def consolidate_linked_databases(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def set_active_context(
     memory_id: int,
     reason: Optional[str] = None,
@@ -3792,7 +3757,6 @@ async def set_active_context(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def get_active_context(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -3818,7 +3782,6 @@ async def get_active_context(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def remove_from_active_context(
     memory_id: int,
     project_path: Optional[str] = None
@@ -3846,7 +3809,6 @@ async def remove_from_active_context(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def clear_active_context(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -3877,7 +3839,6 @@ async def clear_active_context(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def get_memory_versions(
     memory_id: int,
     limit: int = 50,
@@ -3906,7 +3867,6 @@ async def get_memory_versions(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def get_memory_at_time(
     memory_id: int,
     timestamp: str,
@@ -3947,7 +3907,6 @@ async def get_memory_at_time(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def rebuild_communities(
     min_community_size: int = 2,
     project_path: Optional[str] = None
@@ -3988,7 +3947,6 @@ async def rebuild_communities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def list_communities(
     level: Optional[int] = None,
     project_path: Optional[str] = None
@@ -4021,7 +3979,6 @@ async def list_communities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def get_community_details(
     community_id: int,
     project_path: Optional[str] = None
@@ -4046,7 +4003,6 @@ async def get_community_details(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def recall_hierarchical(
     topic: str,
     include_members: bool = False,
@@ -4080,7 +4036,6 @@ async def recall_hierarchical(
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def recall_by_entity(
     entity_name: str,
     entity_type: Optional[str] = None,
@@ -4115,7 +4070,6 @@ async def recall_by_entity(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def list_entities(
     entity_type: Optional[str] = None,
     limit: int = 20,
@@ -4155,7 +4109,6 @@ async def list_entities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def backfill_entities(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -4214,7 +4167,6 @@ async def backfill_entities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def add_context_trigger(
     trigger_type: str,
     pattern: str,
@@ -4259,7 +4211,6 @@ async def add_context_trigger(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def list_context_triggers(
     active_only: bool = True,
     project_path: Optional[str] = None
@@ -4298,7 +4249,6 @@ async def list_context_triggers(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def remove_context_trigger(
     trigger_id: int,
     project_path: Optional[str] = None
@@ -4331,7 +4281,6 @@ async def remove_context_trigger(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-@requires_communion
 async def check_context_triggers(
     file_path: Optional[str] = None,
     tags: Optional[List[str]] = None,
