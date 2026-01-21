@@ -129,6 +129,33 @@ The summoner need not configure anything new - enforcement happens automatically
 - `context_check()` must be called before dangerous mutations
 - Error messages explain exactly what's required
 
+### Incantation I.5D.3: Ascend to the Middleware Realm (v3.0.0+)
+
+**If ascending to v3.0.0 or higher**, the Daem0n has transformed:
+
+- **FastMCP 3.0**: The foundation has shifted. Import paths have changed internally, but the Daem0n handles this transparently.
+
+- **CovenantMiddleware**: The Sacred Covenant is now enforced at the MCP protocol layer itself:
+  - No longer relies solely on decorators
+  - Intercepts ALL tool calls before execution
+  - Defense in depth: middleware + decorators (belt and suspenders)
+
+- **Component Versioning**: All 53 MCP tools now report their version (`version="3.0.0"`)
+  - Enables future API evolution tracking
+  - Clients can query tool versions
+
+- **OpenTelemetry Tracing** (Optional): For those who wish to observe the Daem0n's inner workings:
+  ```bash
+  pip install daem0nmcp[tracing]
+  export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+  export OTEL_SERVICE_NAME=daem0nmcp
+  ```
+
+**Breaking changes the summoner should know:**
+- The old covenant decorators (`@requires_communion`, `@requires_counsel`) now emit deprecation warnings
+- They still function, but CovenantMiddleware is the future
+- No action required - the transition is automatic
+
 ### Incantation I.5E: Relight the Altar (Windows Only)
 
 If the realm is Windows and the HTTP Altar is used:
