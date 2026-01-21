@@ -96,17 +96,17 @@ The decorator-based enforcement (`@requires_communion`, `@requires_counsel`) is 
 The following tool categories remain to be audited for FastMCP 3.0 compliance:
 
 ### Memory Tools
-- [X] remember - AUDITED (see below)
-- [X] remember_batch - AUDITED (see below)
-- [X] recall - AUDITED (see below)
-- [X] recall_for_file - AUDITED (see below)
+- [X] remember - AUDITED (see Memory Tools)
+- [X] remember_batch - AUDITED (see Memory Tools)
+- [X] recall - AUDITED (see Memory Tools)
+- [X] recall_for_file - AUDITED (see Memory Tools)
 - [X] search_memories - AUDITED (see Advanced Memory Tools)
 - [X] find_related - AUDITED (see Advanced Memory Tools)
 - [X] pin_memory - AUDITED (see Data Management Tools)
 - [X] archive_memory - AUDITED (see Data Management Tools)
-- [ ] prune_memories
+- [X] prune_memories - AUDITED (see Context & Workflow Tools)
 - [X] cleanup_memories - AUDITED (see Data Management Tools)
-- [ ] compact_memories
+- [X] compact_memories - AUDITED (see Context & Workflow Tools)
 
 ### Rule Tools
 - [X] add_rule - AUDITED (see Rules Engine Tools)
@@ -120,58 +120,58 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 ### Session Tools
 - [X] get_briefing - AUDITED (see Covenant Flow Tools)
 - [X] context_check - AUDITED (see Covenant Flow Tools)
-- [ ] health
+- [X] health - AUDITED (see Remaining Tools)
 
 ### Code Intelligence
 - [X] index_project - AUDITED (see Code Understanding Tools)
 - [X] find_code - AUDITED (see Code Understanding Tools)
 - [X] analyze_impact - AUDITED (see Code Understanding Tools)
-- [ ] scan_todos
-- [ ] propose_refactor
+- [X] scan_todos - AUDITED (see Remaining Tools)
+- [X] propose_refactor - AUDITED (see Remaining Tools)
 
 ### Graph Operations
 - [X] link_memories - AUDITED (see Covenant Flow Tools)
 - [X] unlink_memories - AUDITED (see Covenant Flow Tools)
-- [ ] trace_chain
-- [ ] get_graph
+- [X] trace_chain - AUDITED (see Community & Entity Tools)
+- [X] get_graph - AUDITED (see Remaining Tools)
 
 ### Community Detection
-- [ ] rebuild_communities
-- [ ] list_communities
-- [ ] get_community_details
+- [X] rebuild_communities - AUDITED (see Community & Entity Tools)
+- [X] list_communities - AUDITED (see Community & Entity Tools)
+- [X] get_community_details - AUDITED (see Community & Entity Tools)
 - [X] recall_hierarchical - AUDITED (see Advanced Memory Tools)
 
 ### Entity Tracking
 - [X] recall_by_entity - AUDITED (see Advanced Memory Tools)
-- [ ] list_entities
+- [X] list_entities - AUDITED (see Community & Entity Tools)
 - [X] backfill_entities - AUDITED (see Code Understanding Tools)
 
 ### Context Triggers
-- [ ] add_context_trigger
-- [ ] list_context_triggers
-- [ ] remove_context_trigger
-- [ ] check_context_triggers
+- [X] add_context_trigger - AUDITED (see Remaining Tools)
+- [X] list_context_triggers - AUDITED (see Remaining Tools)
+- [X] remove_context_trigger - AUDITED (see Remaining Tools)
+- [X] check_context_triggers - AUDITED (see Remaining Tools)
 
 ### Active Context
-- [ ] set_active_context
-- [ ] get_active_context
-- [ ] remove_from_active_context
-- [ ] clear_active_context
+- [X] set_active_context - AUDITED (see Context & Workflow Tools)
+- [X] get_active_context - AUDITED (see Context & Workflow Tools)
+- [X] remove_from_active_context - AUDITED (see Context & Workflow Tools)
+- [X] clear_active_context - AUDITED (see Context & Workflow Tools)
 
 ### Time Travel
-- [ ] get_memory_versions
-- [ ] get_memory_at_time
+- [X] get_memory_versions - AUDITED (see Context & Workflow Tools)
+- [X] get_memory_at_time - AUDITED (see Context & Workflow Tools)
 
 ### Project Linking
-- [ ] link_projects
-- [ ] unlink_projects
-- [ ] list_linked_projects
-- [ ] consolidate_linked_databases
+- [X] link_projects - AUDITED (see Remaining Tools)
+- [X] unlink_projects - AUDITED (see Remaining Tools)
+- [X] list_linked_projects - AUDITED (see Remaining Tools)
+- [X] consolidate_linked_databases - AUDITED (see Remaining Tools)
 
 ### Import/Export
 - [X] export_data - AUDITED (see Data Management Tools)
 - [X] import_data - AUDITED (see Data Management Tools)
-- [ ] ingest_doc
+- [X] ingest_doc - AUDITED (see Remaining Tools)
 
 ### Index Maintenance
 - [X] rebuild_index - AUDITED (see Data Management Tools)
@@ -1578,3 +1578,601 @@ All 14 tests pass in `tests/test_covenant.py`:
 | cleanup_memories | [X] v3.0.0 | Present | Yes | (indirect) |
 
 **All data management tools are FastMCP 3.0 compliant.** Version decorators present, proper error handling, and async-safe implementations.
+
+---
+
+## Context & Workflow Tools
+
+**Files:** `daem0nmcp/server.py:3749-3941`, `daem0nmcp/server.py:3124-3401`, `daem0nmcp/active_context.py`
+
+### get_active_context
+
+**Server Definition:** `daem0nmcp/server.py:3793-3817`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3793)
+  - Return type is `Dict[str, Any]`
+  - Returns error dict for missing project_path (lines 3805-3806)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- **Technical Enhancement:** `condensed` parameter (WIP)
+  - Could add `condensed: bool = False` to strip rationale/context for token efficiency
+  - Already integrated in `get_briefing()` for active context retrieval
+
+- **Efficiency:** Eager load memories with context items
+  - Currently fetches context items, then separate query for memory details
+  - Could JOIN to reduce round trips
+
+---
+
+### set_active_context
+
+**Server Definition:** `daem0nmcp/server.py:3749-3791`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3749)
+  - Return type is `Dict[str, Any]`
+  - Returns error dict for missing project_path (lines 3769-3770)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Supports optional `expires_in_hours` for auto-expiry (lines 3780-3782)
+  - Priority ordering for display in briefings (line 3755)
+  - Delegates to `ActiveContextManager.add_to_context()`
+
+- **Technical Enhancement:** Bulk set
+  - Could add `set_active_context_batch(memory_ids: List[int])` for bulk operations
+
+- **Efficiency:** Already lightweight
+  - Single insert per call, no complex queries
+
+---
+
+### remove_from_active_context
+
+**Server Definition:** `daem0nmcp/server.py:3819-3845`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3819)
+  - Return type is `Dict[str, Any]`
+  - Returns error dict for missing project_path (lines 3833-3834)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- **Technical Enhancement:** Bulk remove
+  - Could add `remove_from_active_context_batch(memory_ids: List[int])`
+
+- **Efficiency:** Already lightweight
+  - Single DELETE statement per call
+
+---
+
+### clear_active_context
+
+**Server Definition:** `daem0nmcp/server.py:3847-3871`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3847)
+  - Return type is `Dict[str, Any]`
+  - Returns error dict for missing project_path (lines 3859-3860)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- **Technical Enhancement:** Confirm before clear
+  - Could add `confirm: bool = False` parameter for destructive operation safety
+  - Would require `confirm=True` to actually clear
+
+- **Efficiency:** Single DELETE statement
+  - Bulk delete all context items for project in one operation
+
+---
+
+### get_memory_versions
+
+**Server Definition:** `daem0nmcp/server.py:3878-3905`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3878)
+  - Return type is `Dict[str, Any]` with `memory_id`, `version_count`, `versions`
+  - Returns error dict for missing project_path (lines 3894-3895)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- **Technical Enhancement:** Diff between versions
+  - Could add `diff: bool = False` parameter to compute deltas between versions
+  - Would show what changed between each version
+
+- **Efficiency:** Paginate results
+  - `limit` parameter already present (default 50)
+  - Could add `offset` for full pagination support
+
+---
+
+### get_memory_at_time
+
+**Server Definition:** `daem0nmcp/server.py:3907-3941`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3907)
+  - Return type is `Dict[str, Any]` with historical memory state
+  - Returns error dict for missing project_path (lines 3923-3924)
+  - Returns error dict for invalid timestamp format (lines 3928-3929)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- **Technical Enhancement:** Range query support
+  - Could support `from_timestamp` and `to_timestamp` for querying version ranges
+  - Would return all versions within the time range
+
+- **Efficiency:** Index on timestamp
+  - `MemoryVersion.version_at` should be indexed for efficient temporal queries
+  - Currently queries by memory_id first, then filters by time
+
+---
+
+### prune_memories
+
+**Server Definition:** `daem0nmcp/server.py:3124-3208`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3124)
+  - Return type is `Dict[str, Any]` with pruning statistics
+  - Returns error dict for missing project_path (lines 3146-3147)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call (destructive operation)
+
+- [X] **Implementation Details** - REVIEWED
+  - Age-based pruning via `older_than_days` parameter (line 3154)
+  - Access-based protection via `min_recall_count` (line 3165)
+  - Protects: permanent, pinned, with outcomes, frequently accessed (lines 3161-3165)
+  - `dry_run=True` default for safety preview (line 3175)
+  - Rebuilds TF-IDF index after pruning (line 3199)
+
+- **Technical Enhancement:** Age-based + access-based pruning
+  - Already implemented with `older_than_days` and `min_recall_count`
+  - Recall count saliency protection ensures valuable memories retained
+
+- **Efficiency:** Batch deletion
+  - Deletes all matching memories in single transaction (lines 3195-3196)
+  - Single index rebuild after all deletions
+
+---
+
+### compact_memories
+
+**Server Definition:** `daem0nmcp/server.py:3371-3401`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3371)
+  - Return type is `Dict[str, Any]` with compaction results
+  - Returns error dict for missing project_path (lines 3391-3392)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call (destructive operation)
+
+- [X] **Implementation Details** - REVIEWED
+  - `summary` parameter for user-provided consolidation text (min 50 chars)
+  - `topic` filter for selective compaction (line 3377)
+  - `dry_run=True` default for safety preview
+  - Delegates to `memory_manager.compact_memories()`
+
+- **Technical Enhancement:** LLM-based summarization
+  - Currently requires user-provided summary text
+  - Could integrate LLM to auto-generate summaries from memory content
+  - Would require API key configuration
+
+- **Efficiency:** Background task for large compaction
+  - Could run large compactions asynchronously with task ID
+  - Would enable progress monitoring for 100+ memory compactions
+
+---
+
+## Context & Workflow Tools Summary
+
+| Tool | FastMCP 3.0 | Version Decorator | Async Safe | Tests |
+|------|-------------|-------------------|------------|-------|
+| get_active_context | [X] v3.0.0 | Present | Yes | (indirect) |
+| set_active_context | [X] v3.0.0 | Present | Yes | (indirect) |
+| remove_from_active_context | [X] v3.0.0 | Present | Yes | (indirect) |
+| clear_active_context | [X] v3.0.0 | Present | Yes | (indirect) |
+| get_memory_versions | [X] v3.0.0 | Present | Yes | (indirect) |
+| get_memory_at_time | [X] v3.0.0 | Present | Yes | (indirect) |
+| prune_memories | [X] v3.0.0 | Present | Yes | (indirect) |
+| compact_memories | [X] v3.0.0 | Present | Yes | (indirect) |
+
+**All 8 Context & Workflow tools are FastMCP 3.0 compliant.** Version decorators present, proper error handling, and async-safe implementations.
+
+---
+
+## Community & Entity Tools
+
+**Files:** `daem0nmcp/server.py:3948-4153`, `daem0nmcp/server.py:3063-3121`, `daem0nmcp/communities.py`, `daem0nmcp/entity_manager.py`
+
+### rebuild_communities
+
+**Server Definition:** `daem0nmcp/server.py:3948-3987`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3948)
+  - Return type is `Dict[str, Any]` with rebuild statistics
+  - Returns error dict for missing project_path (lines 3962-3963)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Detects communities via tag co-occurrence (line 3971)
+  - Auto-generates summaries for each community (line 3956)
+  - `min_community_size` parameter for filtering small clusters (line 3952)
+  - Saves communities to database (lines 3977-3980)
+
+- **Technical Enhancement:** Incremental community detection
+  - Currently rebuilds all communities from scratch
+  - Could detect only new/changed communities since last rebuild
+  - Would require tracking which memories have changed
+
+- **Efficiency:** Background task with progress
+  - Could run asynchronously for large memory sets
+  - Report progress via MCP notifications
+
+---
+
+### list_communities
+
+**Server Definition:** `daem0nmcp/server.py:3989-4019`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3989)
+  - Return type is `Dict[str, Any]` with communities list
+  - Returns error dict for missing project_path (lines 4003-4004)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- **Technical Enhancement:** Filter by level
+  - `level: Optional[int]` parameter already implemented (line 3993)
+  - Filters communities by hierarchy level
+
+- **Efficiency:** Already lightweight
+  - Single query to fetch communities with optional level filter
+
+---
+
+### get_community_details
+
+**Server Definition:** `daem0nmcp/server.py:4022-4044`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 4022)
+  - Return type is `Dict[str, Any]` with community details and members
+  - Returns error dict for missing project_path (lines 4036-4037)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- **Technical Enhancement:** Include member summaries
+  - Could add `include_summaries: bool = False` parameter
+  - Would return condensed memory content with each member
+
+- **Efficiency:** Eager load members
+  - Currently delegates to `CommunityManager.get_community_members()`
+  - Should eagerly load memory details with community query
+
+---
+
+### list_entities
+
+**Server Definition:** `daem0nmcp/server.py:4116-4153`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 4116)
+  - Return type is `Dict[str, Any]` with entities list
+  - Returns error dict for missing project_path (lines 4132-4133)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Returns most frequently mentioned entities (line 4125)
+  - `entity_type` parameter for filtering (line 4120)
+  - `limit` parameter for pagination (line 4121)
+
+- **Technical Enhancement:** Entity type filtering
+  - Already implemented via `entity_type: Optional[str]` parameter
+
+- **Efficiency:** Materialized view for counts
+  - Could create materialized view for entity mention counts
+  - Would speed up popularity queries for large datasets
+
+---
+
+### trace_chain
+
+**Server Definition:** `daem0nmcp/server.py:3063-3092`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3063)
+  - Return type is `Dict[str, Any]` with traversal results
+  - Returns error dict for missing project_path (lines 3083-3084)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - `direction` parameter: forward/backward/both (line 3068)
+  - `relationship_types` filter for specific edge types (line 3069)
+  - `max_depth` parameter prevents runaway traversals (line 3070, default 10)
+  - Delegates to `memory_manager.trace_chain()`
+
+- **Technical Enhancement:** Cycle detection
+  - Should detect and handle cycles in memory graph
+  - Prevent infinite loops in cyclic relationships
+
+- **Efficiency:** Depth-limited BFS (already present)
+  - `max_depth` parameter limits traversal depth
+  - Prevents expensive full-graph traversals
+
+---
+
+## Community & Entity Tools Summary
+
+| Tool | FastMCP 3.0 | Version Decorator | Async Safe | Tests |
+|------|-------------|-------------------|------------|-------|
+| rebuild_communities | [X] v3.0.0 | Present | Yes | 2 |
+| list_communities | [X] v3.0.0 | Present | Yes | 1 |
+| get_community_details | [X] v3.0.0 | Present | Yes | 1 |
+| list_entities | [X] v3.0.0 | Present | Yes | (indirect) |
+| trace_chain | [X] v3.0.0 | Present | Yes | (covered by graph tests) |
+
+**All 5 Community & Entity tools are FastMCP 3.0 compliant.** GraphRAG-style community detection working with tag co-occurrence and auto-summarization.
+
+---
+
+## Remaining Tools
+
+**Files:** `daem0nmcp/server.py:2516-2739`, `daem0nmcp/server.py:3619-3743`, `daem0nmcp/server.py:4215-4371`, `daem0nmcp/server.py:2171-2263`, `daem0nmcp/server.py:3404-3467`
+
+### ingest_doc
+
+**Server Definition:** `daem0nmcp/server.py:2516-2603`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 2516)
+  - Return type is `Dict[str, Any]` with ingestion statistics
+  - Returns error dict for missing project_path (lines 2535-2536)
+  - Returns error dict for invalid chunk_size (lines 2539-2543)
+  - Returns error dict for empty topic (lines 2545-2546)
+  - Returns error dict for URL validation failure (lines 2549-2551)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call (external content)
+
+- [X] **Implementation Details** - REVIEWED
+  - URL validation with SSRF protection (line 2549)
+  - Markdown-aware content chunking (line 2573)
+  - Each chunk stored as a learning memory with source tracking (lines 2583-2592)
+  - Chunk limit protection (MAX_CHUNKS constant)
+
+- **Technical Enhancement:** Support more formats (PDF, RSS)
+  - Currently HTML/text only via BeautifulSoup
+  - Could add PDF parsing via PyPDF2 or pdfplumber
+  - Could add RSS/Atom feed parsing
+
+- **Efficiency:** Stream large documents
+  - Currently loads full content into memory
+  - Could stream and chunk incrementally for very large documents
+
+---
+
+### propose_refactor
+
+**Server Definition:** `daem0nmcp/server.py:2609-2739`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 2609)
+  - Return type is `Dict[str, Any]` with comprehensive analysis
+  - Returns error dict for missing project_path (lines 2624-2625)
+  - Returns error dict for invalid file path (lines 2677-2679)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Retrieves file-specific memories (line 2640)
+  - Traces causal chains to understand WHY code evolved (lines 2643-2673)
+  - Scans for TODOs in the file (lines 2681-2687)
+  - Checks relevant rules (lines 2689-2692)
+  - Extracts constraints from warnings and failed approaches (lines 2694-2709)
+  - Identifies opportunities from TODOs (lines 2711-2718)
+
+- **Technical Enhancement:** LLM-assisted suggestions
+  - Currently returns raw analysis data
+  - Could integrate LLM to synthesize refactoring recommendations
+  - Would require API key configuration
+
+- **Efficiency:** Cache file analysis
+  - Results are deterministic until memories/rules change
+  - Could cache with invalidation on relevant changes
+
+---
+
+### get_graph
+
+**Server Definition:** `daem0nmcp/server.py:3095-3121`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3095)
+  - Return type is `Dict[str, Any]` with graph data
+  - Returns error dict for missing project_path (lines 3113-3114)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Supports `memory_ids` or `topic` for node selection (lines 3099-3100)
+  - `format` parameter: "json" or "mermaid" (line 3101)
+  - Delegates to `memory_manager.get_graph()`
+
+- **Technical Enhancement:** Filter by relationship type
+  - Could add `relationship_types: Optional[List[str]]` parameter
+  - Would filter edges to specific types (led_to, supersedes, etc.)
+
+- **Efficiency:** Lazy load edges
+  - Could return nodes first, edges on demand
+  - Would reduce payload for large graphs
+
+---
+
+### link_projects / unlink_projects / list_linked_projects / consolidate_linked_databases
+
+**Server Definitions:**
+- `link_projects`: lines 3619-3653
+- `unlink_projects`: lines 3656-3684
+- `list_linked_projects`: lines 3687-3711
+- `consolidate_linked_databases`: lines 3714-3742
+
+- [X] **FastMCP 3.0 Compliance** - ALL VERIFIED
+  - All have `@mcp.tool(version="3.0.0")` decorator
+  - All return `Dict[str, Any]`
+  - All have proper error handling for missing project_path
+  - All delegate to `LinkManager` for implementation
+
+- [X] **Decorators applied** - ALL VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - `link_projects`: Creates bidirectional project links with relationship type (line 3624)
+  - `unlink_projects`: Removes project link (line 3660)
+  - `list_linked_projects`: Returns all links for a project (line 3690)
+  - `consolidate_linked_databases`: Merges memories from linked projects (line 3717)
+
+---
+
+### add_context_trigger / list_context_triggers / remove_context_trigger / check_context_triggers
+
+**Server Definitions:**
+- `add_context_trigger`: lines 4215-4257
+- `list_context_triggers`: lines 4260-4296
+- `remove_context_trigger`: lines 4299-4329
+- `check_context_triggers`: lines 4332-4371
+
+- [X] **FastMCP 3.0 Compliance** - ALL VERIFIED
+  - All have `@mcp.tool(version="3.0.0")` decorator
+  - All return `Dict[str, Any]`
+  - All have proper error handling for missing project_path
+  - All delegate to `ContextTriggerManager` for implementation
+
+- [X] **Decorators applied** - ALL VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - `add_context_trigger`: Creates auto-recall triggers (file_pattern, tag_match, entity_match)
+  - `list_context_triggers`: Lists configured triggers with optional active filter
+  - `remove_context_trigger`: Removes a trigger by ID
+  - `check_context_triggers`: Matches context against triggers and returns recalled memories
+
+---
+
+### scan_todos
+
+**Server Definition:** `daem0nmcp/server.py:2171-2263`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 2171)
+  - Return type is `Dict[str, Any]` with TODO statistics
+  - Returns error dict for missing project_path (lines 2190-2191)
+  - Returns error dict for invalid scan path (lines 2198-2199)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Scans for TODO/FIXME/HACK/XXX/BUG comments (line 2181)
+  - `types` filter for specific TODO types (lines 2206-2208)
+  - `auto_remember` creates warning memories for found items (lines 2232-2245)
+  - Deduplication against existing tech_debt memories (lines 2218-2228)
+  - Groups results by type with summary (lines 2210-2257)
+
+- **Efficiency:** Parallel file scanning
+  - Could use `asyncio.gather()` for scanning multiple files
+  - Would speed up large codebase scans
+
+---
+
+### health
+
+**Server Definition:** `daem0nmcp/server.py:3404-3467`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3404)
+  - Return type is `Dict[str, Any]` with health statistics
+  - Returns error dict for missing project_path (lines 3417-3418)
+  - **EXEMPT from covenant** - No `@requires_communion` or `@requires_counsel`
+
+- [X] **Decorators applied** - PARTIAL
+  - `@with_request_id` - OpenTelemetry request tracking
+  - **NO covenant decorators** - Intentionally exempt as diagnostic tool
+
+- [X] **Implementation Details** - REVIEWED
+  - Returns server version, project path, storage path (lines 3452-3454)
+  - Memory statistics by category (lines 3455-3457)
+  - Rule count (line 3456)
+  - Code entity statistics with index freshness (lines 3462-3466)
+  - Vector store availability (line 3459)
+  - Contexts cached count (line 3458)
+
+- **Technical Enhancement:** Include middleware status
+  - Could add `middleware_status` field showing:
+    - CovenantMiddleware enabled/disabled
+    - Recent violation counts
+    - Blocked tool calls (if any)
+
+---
+
+## Remaining Tools Summary
+
+| Tool | FastMCP 3.0 | Version Decorator | Covenant | Tests |
+|------|-------------|-------------------|----------|-------|
+| ingest_doc | [X] v3.0.0 | Present | counsel | (indirect) |
+| propose_refactor | [X] v3.0.0 | Present | communion | (indirect) |
+| get_graph | [X] v3.0.0 | Present | communion | (covered by graph tests) |
+| link_projects | [X] v3.0.0 | Present | communion | (indirect) |
+| unlink_projects | [X] v3.0.0 | Present | communion | (indirect) |
+| list_linked_projects | [X] v3.0.0 | Present | communion | (indirect) |
+| consolidate_linked_databases | [X] v3.0.0 | Present | communion | (indirect) |
+| add_context_trigger | [X] v3.0.0 | Present | communion | (indirect) |
+| list_context_triggers | [X] v3.0.0 | Present | communion | (indirect) |
+| remove_context_trigger | [X] v3.0.0 | Present | communion | (indirect) |
+| check_context_triggers | [X] v3.0.0 | Present | communion | (indirect) |
+| scan_todos | [X] v3.0.0 | Present | communion | (indirect) |
+| health | [X] v3.0.0 | Present | EXEMPT | (indirect) |
+
+**All 13 Remaining tools are FastMCP 3.0 compliant.** The `health` tool is intentionally exempt from covenant enforcement as a diagnostic entry point.
