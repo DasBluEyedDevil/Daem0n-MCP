@@ -13,6 +13,37 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v3.0.0
+
+### FastMCP 3.0 Upgrade
+Daem0n-MCP now runs on FastMCP 3.0, bringing modern middleware architecture:
+
+- **CovenantMiddleware**: Sacred Covenant enforcement via FastMCP 3.0 middleware pattern
+  - Intercepts tool calls at the MCP protocol layer
+  - Works alongside existing decorators (belt and suspenders)
+  - Automatic enforcement without per-tool decoration
+
+- **Component Versioning**: All 53 MCP tools now include version metadata
+  - Enables safe API evolution and deprecation tracking
+  - Tools report `version="3.0.0"` in their metadata
+
+- **OpenTelemetry Tracing** (Optional): Built-in observability support
+  - Install with: `pip install daem0nmcp[tracing]`
+  - Enable with: `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`
+
+### Breaking Changes
+- **Import path changed**: FastMCP 3.0 uses `from fastmcp import FastMCP` (was `from mcp.server.fastmcp`)
+- **Decorators deprecated**: `@requires_communion` and `@requires_counsel` now emit deprecation warnings
+  - CovenantMiddleware handles enforcement automatically
+  - Decorators still work but will be removed in a future version
+
+### Migration
+Upgrading from v2.x is straightforward:
+```bash
+cd ~/Daem0nMCP && git pull && pip install -e .
+```
+Database migrations run automatically. No manual steps required.
+
 ## What's New in v2.16.0
 
 ### Sacred Covenant Enforcement
@@ -283,7 +314,7 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Core Tools (42 Total)
+## Core Tools (53 Total)
 
 ### Memory Tools
 
@@ -578,6 +609,9 @@ daem0nmcp/
 ├── similarity.py   # TF-IDF index, decay, conflict detection
 ├── vectors.py      # Vector embeddings (sentence-transformers)
 ├── covenant.py     # Sacred Covenant enforcement decorators & preflight tokens
+├── transforms/     # FastMCP 3.0 transforms
+│   └── covenant.py # CovenantMiddleware & CovenantTransform
+├── tracing.py      # OpenTelemetry integration (optional)
 ├── code_indexer.py # Code understanding via tree-sitter (Phase 2)
 ├── watcher.py      # Proactive file watcher daemon (Phase 1)
 ├── database.py     # SQLite async database
@@ -736,7 +770,7 @@ This parses your code with tree-sitter (supports Python, TypeScript, JavaScript,
 # Install in development mode
 pip install -e .
 
-# Run tests (432 tests)
+# Run tests (559 tests)
 pytest tests/ -v --asyncio-mode=auto
 
 # Run server directly
@@ -778,4 +812,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v2.16.0: Sacred Covenant Enforcement—rigid enforcement decorators, preflight tokens, MCP Resources for dynamic context injection, Claude Code 2.1.3 compatibility.*
+*Daem0nMCP v3.0.0: FastMCP 3.0 upgrade—CovenantMiddleware, component versioning, OpenTelemetry tracing, Sacred Covenant enforcement.*
