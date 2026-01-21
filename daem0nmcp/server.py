@@ -72,9 +72,9 @@ from typing import Dict, List, Optional, Any, Union, Set, Tuple
 from datetime import datetime, timezone, timedelta
 
 try:
-    from mcp.server.fastmcp import FastMCP
+    from fastmcp import FastMCP
 except ImportError:
-    print("ERROR: fastmcp not installed. Run: pip install fastmcp", file=sys.stderr)
+    print("ERROR: fastmcp not installed. Run: pip install fastmcp>=3.0.0b1", file=sys.stderr)
     sys.exit(1)
 
 try:

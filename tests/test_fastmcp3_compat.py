@@ -14,3 +14,9 @@ def test_fastmcp_version():
     version = getattr(fastmcp, '__version__', '0.0.0')
     major = int(version.split('.')[0])
     assert major >= 3, f"Expected FastMCP 3.x, got {version}"
+
+
+def test_server_import():
+    """Verify server module imports correctly with FastMCP 3.0."""
+    from daem0nmcp import server
+    assert server.mcp is not None
