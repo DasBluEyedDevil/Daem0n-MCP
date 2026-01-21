@@ -55,8 +55,9 @@ The Sacred Covenant is now **enforced**, not just advisory:
 - **Remedies**: Each block includes the exact tool call needed to fix it
 
 **Affected tools:**
-- Communion required: `remember`, `remember_batch`, `add_rule`, `update_rule`, `record_outcome`, `link_memories`, `pin_memory`, `archive_memory`, `prune_memories`, `cleanup_memories`, `compact_memories`
-- Exempt (read-only): `recall`, `recall_for_file`, `search_memories`, `find_code`, `analyze_impact`, `check_rules`, `list_rules`
+- Communion required: `remember`, `remember_batch`, `add_rule`, `update_rule`, `record_outcome`, `link_memories`, `pin_memory`, `archive_memory`, `prune_memories`, `cleanup_memories`, `compact_memories`, `recall`, `recall_for_file`, `search_memories`, `find_code`, `analyze_impact`
+- Counsel required (in addition to communion): `remember`, `remember_batch`, `add_rule`, `update_rule`
+- Exempt (entry points only): `get_briefing`, `context_check`, `health`
 
 ### MCP Resources (Dynamic Context Injection)
 Resources that Claude Desktop/Code can subscribe to for automatic context:

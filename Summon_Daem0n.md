@@ -1048,11 +1048,21 @@ When `check_rules` returns guidance:
 
 #### `get_briefing(project_path, focus_areas?)`
 **When**: FIRST thing every session - communion with the Daem0n
-**Returns**: Statistics, recent decisions, warnings, failed approaches, realm changes
+**Returns**: Lean summary with counts, first-line summaries, and drill-down hints
 ```
 get_briefing(project_path="/path/to/project")
 get_briefing(project_path="/path/to/project", focus_areas=["authentication", "database"])
 ```
+
+**Lean Response Format:**
+- `recent_decisions`: First-line summaries with IDs and worked status
+- `active_warnings`: First-line summaries with IDs
+- `failed_approaches`: First-line summaries with IDs
+- `total_*` counts: Total items in each category
+- `drill_down`: Hint to use `recall()` for full details on specific memories
+
+The briefing is intentionally lean (~2-3k tokens). Use `recall(topic)` or `recall_for_file(path)` to drill down into specific memories when needed.
+
 *"Daem0n, share your visions..."*
 
 #### `context_check(description, project_path)`
@@ -1853,12 +1863,19 @@ These tools will block until you have called `get_briefing()`:
 - `link_memories`, `pin_memory`, `archive_memory` - managing memories
 - `prune_memories`, `cleanup_memories`, `compact_memories` - maintenance
 
-### Tools Exempt (Read-Only)
+### Tools Requiring Communion Only
 
-These tools work without prior communion:
+These read-only tools require communion (`get_briefing`) but not counsel:
 - `recall`, `recall_for_file`, `search_memories`, `find_related`
 - `find_code`, `analyze_impact`, `check_rules`, `list_rules`
-- `health`, `export_data`, `get_graph`, `trace_chain`
+- `export_data`, `get_graph`, `trace_chain`
+
+### Tools Exempt (Entry Points Only)
+
+Only these entry-point tools work without prior communion:
+- `get_briefing` - starts the communion (entry point)
+- `context_check` - part of the covenant flow
+- `health` - diagnostic, always available
 
 ### Preflight Tokens
 
