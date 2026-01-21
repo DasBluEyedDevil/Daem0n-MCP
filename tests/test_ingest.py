@@ -3,7 +3,6 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from conftest import ensure_covenant_compliance
 
 
 class AsyncContextManager:

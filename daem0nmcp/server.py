@@ -4297,7 +4297,7 @@ async def backfill_entities(
     async with ctx.db_manager.get_session() as session:
         result = await session.execute(
             select(Memory).where(
-                or_(Memory.archived == False, Memory.archived.is_(None))
+                or_(Memory.archived == False, Memory.archived.is_(None))  # noqa: E712
             )
         )
         memories = result.scalars().all()
@@ -4506,7 +4506,7 @@ async def _warnings_resource_impl(project_path: str, db_manager: DatabaseManager
             result = await session.execute(
                 select(Memory).where(
                     Memory.category == "warning",
-                    or_(Memory.archived == False, Memory.archived.is_(None)),
+                    or_(Memory.archived == False, Memory.archived.is_(None))  # noqa: E712,
                 ).order_by(Memory.created_at.desc()).limit(10)
             )
             warnings = result.scalars().all()
@@ -4544,8 +4544,8 @@ async def _failed_resource_impl(project_path: str, db_manager: DatabaseManager) 
         async with db_manager.get_session() as session:
             result = await session.execute(
                 select(Memory).where(
-                    Memory.worked == False,
-                    or_(Memory.archived == False, Memory.archived.is_(None)),
+                    Memory.worked == False,  # noqa: E712
+                    or_(Memory.archived == False, Memory.archived.is_(None))  # noqa: E712,
                 ).order_by(Memory.created_at.desc()).limit(10)
             )
             failed = result.scalars().all()
@@ -4582,7 +4582,7 @@ async def _rules_resource_impl(project_path: str, db_manager: DatabaseManager) -
     try:
         async with db_manager.get_session() as session:
             result = await session.execute(
-                select(Rule).where(Rule.enabled == True)
+                select(Rule).where(Rule.enabled == True)  # noqa: E712
                 .order_by(Rule.priority.desc())
                 .limit(5)
             )

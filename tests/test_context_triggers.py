@@ -1,6 +1,8 @@
 """Tests for contextual recall triggers."""
 
 import pytest
+import tempfile
+import shutil
 from datetime import datetime, timezone
 
 from daem0nmcp.models import ContextTrigger
@@ -23,7 +25,7 @@ class TestContextTriggerModel:
         assert trigger.trigger_type == "file_pattern"
         assert trigger.pattern == "src/auth/**/*.py"
         assert trigger.recall_topic == "authentication"
-        assert trigger.is_active == True
+        assert trigger.is_active is True
 
     def test_context_trigger_default_values(self):
         """ContextTrigger should have sensible defaults when explicitly set."""
@@ -41,7 +43,7 @@ class TestContextTriggerModel:
         )
 
         # Verify values are set correctly
-        assert trigger.is_active == True
+        assert trigger.is_active is True
         assert trigger.priority == 0
         assert trigger.recall_categories == []
         assert trigger.trigger_count == 0
@@ -67,7 +69,7 @@ class TestContextTriggerModel:
         assert trigger.pattern == "UserService|AuthService"
         assert trigger.recall_topic == "user authentication"
         assert trigger.recall_categories == ["decision", "warning"]
-        assert trigger.is_active == False
+        assert trigger.is_active is False
         assert trigger.priority == 10
         assert trigger.trigger_count == 5
         assert trigger.last_triggered == now
@@ -105,10 +107,6 @@ class TestContextTriggerModel:
 # ============================================================================
 # ContextTriggerManager Tests
 # ============================================================================
-
-import tempfile
-import shutil
-import fnmatch
 
 
 @pytest.fixture
@@ -299,7 +297,7 @@ async def test_check_triggers_inactive_not_matched(trigger_manager, temp_storage
         pattern="src/auth/*.py",
         recall_topic="authentication"
     )
-    trigger_id = result["trigger_id"]
+    _ = result["trigger_id"]  # Verify trigger_id exists
 
     # We'd need to disable the trigger - for now test that active ones match
     matches = await trigger_manager.check_triggers(

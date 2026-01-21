@@ -6,7 +6,7 @@ before allowing operations.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from datetime import datetime, timezone
 
 
@@ -332,7 +332,6 @@ async def test_covenant_middleware_blocks_via_transform():
 
     # Create mock context and call_next
     from mcp import types as mt
-    from unittest.mock import AsyncMock
 
     mock_message = mt.CallToolRequestParams(
         name="remember",
@@ -383,7 +382,6 @@ async def test_covenant_middleware_allows_valid_requests():
 
     # Create mock context and call_next
     from mcp import types as mt
-    from unittest.mock import AsyncMock
 
     mock_message = mt.CallToolRequestParams(
         name="remember",
@@ -395,15 +393,16 @@ async def test_covenant_middleware_allows_valid_requests():
 
     expected_result = [{"type": "text", "text": "Success!"}]
     mock_call_next = AsyncMock(return_value=expected_result)
+    mock_context = MockContext()
 
     # Call on_call_tool
-    result = await middleware.on_call_tool(MockContext(), mock_call_next)
+    result = await middleware.on_call_tool(mock_context, mock_call_next)
 
     # Should be allowed
     assert result == expected_result
 
-    # call_next SHOULD have been called
-    mock_call_next.assert_called_once_with(mock_message)
+    # call_next SHOULD have been called with the full context
+    mock_call_next.assert_called_once_with(mock_context)
 
 
 @pytest.mark.asyncio
@@ -421,7 +420,6 @@ async def test_covenant_middleware_allows_exempt_tools():
 
     # Create mock context for get_briefing (exempt tool)
     from mcp import types as mt
-    from unittest.mock import AsyncMock
 
     mock_message = mt.CallToolRequestParams(
         name="get_briefing",
@@ -433,13 +431,14 @@ async def test_covenant_middleware_allows_exempt_tools():
 
     expected_result = [{"type": "text", "text": "Briefing data..."}]
     mock_call_next = AsyncMock(return_value=expected_result)
+    mock_context = MockContext()
 
     # Call on_call_tool
-    result = await middleware.on_call_tool(MockContext(), mock_call_next)
+    result = await middleware.on_call_tool(mock_context, mock_call_next)
 
     # Should be allowed even though not briefed
     assert result == expected_result
-    mock_call_next.assert_called_once_with(mock_message)
+    mock_call_next.assert_called_once_with(mock_context)
 
 
 # ============================================================================
@@ -453,7 +452,7 @@ def test_server_has_covenant_middleware():
     if not _FASTMCP_MIDDLEWARE_AVAILABLE:
         pytest.skip("FastMCP 3.0 middleware not available")
 
-    from daem0nmcp.server import mcp, _covenant_middleware
+    from daem0nmcp.server import _covenant_middleware
 
     # Verify middleware exists
     assert _covenant_middleware is not None

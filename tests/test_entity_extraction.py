@@ -1,7 +1,8 @@
 """Tests for auto entity extraction from memories."""
 
 import pytest
-from datetime import datetime, timezone
+import tempfile
+import shutil
 
 from daem0nmcp.models import ExtractedEntity, MemoryEntityRef
 
@@ -110,10 +111,6 @@ class TestEntityExtractor:
 
         assert "src/auth/service.py" in names
         assert "tests/test_auth.py" in names
-
-
-import tempfile
-import shutil
 
 
 @pytest.fixture

@@ -311,7 +311,7 @@ class TestLinkedBriefing:
         # Verify the linked project data structure is correctly populated
         linked = result["linked_projects"][0]
         assert linked["path"] == client_path
-        assert linked["available"] == True  # Now should work with correct .daem0nmcp path
+        assert linked["available"] is True  # Now should work with correct .daem0nmcp path
         assert linked["relationship"] == "same-project"
         # With correct storage path, we should see the warning we added
         assert linked["warning_count"] == 1

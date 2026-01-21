@@ -370,14 +370,19 @@ class TestPreCommitCLI:
         import subprocess
         import sys
 
-        result = subprocess.run(
+        # Use Popen for better handle management on Windows
+        proc = subprocess.Popen(
             [sys.executable, "-m", "daem0nmcp.cli",
              "--project-path", str(tmp_path),
              "pre-commit", "--staged-files"],
-            capture_output=True, text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            text=True
         )
-        # Should pass (exit 0) with no files
-        assert result.returncode == 0
+        stdout, stderr = proc.communicate()
+        # Should pass (exit 0) with no files in a clean temp directory
+        assert proc.returncode == 0, f"stdout: {stdout}\nstderr: {stderr}"
 
 
 class TestStatusCLI:

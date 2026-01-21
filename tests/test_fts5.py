@@ -1,7 +1,6 @@
 """Tests for FTS5 full-text search virtual table infrastructure."""
 
 import pytest
-from pathlib import Path
 import tempfile
 import shutil
 from sqlalchemy import text

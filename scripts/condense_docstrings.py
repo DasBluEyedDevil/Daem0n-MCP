@@ -425,7 +425,6 @@ def apply_condensed_docstrings(content: str, dry_run: bool = True) -> tuple[str,
     """Apply condensed docstrings to content. Returns (new_content, changes_made)."""
     changes = []
     new_content = content
-    offset = 0  # Track position changes as we modify
 
     for func_name, condensed in CONDENSED_DOCSTRINGS.items():
         result = find_function_docstring(new_content, func_name)
@@ -482,7 +481,7 @@ def main():
         print(f"\nApplied changes to {server_path}")
         print(f"File size: {original_size:,} -> {len(new_content):,} bytes")
     else:
-        print(f"\nRun with --apply to make changes")
+        print("\nRun with --apply to make changes")
 
 
 if __name__ == '__main__':

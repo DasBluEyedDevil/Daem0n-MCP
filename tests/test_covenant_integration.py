@@ -1,9 +1,7 @@
 """Integration tests for Sacred Covenant enforcement on MCP tools."""
 
 import pytest
-from unittest.mock import patch, AsyncMock
 
-from daem0nmcp.covenant import COMMUNION_REQUIRED_TOOLS, COUNSEL_REQUIRED_TOOLS
 
 
 class TestCovenantIntegration:

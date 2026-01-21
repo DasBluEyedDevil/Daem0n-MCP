@@ -33,7 +33,7 @@ from pathlib import Path
 
 from datetime import datetime
 
-from .config import settings
+from .config import settings, Settings
 from .database import DatabaseManager
 from .memory import MemoryManager
 from .rules import RulesEngine
@@ -340,12 +340,15 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    # Set project path if provided
+    # Set project path if provided and reload settings
+    active_settings = settings
     if args.project_path:
         os.environ['DAEM0NMCP_PROJECT_ROOT'] = args.project_path
+        # Create new settings instance to pick up the env var
+        active_settings = Settings()
 
     # Initialize components
-    storage_path = settings.get_storage_path()
+    storage_path = active_settings.get_storage_path()
     db = DatabaseManager(storage_path)
     memory = MemoryManager(db)
     rules = RulesEngine(db)

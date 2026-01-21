@@ -5,7 +5,7 @@ import tempfile
 import shutil
 from datetime import datetime, timezone
 
-from daem0nmcp.models import Memory, MemoryVersion
+from daem0nmcp.models import MemoryVersion
 
 
 @pytest.fixture
@@ -137,13 +137,12 @@ async def test_record_outcome_creates_version(memory_manager):
     assert versions[1]["version_number"] == 2
     assert versions[1]["change_type"] == "outcome_recorded"
     assert versions[1]["outcome"] == "Redis worked great, 10x faster"
-    assert versions[1]["worked"] == True
+    assert versions[1]["worked"] is True
 
 
 @pytest.mark.asyncio
 async def test_get_memory_at_time(memory_manager):
     """Should return memory state as it was at a specific time."""
-    from datetime import timedelta
 
     result = await memory_manager.remember(
         category="decision",

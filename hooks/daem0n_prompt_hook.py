@@ -8,7 +8,6 @@ For UserPromptSubmit hooks, stdout is added as context to Claude's input.
 This provides a subtle, persistent reminder about the Daem0n protocol.
 """
 
-import json
 import os
 import sys
 from pathlib import Path

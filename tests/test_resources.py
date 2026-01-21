@@ -4,7 +4,6 @@
 import pytest
 import tempfile
 import shutil
-import os
 
 
 class TestMCPResources:

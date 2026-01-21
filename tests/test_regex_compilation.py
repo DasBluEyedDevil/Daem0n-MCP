@@ -1,6 +1,5 @@
 """Tests for pre-compiled regex patterns."""
 
-import pytest
 import re
 
 
@@ -14,7 +13,7 @@ class TestPrecompiledRegex:
 
     def test_entity_patterns_are_compiled(self):
         """Entity extraction should use pre-compiled patterns."""
-        from daem0nmcp.entity_manager import ENTITY_PATTERNS
-        assert isinstance(ENTITY_PATTERNS, dict)
-        for name, pattern in ENTITY_PATTERNS.items():
+        from daem0nmcp.entity_extractor import PATTERNS
+        assert isinstance(PATTERNS, dict)
+        for name, pattern in PATTERNS.items():
             assert isinstance(pattern, re.Pattern), f"{name} should be compiled"

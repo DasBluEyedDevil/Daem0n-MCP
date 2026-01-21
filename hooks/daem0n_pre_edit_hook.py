@@ -169,7 +169,6 @@ def format_memories_context(memories: dict) -> str:
     - blockers: list (usually empty for file checks)
     """
     parts = []
-    file_name = Path(memories.get("file", "")).name
 
     # Warnings are most important
     warnings = memories.get("warnings", [])

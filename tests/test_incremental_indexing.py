@@ -1,7 +1,6 @@
 """Tests for Iteration 3: Incremental Indexing."""
 
 import pytest
-from pathlib import Path
 
 
 @pytest.fixture

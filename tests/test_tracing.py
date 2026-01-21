@@ -1,6 +1,5 @@
 """Test OpenTelemetry tracing integration."""
 
-import pytest
 import os
 
 def test_tracing_module_exists():

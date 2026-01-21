@@ -1,7 +1,6 @@
 """Tests for Iteration 4: Performance & UX."""
 
 import pytest
-from pathlib import Path
 
 
 class TestParseTreeCache:

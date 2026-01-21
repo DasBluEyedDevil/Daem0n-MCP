@@ -32,12 +32,29 @@ def cli_env(temp_project):
 
 
 def run_cli(*args, env=None, project_path=None):
-    """Run CLI command and return result."""
+    """Run CLI command and return result.
+
+    Uses Popen for better handle management on Windows.
+    """
     cmd = [sys.executable, "-m", "daem0nmcp.cli"]
     if project_path:
         cmd.extend(["--project-path", project_path])
     cmd.extend(args)
-    return subprocess.run(cmd, capture_output=True, text=True, env=env)
+
+    # Use Popen with explicit handle management to avoid Windows handle exhaustion
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+        text=True,
+        env=env
+    )
+    stdout, stderr = process.communicate()
+
+    # Create a result object similar to subprocess.run's CompletedProcess
+    result = subprocess.CompletedProcess(cmd, process.returncode, stdout, stderr)
+    return result
 
 
 class TestCLIHelp:
@@ -227,8 +244,15 @@ class TestHooksCommands:
 
     def test_install_hooks_in_git_repo(self, temp_project):
         """Test install-hooks in a git repository."""
-        # Initialize git repo
-        subprocess.run(["git", "init"], cwd=temp_project, capture_output=True)
+        # Initialize git repo (use Popen for Windows handle safety)
+        proc = subprocess.Popen(
+            ["git", "init"],
+            cwd=temp_project,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL
+        )
+        proc.communicate()
 
         result = run_cli("install-hooks", project_path=temp_project)
         # Should succeed or indicate hooks were installed

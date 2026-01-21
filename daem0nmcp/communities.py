@@ -7,7 +7,6 @@ and generates summaries for each community.
 
 import logging
 from typing import Dict, List, Any, Optional, Set
-from datetime import datetime, timezone
 from collections import defaultdict
 from sqlalchemy import select, delete
 
@@ -61,7 +60,7 @@ class CommunityManager:
             result = await session.execute(
                 select(Memory).where(
                     Memory.tags.isnot(None),
-                    (Memory.archived == False) | (Memory.archived.is_(None))
+                    (Memory.archived == False) | (Memory.archived.is_(None))  # noqa: E712
                 )
             )
             memories = result.scalars().all()
