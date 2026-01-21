@@ -8,6 +8,7 @@ Uses tree-sitter-language-pack for cross-language parsing without compilation.
 (Supports Python 3.14+ with pre-built wheels)
 """
 
+import asyncio
 import hashlib
 import logging
 from pathlib import Path
@@ -691,6 +692,40 @@ class CodeIndexManager:
                     return True
         return False
 
+    def _index_project_sync(
+        self,
+        project: Path,
+        patterns: List[str]
+    ) -> Tuple[List[Dict], int, int]:
+        """
+        Synchronous file indexing - runs in thread pool to avoid blocking event loop.
+
+        Args:
+            project: Resolved project path
+            patterns: Glob patterns for files to index
+
+        Returns:
+            Tuple of (entities, files_processed, files_skipped)
+        """
+        entities = []
+        files_processed = 0
+        files_skipped = 0
+
+        for pattern in patterns:
+            for file_path in project.glob(pattern):
+                if self._should_skip(file_path):
+                    files_skipped += 1
+                    continue
+
+                if not file_path.is_file():
+                    continue
+
+                for entity in self.indexer.index_file(file_path, project):
+                    entities.append(entity)
+                files_processed += 1
+
+        return entities, files_processed, files_skipped
+
     async def index_project(
         self,
         project_path: str,
@@ -716,22 +751,10 @@ class CodeIndexManager:
         project = Path(project_path).resolve()
         patterns = patterns or self.DEFAULT_PATTERNS
 
-        entities = []
-        files_processed = 0
-        files_skipped = 0
-
-        for pattern in patterns:
-            for file_path in project.glob(pattern):
-                if self._should_skip(file_path):
-                    files_skipped += 1
-                    continue
-
-                if not file_path.is_file():
-                    continue
-
-                for entity in self.indexer.index_file(file_path, project):
-                    entities.append(entity)
-                files_processed += 1
+        # Run CPU-bound tree-sitter parsing in thread pool to avoid blocking event loop
+        entities, files_processed, files_skipped = await asyncio.to_thread(
+            self._index_project_sync, project, patterns
+        )
 
         # Store in database if available
         if self.db is not None:
