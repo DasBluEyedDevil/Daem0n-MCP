@@ -102,10 +102,10 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 - [X] recall_for_file - AUDITED (see below)
 - [X] search_memories - AUDITED (see Advanced Memory Tools)
 - [X] find_related - AUDITED (see Advanced Memory Tools)
-- [ ] pin_memory
-- [ ] archive_memory
+- [X] pin_memory - AUDITED (see Data Management Tools)
+- [X] archive_memory - AUDITED (see Data Management Tools)
 - [ ] prune_memories
-- [ ] cleanup_memories
+- [X] cleanup_memories - AUDITED (see Data Management Tools)
 - [ ] compact_memories
 
 ### Rule Tools
@@ -123,9 +123,9 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 - [ ] health
 
 ### Code Intelligence
-- [ ] index_project
-- [ ] find_code
-- [ ] analyze_impact
+- [X] index_project - AUDITED (see Code Understanding Tools)
+- [X] find_code - AUDITED (see Code Understanding Tools)
+- [X] analyze_impact - AUDITED (see Code Understanding Tools)
 - [ ] scan_todos
 - [ ] propose_refactor
 
@@ -144,7 +144,7 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 ### Entity Tracking
 - [X] recall_by_entity - AUDITED (see Advanced Memory Tools)
 - [ ] list_entities
-- [ ] backfill_entities
+- [X] backfill_entities - AUDITED (see Code Understanding Tools)
 
 ### Context Triggers
 - [ ] add_context_trigger
@@ -169,12 +169,12 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 - [ ] consolidate_linked_databases
 
 ### Import/Export
-- [ ] export_data
-- [ ] import_data
+- [X] export_data - AUDITED (see Data Management Tools)
+- [X] import_data - AUDITED (see Data Management Tools)
 - [ ] ingest_doc
 
 ### Index Maintenance
-- [ ] rebuild_index
+- [X] rebuild_index - AUDITED (see Data Management Tools)
 
 ---
 
@@ -1157,3 +1157,424 @@ All 14 tests pass in `tests/test_covenant.py`:
 | unlink_memories | [X] v3.0.0 | N/A | N/A | (covered by graph tests) |
 
 **All 5 covenant integration tests pass.** Sacred Covenant enforcement working correctly with middleware and decorators.
+
+---
+
+## Code Understanding Tools
+
+**Files:** `daem0nmcp/server.py:3472-3612`, `daem0nmcp/code_indexer.py`, `daem0nmcp/entity_manager.py`
+**Test File:** `tests/test_code_indexer.py` (34 tests)
+
+### index_project
+
+**Server Definition:** `daem0nmcp/server.py:3474-3521`
+**Implementation:** `daem0nmcp/code_indexer.py:694-749`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3474)
+  - Return type is `Dict[str, Any]` with indexing statistics
+  - Returns error dict when tree-sitter unavailable (lines 3495-3499)
+  - Returns error dict for missing project_path (lines 3501-3502)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Multi-language support via tree-sitter-language-pack (Python, TS, JS, Go, Rust, Java, etc.)
+  - Parse tree caching with configurable maxsize (`settings.parse_tree_cache_maxsize`)
+  - Qualified name computation for stable entity IDs across line shifts
+  - Skip directories (node_modules, __pycache__, .venv, etc.) for efficiency
+
+### Technical Enhancements (Future)
+
+- [ ] **Incremental indexing (only changed files)**
+  - `index_file_if_changed()` already exists (lines 1084-1130) but not exposed via MCP tool
+  - Uses content hash to skip unchanged files
+  - Could add `incremental: bool = True` parameter to `index_project`
+  - Trade-off: Full reindex guarantee vs. speed for large codebases
+
+- [ ] **Run in thread pool to not block event loop**
+  - Tree-sitter parsing is synchronous CPU-bound work
+  - `index_file()` iterates via generator (lines 305-353)
+  - Could wrap with `asyncio.to_thread()` for large files
+  - Trade-off: Complexity vs. responsiveness during large codebase indexing
+
+### Efficiency Improvements
+
+- [ ] **Parse tree caching** - ALREADY IMPLEMENTED
+  - `_parse_cache` with content-hash keys (lines 227-253)
+  - Cache stats available via `cache_stats` property
+  - LRU eviction when at capacity
+
+- [ ] **Progress reporting for large codebases**
+  - Currently returns final stats only
+  - Could add streaming progress via MCP notifications
+  - Use case: Indexing 10,000+ files with real-time feedback
+
+### Issue Found
+
+- **May block on large codebases**: The `index_project()` coroutine runs tree-sitter parsing synchronously within the async function. For very large codebases (thousands of files), this could block the event loop. Consider `asyncio.to_thread()` wrapper for the parsing loop.
+
+---
+
+### find_code
+
+**Server Definition:** `daem0nmcp/server.py:3526-3573`
+**Implementation:** `daem0nmcp/code_indexer.py:877-1000`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3526)
+  - Return type is `Dict[str, Any]` with search results
+  - Returns error dict when tree-sitter unavailable (lines 3547-3551)
+  - Returns error dict for missing project_path (lines 3553-3554)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Semantic search via Qdrant if available (`_semantic_search()`)
+  - Falls back to SQLite text search (`_text_search()`)
+  - Searches name, signature, and docstring fields
+  - Returns entity metadata with relevance scores
+
+### Technical Enhancements (Future)
+
+- [ ] **Add language filter**
+  - Currently searches all indexed languages
+  - Could add `language: Optional[str]` parameter (e.g., "python", "typescript")
+  - Would filter by file extension mapping in `LANGUAGE_CONFIG`
+
+- [ ] **Add entity type filter**
+  - Could add `entity_type: Optional[str]` parameter (e.g., "class", "function")
+  - Would filter search results to specific entity types
+
+### Efficiency Improvements
+
+- [ ] **Use Qdrant for vector similarity** - ALREADY IMPLEMENTED
+  - `_semantic_search()` uses Qdrant when available (lines 952-1000)
+  - Encodes query via `vectors.encode()`
+  - Project path filtering via Qdrant query filter
+
+---
+
+### analyze_impact
+
+**Server Definition:** `daem0nmcp/server.py:3578-3612`
+**Implementation:** `daem0nmcp/code_indexer.py:1002-1083`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3578)
+  - Return type is `Dict[str, Any]` with impact analysis
+  - Returns error dict when tree-sitter unavailable (lines 3597-3602)
+  - Returns error dict for missing project_path (lines 3604-3605)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Finds entity by name (line 1025)
+  - Queries all entities for call/import references (lines 1056-1071)
+  - Returns affected files and entities with location info
+  - Simple implementation - checks `calls` and `imports` lists
+
+### Technical Enhancements (Future)
+
+- [ ] **Include call graph depth**
+  - Currently returns direct dependents only
+  - Could add `depth: int = 1` parameter for transitive dependencies
+  - Use case: "What breaks if I change this 2 levels deep?"
+
+- [ ] **Source vs. sink analysis**
+  - Add `direction: str = "dependents"` parameter
+  - "dependents" = who calls this (current behavior)
+  - "dependencies" = what this calls (reverse analysis)
+
+### Efficiency Improvements
+
+- [ ] **Cache impact analysis results**
+  - Impact analysis is deterministic until reindex
+  - Could cache with invalidation on `index_project()`
+  - Trade-off: Memory usage vs. repeated analysis speed
+
+---
+
+### backfill_entities
+
+**Server Definition:** `daem0nmcp/server.py:4156-4208`
+**Implementation:** `daem0nmcp/entity_manager.py:31-98`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 4156)
+  - Return type is `Dict[str, Any]` with processing stats
+  - Returns error dict for missing project_path (lines 4168-4169)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Queries all non-archived memories (lines 4182-4188)
+  - Processes each memory via `EntityManager.process_memory()` (lines 4193-4199)
+  - Extracts entities from content + rationale text
+  - Safe to run multiple times (idempotent entity creation via `_get_or_create_entity`)
+
+### Technical Enhancements (Future)
+
+- [ ] **Progress reporting for large memory sets**
+  - Currently processes sequentially with final stats only
+  - Could yield progress via MCP notifications
+  - Use case: Backfilling 1000+ memories with progress bar
+
+### Efficiency Improvements
+
+- [ ] **Batch entity extraction**
+  - Currently processes one memory at a time
+  - Could batch memory queries and entity inserts
+  - Trade-off: Transaction size vs. memory usage
+
+---
+
+## Code Understanding Tools Summary
+
+| Tool | FastMCP 3.0 | Version Decorator | Async Safe | Tests |
+|------|-------------|-------------------|------------|-------|
+| index_project | [X] v3.0.0 | Present | Sync parsing (see note) | 8 |
+| find_code | [X] v3.0.0 | Present | Yes | 2 |
+| analyze_impact | [X] v3.0.0 | Present | Yes | 2 |
+| backfill_entities | [X] v3.0.0 | Present | Yes | (indirect) |
+
+**All 34 code indexer tests pass.** Tree-sitter integration working correctly with multi-language support, parse tree caching, and semantic search.
+
+---
+
+## Data Management Tools
+
+**Files:** `daem0nmcp/server.py:2743-3347`, `daem0nmcp/memory.py`
+
+### export_data
+
+**Server Definition:** `daem0nmcp/server.py:2773-2846`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 2773)
+  - Return type is `Dict[str, Any]` with exported data
+  - Returns error dict for missing project_path (lines 2787-2788)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Exports all memories and rules in single session (lines 2792-2838)
+  - Optional vector embedding export with base64 encoding (lines 2814-2817)
+  - Includes version and export timestamp metadata (lines 2841-2842)
+  - All timestamps converted to ISO format for portability
+
+### Technical Enhancements (Future)
+
+- [ ] **Stream large exports**
+  - Currently loads all memories into memory before returning
+  - Could use async generator for streaming JSON
+  - Use case: Exporting 100,000+ memories without OOM
+
+- [ ] **Filter export by date range or category**
+  - Could add `since: Optional[str]`, `categories: Optional[List[str]]` parameters
+  - Enables incremental backups
+
+### Efficiency Improvements
+
+- [ ] **Compress output option**
+  - Could add `compress: bool = False` parameter
+  - Use gzip compression for large exports
+  - Trade-off: CPU cost vs. network transfer size
+
+---
+
+### import_data
+
+**Server Definition:** `daem0nmcp/server.py:2849-2952`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 2849)
+  - Return type is `Dict[str, Any]` with import stats
+  - Returns error dict for invalid data format (lines 2868-2869)
+  - Returns error dict for missing project_path (lines 2865-2866)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Validates required `memories` and `rules` keys (line 2868)
+  - Merge mode adds to existing; replace mode clears first (lines 2888-2890)
+  - Datetime parsing handles ISO format with timezone normalization (lines 2873-2882)
+  - Vector embeddings decoded from base64 if present (lines 2895-2900)
+  - File paths normalized during import (lines 2903-2907)
+
+### Technical Enhancements (Future)
+
+- [ ] **Dry-run mode**
+  - Could add `dry_run: bool = False` parameter
+  - Validates data structure without committing
+  - Returns what would be imported with any validation errors
+
+- [ ] **Conflict resolution options**
+  - Currently merge mode just appends (may create duplicates)
+  - Could add `on_conflict: str = "skip" | "update" | "error"` parameter
+  - Trade-off: Import flexibility vs. data integrity guarantees
+
+### Efficiency Improvements
+
+- [ ] **Batch insert with single transaction** - ALREADY IMPLEMENTED
+  - Uses single `async with ctx.db_manager.get_session()` block (line 2887)
+  - All inserts committed atomically on success
+
+---
+
+### rebuild_index
+
+**Server Definition:** `daem0nmcp/server.py:2745-2770`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 2745)
+  - Return type is `Dict[str, Any]` with rebuild stats
+  - Returns error dict for missing project_path (lines 2757-2758)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Rebuilds both memory and rules TF-IDF indexes (lines 2762-2763)
+  - Returns indexed counts for both (lines 2768-2769)
+  - Lightweight - delegates to `memory_manager.rebuild_index()` and `rules_engine.rebuild_index()`
+
+### Technical Enhancements (Future)
+
+- [ ] **Partial rebuild option**
+  - Could add `scope: str = "all" | "memories" | "rules"` parameter
+  - Enables rebuilding only what's needed
+
+### Efficiency Improvements
+
+- [ ] **Run in background task**
+  - Could add `async: bool = False` parameter
+  - Returns immediately with task ID for large rebuilds
+  - Poll via separate tool for completion status
+
+---
+
+### pin_memory
+
+**Server Definition:** `daem0nmcp/server.py:2957-2995`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 2957)
+  - Return type is `Dict[str, Any]` with pin status
+  - Returns error dict for non-existent memory (line 2985)
+  - Returns error dict for missing project_path (lines 2973-2974)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Sets both `pinned` and `is_permanent` flags (lines 2987-2988)
+  - Pinned memories: never pruned, boosted in recall, permanent
+  - Returns truncated content preview (line 2993)
+
+### Technical Enhancements (Future)
+
+- [ ] **Bulk pin operation**
+  - Could add `pin_memories_batch(memory_ids: List[int])` tool
+  - Use case: Pinning all memories from a specific file or tag
+
+### Efficiency Improvements
+
+- Already lightweight - single memory update
+
+---
+
+### archive_memory
+
+**Server Definition:** `daem0nmcp/server.py:3210-3247`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3210)
+  - Return type is `Dict[str, Any]` with archive status
+  - Returns error dict for non-existent memory (line 3238)
+  - Returns error dict for missing project_path (lines 3226-3227)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Sets `archived` flag (line 3240)
+  - Archived memories: hidden from recall but preserved
+  - Returns truncated content preview (line 3245)
+
+### Technical Enhancements (Future)
+
+- [ ] **Bulk archive operation**
+  - Could add `archive_memories_batch(memory_ids: List[int])` tool
+  - Use case: Archiving all memories older than N days
+
+### Efficiency Improvements
+
+- Already lightweight - single memory update
+
+---
+
+### cleanup_memories
+
+**Server Definition:** `daem0nmcp/server.py:3250-3347`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3250)
+  - Return type is `Dict[str, Any]` with cleanup stats
+  - Returns error dict for missing project_path (lines 3266-3267)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Groups memories by (category, normalized_content, file_path) (lines 3275-3284)
+  - Finds duplicate groups (>1 memory with same key) (line 3287)
+  - Dry-run mode returns preview with samples (lines 3289-3302)
+  - Merge mode keeps newest, preserves outcomes from any duplicate (lines 3304-3329)
+  - Preserves pinned status across merged duplicates (line 3333)
+
+### Technical Enhancements (Future)
+
+- [ ] **Preview mode (dry_run)** - ALREADY IMPLEMENTED
+  - `dry_run: bool = True` parameter (line 3254)
+  - Returns duplicate groups count, total duplicates, and sample previews
+  - Default is dry_run=True for safety
+
+### Efficiency Improvements
+
+- [ ] **Index duplicate detection**
+  - Currently loads all memories and groups in Python (lines 3271-3287)
+  - Could use SQL GROUP BY with HAVING COUNT(*) > 1
+  - Trade-off: Query complexity vs. memory usage for large datasets
+  - Recommendation: Current approach is fine for typical sizes (<100k memories)
+
+---
+
+## Data Management Tools Summary
+
+| Tool | FastMCP 3.0 | Version Decorator | Async Safe | Tests |
+|------|-------------|-------------------|------------|-------|
+| export_data | [X] v3.0.0 | Present | Yes | (indirect) |
+| import_data | [X] v3.0.0 | Present | Yes | (indirect) |
+| rebuild_index | [X] v3.0.0 | Present | Yes | (indirect) |
+| pin_memory | [X] v3.0.0 | Present | Yes | (indirect) |
+| archive_memory | [X] v3.0.0 | Present | Yes | (indirect) |
+| cleanup_memories | [X] v3.0.0 | Present | Yes | (indirect) |
+
+**All data management tools are FastMCP 3.0 compliant.** Version decorators present, proper error handling, and async-safe implementations.
