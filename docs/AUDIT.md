@@ -12,16 +12,16 @@
 |--------|-------|-------------|
 | Compliant | 53 | All tools have `@mcp.tool(version="3.0.0")` |
 | Middleware | 1 | CovenantMiddleware properly integrated |
-| Deprecated | 2 | Legacy decorators marked, removal in v4.0 |
+| Deprecated | 0 | Legacy decorators removed from server.py |
 
 ### Critical Issues Found
 
-1. **Token Efficiency (WIP)** - `get_briefing` truncation not committed
-2. **Blocking Operations** - `index_project` may block event loop on large codebases
+1. ~~**Token Efficiency (WIP)**~~ - RESOLVED: Truncation committed in 92cf884
+2. ~~**Blocking Operations**~~ - RESOLVED: `index_project` now uses `asyncio.to_thread()` (issue #40)
 
 ### High-Priority Enhancements
 
-1. Remove duplicate covenant enforcement (decorators + middleware)
+1. ~~Remove duplicate covenant enforcement~~ - RESOLVED: Decorators removed (issue #39)
 2. Add FTS5 for faster full-text search
 3. Incremental code indexing
 4. Background tasks for long operations
