@@ -109,17 +109,17 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 - [ ] compact_memories
 
 ### Rule Tools
-- [ ] add_rule
-- [ ] check_rules
-- [ ] list_rules
-- [ ] update_rule
+- [X] add_rule - AUDITED (see Rules Engine Tools)
+- [X] check_rules - AUDITED (see Rules Engine Tools)
+- [X] list_rules - AUDITED (see Rules Engine Tools)
+- [X] update_rule - AUDITED (see Rules Engine Tools)
 
 ### Outcome Tracking
-- [ ] record_outcome
+- [X] record_outcome - AUDITED (see Covenant Flow Tools)
 
 ### Session Tools
-- [ ] get_briefing
-- [ ] context_check
+- [X] get_briefing - AUDITED (see Covenant Flow Tools)
+- [X] context_check - AUDITED (see Covenant Flow Tools)
 - [ ] health
 
 ### Code Intelligence
@@ -130,8 +130,8 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 - [ ] propose_refactor
 
 ### Graph Operations
-- [ ] link_memories
-- [ ] unlink_memories
+- [X] link_memories - AUDITED (see Covenant Flow Tools)
+- [X] unlink_memories - AUDITED (see Covenant Flow Tools)
 - [ ] trace_chain
 - [ ] get_graph
 
@@ -770,3 +770,390 @@ All 14 tests pass in `tests/test_covenant.py`:
 | find_related | [X] v3.0.0 | List[Dict] | Yes | (covered by memory tests) |
 
 **All 9 community tests pass.** GraphRAG-style hierarchical recall correctly implemented with two-layer response (community summaries + individual memories).
+
+---
+
+## Rules Engine Tools
+
+**Files:** `daem0nmcp/server.py:700-887`, `daem0nmcp/rules.py:1-454`
+**Test File:** `tests/test_rules.py` (19 tests)
+
+### add_rule
+
+**Server Definition:** `daem0nmcp/server.py:702-738`
+**Implementation:** `daem0nmcp/rules.py:91-151`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 702)
+  - Return type is `Dict[str, Any]` with structured response
+  - Returns error dict for missing project_path
+  - Project path handling correct via `get_project_context()`
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Extracts keywords from trigger for backward compatibility (line 115)
+  - Adds document to TF-IDF index immediately (line 135)
+  - Clears rules cache on add to ensure freshness (line 138)
+  - Returns complete rule object with ID and timestamps
+
+### Technical Enhancements (Future)
+
+- [ ] **Add rule validation (trigger uniqueness check)**
+  - Currently allows duplicate triggers
+  - Could use `find_similar_rules()` with high threshold to detect near-duplicates
+  - Trade-off: Additional query on every add vs. cleaner rule set
+
+- [ ] **Incremental TF-IDF index update** - ALREADY IMPLEMENTED
+  - `add_rule()` calls `index.add_document()` after insert (line 135)
+  - No full rebuild needed for single additions
+  - Index lazy-loaded on first use via `_ensure_index()`
+
+---
+
+### check_rules
+
+**Server Definition:** `daem0nmcp/server.py:744-765`
+**Implementation:** `daem0nmcp/rules.py:153-276`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 744)
+  - Return type is `Dict[str, Any]` with combined guidance
+  - Returns error dict for missing project_path
+  - Project path handling correct via `get_project_context()`
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **TF-IDF Semantic Matching** - VERIFIED
+  - Uses `TFIDFIndex.search()` for semantic matching (line 185)
+  - Configurable threshold (default 0.15) for relevance cutoff
+  - Returns match scores for transparency (lines 238-243)
+
+- [X] **Rule Priority Ordering** - VERIFIED
+  - Results sorted by priority (descending), then match score (descending) (lines 208-212)
+  - Higher priority rules appear first in combined guidance
+
+- [X] **Test Coverage** - EXCELLENT (7 tests)
+  - `test_check_rules_semantic_match` - TF-IDF matching works
+  - `test_check_rules_no_match` - No false positives
+  - `test_check_rules_multiple_matches` - Guidance combination
+  - `test_check_rules_has_blockers` - Blocker detection
+  - `test_check_rules_returns_match_scores` - Score transparency
+  - `test_semantic_matching_related_concepts` - Related term matching
+  - `test_disabled_rules_not_matched` - Respects enabled flag
+
+### Technical Enhancements (Future)
+
+- [ ] **Return matched rule IDs in response** - ALREADY IMPLEMENTED
+  - `rules` field contains list of matched rules with IDs (lines 238-243)
+  - Each rule includes: `id`, `trigger`, `match_score`, `priority`
+
+### Efficiency Improvements
+
+- [ ] **Cache rule TF-IDF vectors** - ALREADY IMPLEMENTED
+  - Results cached for 5 seconds via `get_rules_cache()` (lines 174-179)
+  - Cache key includes action and threshold (line 175)
+  - Cache invalidated on rule add/update/delete
+
+---
+
+### list_rules
+
+**Server Definition:** `daem0nmcp/server.py:1824-1845`
+**Implementation:** `daem0nmcp/rules.py:278-308`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 1824)
+  - Return type is `List[Dict[str, Any]]`
+  - Returns error dict for missing project_path
+  - Project path handling correct via `get_project_context()`
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Ordered by priority (descending), then created_at (descending) (line 285)
+  - `enabled_only` parameter filters disabled rules (line 288)
+  - `limit` parameter for pagination (line 290)
+
+### Technical Enhancements (Future)
+
+- [ ] **Add pagination support (offset parameter)**
+  - Currently only `limit` supported
+  - Could add `offset: int = 0` parameter for full pagination
+  - Would enable browsing large rule sets
+
+### Efficiency Improvements
+
+- Already lightweight - single SQL query with proper indexes
+
+---
+
+### update_rule
+
+**Server Definition:** `daem0nmcp/server.py:1851-1887`
+**Implementation:** `daem0nmcp/rules.py:310-349`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 1851)
+  - Return type is `Dict[str, Any]`
+  - Returns error dict for non-existent rule (line 328)
+  - Returns error dict for missing project_path
+  - Project path handling correct via `get_project_context()`
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_counsel` - Requires prior `context_check()` call
+
+- [X] **Index Invalidation** - VERIFIED
+  - Invalidates TF-IDF index when `enabled` status changes (lines 341-343)
+  - Uses `_invalidate_index()` which also clears cache (lines 83-89)
+
+### Technical Enhancements (Future)
+
+- [ ] **Partial update (only changed fields)** - ALREADY IMPLEMENTED
+  - Each field checked for `is not None` before updating (lines 330-341)
+  - Only provided fields are modified, others preserved
+
+### Efficiency Improvements
+
+- [ ] **Invalidate TF-IDF cache entry (not full cache)**
+  - Currently clears entire cache on update (line 89)
+  - Could selectively invalidate entries matching updated rule
+  - Trade-off: Cache key complexity vs. partial invalidation benefit
+  - Recommendation: Leave as-is (cache is small, clears quickly)
+
+---
+
+## Rules Engine Summary
+
+| Tool | FastMCP 3.0 | TF-IDF | Caching | Tests |
+|------|-------------|--------|---------|-------|
+| add_rule | [X] v3.0.0 | Incremental index | Clears on add | 2 |
+| check_rules | [X] v3.0.0 | Semantic search | 5s TTL | 7 |
+| list_rules | [X] v3.0.0 | N/A | N/A | 1 |
+| update_rule | [X] v3.0.0 | Invalidates index | Clears on update | 1 |
+
+**All 19 rules tests pass.** TF-IDF semantic matching correctly implemented with priority ordering and caching.
+
+---
+
+## Covenant Flow Tools
+
+**Files:** `daem0nmcp/server.py:1666-2009`, `daem0nmcp/server.py:3002-3060`, `daem0nmcp/memory.py:1131-1260`, `daem0nmcp/memory.py:1762-1885`
+**Test Files:** `tests/test_covenant_integration.py` (5 tests), `tests/test_covenant_transform.py` (25 tests)
+
+### get_briefing
+
+**Server Definition:** `daem0nmcp/server.py:1666-1753`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 1666)
+  - Return type is `Dict[str, Any]` with comprehensive briefing
+  - Returns error dict for missing project_path (line 1681)
+  - No `@requires_communion` decorator (entry point tool - exempt from covenant)
+
+- [X] **Sets ctx.briefed = True** - VERIFIED
+  - Line 1721: `ctx.briefed = True`
+  - Marked with comment: "Sacred Covenant: communion complete"
+  - Enables downstream tools protected by `@requires_communion`
+
+- [X] **Returns structured briefing with all required fields** - VERIFIED
+  - `statistics` - Memory counts and learning insights (line 1742)
+  - `recent_decisions` - Latest decisions for context (line 1743)
+  - `active_warnings` - Current warnings to observe (line 1744)
+  - `failed_approaches` - Past failures to avoid (line 1745)
+  - `top_rules` - Relevant rules for guidance (line 1746)
+  - `git_changes` - Files changed since last memory (line 1747)
+  - `focus_areas` - Pre-fetched memories for focus topics (line 1748)
+  - `bootstrap` - Auto-bootstrap result on first run (line 1749)
+  - `linked_projects` - Cross-project memory summary (line 1750)
+  - `active_context` - Hot working context items (line 1751)
+  - `message` - Actionable summary message (line 1752)
+
+- [X] **Token efficiency (truncation of large fields)** - VERIFIED
+  - Focus areas use `limit=5` per topic (line 1706)
+  - Active context fetched with `condensed=True` (line 1732)
+  - Bootstrap auto-runs only on first call (line 1690-1692)
+
+### Technical Enhancements (Future)
+
+- [ ] **Add focus_areas filtering** - ALREADY IMPLEMENTED
+  - `focus_areas: Optional[List[str]]` parameter (line 1670)
+  - Pre-fetches memories for each focus topic via `_prefetch_focus_areas()` (line 1706)
+
+### Efficiency Improvements
+
+- [ ] **Truncate long content** - PARTIALLY IMPLEMENTED
+  - Active context uses `condensed=True`
+  - Focus areas pre-fetch with `limit=5`
+  - Consider adding content truncation for very long memory content
+
+---
+
+### context_check
+
+**Server Definition:** `daem0nmcp/server.py:1920-2009`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 1920)
+  - Return type is `Dict[str, Any]` with preflight status
+  - Returns error dict for missing project_path (line 1936)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Appends to ctx.context_checks with timestamp** - VERIFIED
+  - Lines 1979-1983: Appends dict with `description` and `timestamp`
+  - Marked with comment: "Sacred Covenant: counsel sought"
+  - Enables downstream tools protected by `@requires_counsel`
+
+- [X] **Returns preflight token** - VERIFIED
+  - Generates `PreflightToken` via `PreflightToken.issue()` (lines 1989-1993)
+  - Token includes action, session_id, project_path
+  - Serialized token returned in response (line 2004)
+  - 5-minute TTL mentioned in docstring (line 1928)
+
+- [X] **Includes relevant memories and rules in response** - VERIFIED
+  - Recalls memories matching description (line 1941)
+  - Checks rules matching description (line 1946)
+  - Combines warnings from both sources (lines 1950-1975)
+  - Returns `memories_found`, `rules_matched` counts (lines 1998-1999)
+  - Returns combined `must_do`, `must_not`, `ask_first` guidance (lines 2001-2003)
+
+### Technical Enhancements (Future)
+
+- [ ] **Add description validation**
+  - Currently accepts any string
+  - Could validate minimum length or check for meaningful content
+  - Trade-off: Strictness vs. flexibility
+
+### Efficiency Improvements
+
+- [ ] **Combine recall + rules in single DB transaction**
+  - Currently two separate async operations (lines 1941, 1946)
+  - Could batch queries in single session
+  - Trade-off: Code complexity vs. ~1 transaction overhead
+  - Recommendation: Leave as-is (operations are already fast)
+
+---
+
+### record_outcome
+
+**Server Definition:** `daem0nmcp/server.py:771-800`
+**Implementation:** `daem0nmcp/memory.py:1131-1260`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 771)
+  - Return type is `Dict[str, Any]` with updated memory
+  - Returns error dict for non-existent memory (line 1168)
+  - Returns error dict for missing project_path (line 791)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Updates memory with `outcome` and `worked` fields (lines 1178-1180)
+  - Creates version record tracking the outcome (lines 1189-1201)
+  - Updates Qdrant metadata with worked status (lines 1204-1217)
+  - Failed outcomes boost memories in future searches (docstring line 1142)
+
+### Technical Enhancements (Future)
+
+- [ ] **Auto-link outcome memory to original**
+  - Could create `led_to` relationship from decision to outcome
+  - Enables `trace_chain()` to follow decision consequences
+  - Trade-off: Automatic graph edges vs. explicit user control
+
+### Efficiency Improvements
+
+- Already lightweight - single memory update with version tracking
+
+---
+
+### link_memories
+
+**Server Definition:** `daem0nmcp/server.py:3002-3031`
+**Implementation:** `daem0nmcp/memory.py:1762-1867`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3002)
+  - Return type is `Dict[str, Any]` with link status
+  - Returns error dict for invalid relationship type (line 1786)
+  - Returns error dict for self-reference (line 1791)
+  - Returns error dict for non-existent memories (lines 1801-1803)
+  - Returns error dict for missing project_path (line 3023)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Validates relationship type against `VALID_RELATIONSHIPS` (line 1784)
+  - Checks for existing relationship to prevent duplicates (lines 1806-1821)
+  - Creates version records for both source and target (lines 1835-1855)
+  - Supports relationship types: led_to, supersedes, depends_on, conflicts_with, related_to
+
+### Technical Enhancements (Future)
+
+- [ ] **Cascade options for relationships**
+  - Currently relationships are independent
+  - Could add `cascade_delete: bool` to auto-remove when memory deleted
+  - Trade-off: Automatic cleanup vs. explicit control
+
+### Efficiency Improvements
+
+- [ ] **Batch link operations**
+  - Currently single link per call
+  - Could add `link_memories_batch()` for bulk relationships
+  - Use case: Importing relationships from external sources
+
+---
+
+### unlink_memories
+
+**Server Definition:** `daem0nmcp/server.py:3034-3060`
+**Implementation:** `daem0nmcp/memory.py:1869-1945`
+
+- [X] **FastMCP 3.0 Compliance** - VERIFIED
+  - `@mcp.tool(version="3.0.0")` decorator present (line 3034)
+  - Return type is `Dict[str, Any]` with unlink status
+  - Returns error dict for missing project_path (line 3053)
+
+- [X] **Decorators applied** - VERIFIED
+  - `@with_request_id` - OpenTelemetry request tracking
+  - `@requires_communion` - Requires prior `get_briefing()` call
+
+- [X] **Implementation Details** - REVIEWED
+  - Optional `relationship` parameter - removes specific or all relationships
+  - Creates version records tracking relationship removal
+  - Returns count of removed relationships
+
+### Technical Enhancements (Future)
+
+- [ ] **Cascade options** (see link_memories above)
+
+### Efficiency Improvements
+
+- Already lightweight - single delete query
+
+---
+
+## Covenant Flow Tools Summary
+
+| Tool | FastMCP 3.0 | Covenant State | Preflight Token | Tests |
+|------|-------------|----------------|-----------------|-------|
+| get_briefing | [X] v3.0.0 | Sets `briefed=True` | N/A | 2 |
+| context_check | [X] v3.0.0 | Appends to `context_checks` | Issues token | 1 |
+| record_outcome | [X] v3.0.0 | N/A | N/A | (covered by memory tests) |
+| link_memories | [X] v3.0.0 | N/A | N/A | (covered by graph tests) |
+| unlink_memories | [X] v3.0.0 | N/A | N/A | (covered by graph tests) |
+
+**All 5 covenant integration tests pass.** Sacred Covenant enforcement working correctly with middleware and decorators.
