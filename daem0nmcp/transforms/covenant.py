@@ -517,9 +517,9 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
                 f"CovenantMiddleware: Blocked '{tool_name}' - {violation.get('violation', 'UNKNOWN')}"
             )
             # Return the violation as a ToolResult
-            # FastMCP 3.0 ToolResult can be constructed from various types
+            # FastMCP 3.0 requires a proper ToolResult object, not a raw list
             import json
-            return [{"type": "text", "text": json.dumps(violation, indent=2)}]
+            return ToolResult(content=[mt.TextContent(type="text", text=json.dumps(violation, indent=2))])
 
         # Covenant satisfied - proceed with the tool call
         logger.debug(f"CovenantMiddleware: Allowed '{tool_name}'")

@@ -138,12 +138,18 @@ class ActiveContextManager:
     async def get_active_context(
         self,
         project_path: str,
-        include_expired: bool = False
+        include_expired: bool = False,
+        condensed: bool = False
     ) -> Dict[str, Any]:
         """
         Get all items in the active working context.
 
-        Returns memories with full content, ordered by priority.
+        Args:
+            project_path: Project to get context for
+            include_expired: Include expired items (default: False)
+            condensed: Return truncated content for token efficiency (default: False)
+
+        Returns memories with full or condensed content, ordered by priority.
         """
         async with self.db.get_session() as session:
             query = (
@@ -165,14 +171,17 @@ class ActiveContextManager:
 
             items = []
             for ctx_item, memory in rows:
-                items.append({
-                    "context_id": ctx_item.id,
-                    "memory_id": memory.id,
-                    "priority": ctx_item.priority,
-                    "reason": ctx_item.reason,
-                    "added_at": ctx_item.added_at.isoformat() if ctx_item.added_at else None,
-                    "expires_at": ctx_item.expires_at.isoformat() if ctx_item.expires_at else None,
-                    "memory": {
+                # Build memory dict - truncate content in condensed mode
+                if condensed:
+                    # Truncate content to ~150 chars for token efficiency
+                    content = memory.content[:150] + "..." if len(memory.content) > 150 else memory.content
+                    memory_dict = {
+                        "category": memory.category,
+                        "content": content,
+                        "worked": memory.worked
+                    }
+                else:
+                    memory_dict = {
                         "category": memory.category,
                         "content": memory.content,
                         "rationale": memory.rationale,
@@ -180,6 +189,15 @@ class ActiveContextManager:
                         "outcome": memory.outcome,
                         "worked": memory.worked
                     }
+
+                items.append({
+                    "context_id": ctx_item.id,
+                    "memory_id": memory.id,
+                    "priority": ctx_item.priority,
+                    "reason": ctx_item.reason,
+                    "added_at": ctx_item.added_at.isoformat() if ctx_item.added_at else None,
+                    "expires_at": ctx_item.expires_at.isoformat() if ctx_item.expires_at else None,
+                    "memory": memory_dict
                 })
 
             return {

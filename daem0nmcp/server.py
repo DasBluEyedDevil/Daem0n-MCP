@@ -1457,7 +1457,7 @@ async def _fetch_recent_context(ctx: ProjectContext) -> Dict[str, Any]:
         if row:
             last_memory_date = row[0]
 
-        # Get recent decisions (last 5)
+        # Get recent decisions (last 5) - truncate content for token efficiency
         result = await session.execute(
             select(Memory)
             .where(Memory.category == 'decision')
@@ -1467,14 +1467,14 @@ async def _fetch_recent_context(ctx: ProjectContext) -> Dict[str, Any]:
         recent_decisions = [
             {
                 "id": m.id,
-                "content": m.content,
+                "content": m.content[:200] + "..." if len(m.content) > 200 else m.content,
                 "worked": m.worked,
                 "created_at": m.created_at.isoformat()
             }
             for m in result.scalars().all()
         ]
 
-        # Get active warnings
+        # Get active warnings - truncate content for token efficiency
         result = await session.execute(
             select(Memory)
             .where(Memory.category == 'warning')
@@ -1482,11 +1482,11 @@ async def _fetch_recent_context(ctx: ProjectContext) -> Dict[str, Any]:
             .limit(10)
         )
         active_warnings = [
-            {"id": m.id, "content": m.content}
+            {"id": m.id, "content": m.content[:200] + "..." if len(m.content) > 200 else m.content}
             for m in result.scalars().all()
         ]
 
-        # Get FAILED decisions - these are critical
+        # Get FAILED decisions - these are critical (truncate for token efficiency)
         result = await session.execute(
             select(Memory)
             .where(Memory.worked == False)  # noqa: E712
@@ -1496,8 +1496,8 @@ async def _fetch_recent_context(ctx: ProjectContext) -> Dict[str, Any]:
         failed_approaches = [
             {
                 "id": m.id,
-                "content": m.content,
-                "outcome": m.outcome,
+                "content": m.content[:200] + "..." if len(m.content) > 200 else m.content,
+                "outcome": (m.outcome[:150] + "...") if m.outcome and len(m.outcome) > 150 else m.outcome,
                 "category": m.category
             }
             for m in result.scalars().all()
@@ -1729,7 +1729,7 @@ async def get_briefing(
             from daem0nmcp.active_context import ActiveContextManager
 
         acm = ActiveContextManager(ctx.db_manager)
-        active_context = await acm.get_active_context(ctx.project_path)
+        active_context = await acm.get_active_context(ctx.project_path, condensed=True)
 
         # Clean up expired items
         await acm.cleanup_expired(ctx.project_path)

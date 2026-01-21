@@ -347,14 +347,15 @@ async def test_covenant_middleware_blocks_via_transform():
     # Call on_call_tool
     result = await middleware.on_call_tool(MockContext(), mock_call_next)
 
-    # Should be blocked
+    # Should be blocked - FastMCP 3.0 returns ToolResult, not raw list
+    from fastmcp.tools import ToolResult
     assert result is not None
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert result[0]["type"] == "text"
+    assert isinstance(result, ToolResult)
+    assert len(result.content) == 1
+    assert result.content[0].type == "text"
 
     # Parse the JSON text to verify violation
-    violation = json.loads(result[0]["text"])
+    violation = json.loads(result.content[0].text)
     assert violation["status"] == "blocked"
     assert violation["violation"] == "COMMUNION_REQUIRED"
 
