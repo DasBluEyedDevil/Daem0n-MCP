@@ -1395,7 +1395,7 @@ def _get_git_changes(since_date: Optional[datetime] = None, project_path: Option
         if result.returncode == 0 and result.stdout.strip():
             git_info["recent_commits"] = result.stdout.strip().split("\n")
 
-        # Get changed files (uncommitted)
+        # Get changed files (uncommitted) - limit to 10 for token efficiency
         result = subprocess.run(
             ["git", "status", "--porcelain"],
             capture_output=True,
@@ -1405,10 +1405,13 @@ def _get_git_changes(since_date: Optional[datetime] = None, project_path: Option
         )
         if result.returncode == 0 and result.stdout.strip():
             changes = result.stdout.strip().split("\n")
-            git_info["uncommitted_changes"] = [
+            all_changes = [
                 {"status": line[:2].strip(), "file": line[3:]}
                 for line in changes if line.strip()
             ]
+            git_info["uncommitted_changes"] = all_changes[:10]
+            if len(all_changes) > 10:
+                git_info["uncommitted_changes_truncated"] = len(all_changes) - 10
 
         # Get current branch
         result = subprocess.run(
@@ -1561,75 +1564,98 @@ async def _fetch_recent_context(ctx: ProjectContext) -> Dict[str, Any]:
         if row:
             last_memory_date = row[0]
 
-        # Get recent decisions (last 5) - truncate content for token efficiency
+        # Get recent decisions - lean summary with first line only
         result = await session.execute(
             select(Memory)
             .where(Memory.category == 'decision')
             .order_by(Memory.created_at.desc())
             .limit(5)
         )
+        all_decisions = result.scalars().all()
         recent_decisions = [
             {
                 "id": m.id,
-                "content": m.content[:200] + "..." if len(m.content) > 200 else m.content,
-                "worked": m.worked,
-                "created_at": m.created_at.isoformat()
+                "summary": m.content.split('\n')[0][:120] + "..." if len(m.content.split('\n')[0]) > 120 else m.content.split('\n')[0],
+                "worked": m.worked
             }
-            for m in result.scalars().all()
+            for m in all_decisions
         ]
 
-        # Get active warnings - truncate content for token efficiency
+        # Count total decisions for context
+        result = await session.execute(
+            select(func.count(Memory.id)).where(Memory.category == 'decision')
+        )
+        total_decisions = result.scalar() or 0
+
+        # Get active warnings - first line summary only
         result = await session.execute(
             select(Memory)
             .where(Memory.category == 'warning')
             .order_by(Memory.created_at.desc())
-            .limit(10)
+            .limit(5)
         )
+        all_warnings = result.scalars().all()
         active_warnings = [
-            {"id": m.id, "content": m.content[:200] + "..." if len(m.content) > 200 else m.content}
-            for m in result.scalars().all()
+            {"id": m.id, "summary": m.content.split('\n')[0][:120] + "..." if len(m.content.split('\n')[0]) > 120 else m.content.split('\n')[0]}
+            for m in all_warnings
         ]
 
-        # Get FAILED decisions - these are critical (truncate for token efficiency)
+        # Count total warnings
+        result = await session.execute(
+            select(func.count(Memory.id)).where(Memory.category == 'warning')
+        )
+        total_warnings = result.scalar() or 0
+
+        # Get FAILED decisions - critical, show first line
         result = await session.execute(
             select(Memory)
             .where(Memory.worked == False)  # noqa: E712
             .order_by(Memory.created_at.desc())
             .limit(5)
         )
+        all_failed = result.scalars().all()
         failed_approaches = [
             {
                 "id": m.id,
-                "content": m.content[:200] + "..." if len(m.content) > 200 else m.content,
-                "outcome": (m.outcome[:150] + "...") if m.outcome and len(m.outcome) > 150 else m.outcome,
-                "category": m.category
+                "summary": m.content.split('\n')[0][:100] + "..." if len(m.content.split('\n')[0]) > 100 else m.content.split('\n')[0],
+                "outcome": (m.outcome.split('\n')[0][:60] + "...") if m.outcome else None
             }
-            for m in result.scalars().all()
+            for m in all_failed
         ]
 
-        # Get high-priority rules
+        # Count total failed
+        result = await session.execute(
+            select(func.count(Memory.id)).where(Memory.worked == False)  # noqa: E712
+        )
+        total_failed = result.scalar() or 0
+
+        # Get high-priority rules - trigger first line only
         result = await session.execute(
             select(Rule)
             .where(Rule.enabled == True)  # noqa: E712
             .order_by(Rule.priority.desc())
             .limit(5)
         )
+        all_rules = result.scalars().all()
         top_rules = [
             {
                 "id": r.id,
-                "trigger": r.trigger,
-                "priority": r.priority,
-                "has_warnings": len(r.warnings) > 0
+                "trigger": r.trigger.split('\n')[0][:80] + "..." if len(r.trigger.split('\n')[0]) > 80 else r.trigger.split('\n')[0],
+                "priority": r.priority
             }
-            for r in result.scalars().all()
+            for r in all_rules
         ]
 
     return {
         "last_memory_date": last_memory_date,
         "recent_decisions": recent_decisions,
+        "total_decisions": total_decisions,
         "active_warnings": active_warnings,
+        "total_warnings": total_warnings,
         "failed_approaches": failed_approaches,
-        "top_rules": top_rules
+        "total_failed": total_failed,
+        "top_rules": top_rules,
+        "drill_down": "Use recall(topic) or recall_for_file(file) for full memory content"
     }
 
 
@@ -1640,29 +1666,49 @@ async def _prefetch_focus_areas(
     """
     Pre-fetch memories for specified focus areas.
 
+    Returns lean summaries - use recall(topic) for full content.
+
     Args:
         ctx: Project context with memory manager
-        focus_areas: List of topics to fetch (max 3 processed)
+        focus_areas: List of topics to fetch (max 4 processed)
 
     Returns:
-        Dict mapping area name to summary info
+        Dict mapping area name to summary info with top relevant items
     """
     focus_memories = {}
 
-    for area in focus_areas[:3]:  # Limit to 3 areas
+    for area in focus_areas[:4]:  # Limit to 4 areas
         memories = await ctx.memory_manager.recall(
-            area, limit=5, project_path=ctx.project_path,
+            area, limit=3, project_path=ctx.project_path,
             condensed=True  # Use condensed mode for token efficiency
         )
+
+        # Extract top 2 most relevant items with first-line summaries
+        top_items = []
+        for cat in ["decisions", "warnings", "patterns", "learnings"]:
+            for m in memories.get(cat, [])[:2]:
+                content = m.get("content", "")
+                first_line = content.split('\n')[0][:80]
+                top_items.append({
+                    "id": m.get("id"),
+                    "type": cat[:-1],  # Remove 's' (decisions -> decision)
+                    "summary": first_line + "..." if len(content.split('\n')[0]) > 80 else first_line,
+                    "relevance": m.get("relevance", 0)
+                })
+
+        # Sort by relevance and take top 3
+        top_items.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+
         focus_memories[area] = {
             "found": memories.get("found", 0),
-            "summary": memories.get("summary"),
+            "top_matches": top_items[:3],
             "has_warnings": len(memories.get("warnings", [])) > 0,
             "has_failed": any(
                 m.get("worked") is False
                 for cat in ["decisions", "patterns", "learnings"]
                 for m in memories.get(cat, [])
-            )
+            ),
+            "hint": f"recall('{area}') for details" if memories.get("found", 0) > 3 else None
         }
 
     return focus_memories
@@ -1824,8 +1870,8 @@ async def get_briefing(
     # Mark this project as briefed (Sacred Covenant: communion complete)
     ctx.briefed = True
 
-    # Get active working context
-    active_context = {"count": 0, "items": [], "max_count": 10}
+    # Get active working context (limited to 5 items for token efficiency)
+    active_context = {"count": 0, "items": [], "max_count": 5}
     try:
         try:
             from .active_context import ActiveContextManager
@@ -1833,7 +1879,13 @@ async def get_briefing(
             from daem0nmcp.active_context import ActiveContextManager
 
         acm = ActiveContextManager(ctx.db_manager)
-        active_context = await acm.get_active_context(ctx.project_path, condensed=True)
+        full_context = await acm.get_active_context(ctx.project_path, condensed=True)
+
+        # Limit items for briefing (full context available via get_active_context tool)
+        active_context["count"] = full_context.get("count", 0)
+        active_context["items"] = full_context.get("items", [])[:5]
+        if full_context.get("count", 0) > 5:
+            active_context["truncated"] = full_context["count"] - 5
 
         # Clean up expired items
         await acm.cleanup_expired(ctx.project_path)
