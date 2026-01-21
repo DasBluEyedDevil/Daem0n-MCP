@@ -523,7 +523,7 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
 
         # Covenant satisfied - proceed with the tool call
         logger.debug(f"CovenantMiddleware: Allowed '{tool_name}'")
-        return await call_next(context.message)
+        return await call_next(context)
 
     def __repr__(self) -> str:
         return f"CovenantMiddleware({self._transform!r})"
