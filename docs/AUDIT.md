@@ -178,6 +178,129 @@ The following tool categories remain to be audited for FastMCP 3.0 compliance:
 
 ---
 
+## Project Context Management
+
+**Files:** `daem0nmcp/server.py:125-520`, `daem0nmcp/database.py:1-220`, `daem0nmcp/active_context.py`
+
+### FastMCP 3.0 Compliance - VERIFIED
+
+- [X] **Context management compatible with middleware** - VERIFIED
+  - `ProjectContext` dataclass properly structured with all required fields (line 128-142)
+  - Includes `briefed` and `context_checks` fields for covenant state tracking
+  - Per-project isolation via normalized path keys in `_project_contexts` dict
+
+- [X] **Middleware callback `_get_context_state_for_middleware` correctly integrated** - VERIFIED
+  - Function at lines 175-198 returns correct structure: `{"briefed": bool, "context_checks": list}`
+  - Handles None project_path gracefully (returns None)
+  - Bridges `_get_context_for_covenant()` to middleware requirements
+  - Registered with `CovenantMiddleware` at server startup (lines 201-211)
+
+- [X] **Context eviction does not interfere with middleware state** - VERIFIED
+  - `active_requests` counter prevents eviction while tools are in-flight (line 138)
+  - Two-phase eviction approach avoids nested lock acquisition (lines 435-518)
+  - Task tracking via `_track_task_context()` ensures requests complete before eviction
+  - Lock ordering: contexts_lock -> individual ctx.lock (prevents deadlocks)
+
+- [X] **Multi-project isolation works with middleware** - VERIFIED
+  - Each project has isolated `ProjectContext` with own managers
+  - Path normalization ensures consistent cache keys (`_normalize_path()`)
+  - Middleware receives project_path from tool arguments, looks up correct context
+  - No cross-project state leakage possible
+
+### DatabaseManager Compliance - VERIFIED
+
+- [X] **Async session management** - VERIFIED
+  - Uses `async_sessionmaker` with `AsyncSession` (line 69-73)
+  - Lazy engine creation for correct event loop context (line 39-74)
+  - Proper transaction handling in `get_session()` context manager (lines 128-139)
+
+- [X] **Connection pooling appropriate for SQLite** - VERIFIED
+  - Uses `NullPool` to avoid connection issues across async contexts (line 47)
+  - SQLite PRAGMAs configured for performance: WAL mode, NORMAL sync, 30s busy timeout
+
+- [X] **Lifecycle management** - VERIFIED
+  - `init_db()` creates tables and runs migrations (lines 103-126)
+  - `close()` properly disposes engine and resets state (lines 213-219)
+  - Called during context eviction (`await ctx.db_manager.close()`)
+
+### Architecture Notes
+
+1. **Double-checked locking pattern:**
+   - Fast path checks `_project_contexts` without lock (line 358)
+   - Slow path acquires project-specific lock for initialization
+   - Second check after lock acquisition prevents race conditions (line 380)
+
+2. **LRU + TTL eviction policy:**
+   - TTL eviction: contexts older than `CONTEXT_TTL_SECONDS` (default 3600)
+   - LRU eviction: oldest contexts when over `MAX_PROJECT_CONTEXTS` (default 10)
+   - Opportunistic scheduling via `_maybe_schedule_eviction()` with 60s cooldown
+
+3. **Task context tracking:**
+   - `_task_contexts` dict maps asyncio tasks to project usage counts
+   - Done callback automatically releases contexts when tasks complete
+   - Prevents eviction of contexts with in-flight requests
+
+4. **Covenant state in ProjectContext:**
+   - `briefed: bool` - Set True after `get_briefing()` called
+   - `context_checks: List[Dict]` - Timestamped check records for TTL tracking
+
+### Technical Enhancements (Future)
+
+- [ ] **Add context lifecycle hooks for middleware reset**
+  - Currently middleware state persists until context eviction
+  - Could add `reset_covenant_state()` method for explicit session boundaries
+  - Use case: Long-running clients that want fresh covenant state
+
+- [ ] **Consider moving covenant state to separate dataclass**
+  - `CovenantState` dataclass with `briefed`, `context_checks`, `last_briefing_time`
+  - Cleaner separation between context management and covenant enforcement
+  - Would simplify `_get_context_state_for_middleware()` implementation
+
+- [ ] **Add metrics for context eviction events**
+  - OpenTelemetry already integrated (commit `40c0ea4`)
+  - Add spans for: context creation, eviction (TTL vs LRU), lifecycle duration
+  - Useful for capacity planning and debugging stale context issues
+
+### Efficiency Improvements (Low Priority)
+
+- [ ] **LRU eviction runs opportunistically - consider background task**
+  - Current: Eviction triggered during `get_project_context()` calls
+  - Impact: Slight latency spike when eviction runs
+  - Alternative: Periodic background task every 60s
+  - Trade-off: Adds complexity, marginal benefit for typical workloads
+
+- [ ] **Context lock contention under high load - consider read-write locks**
+  - Current: `asyncio.Lock` for all operations (exclusive access)
+  - Impact: Serial access to same project context
+  - Alternative: `asyncio.RWLock` (readers don't block each other)
+  - Trade-off: Most operations are reads (recall, search), but standard library lacks RWLock
+  - Recommendation: Evaluate if high-concurrency scenarios emerge
+
+- [ ] **Path normalization called repeatedly**
+  - `_normalize_path()` resolves symlinks on every context lookup
+  - Impact: Filesystem syscall per tool invocation
+  - Alternative: Cache resolved paths in LRU dict
+  - Trade-off: Symlink changes wouldn't be detected until cache expires
+
+### Code Quality Notes
+
+1. **Clean error handling:**
+   - `_missing_project_path_error()` provides helpful error messages
+   - `_resolve_within_project()` validates paths stay within project root
+   - Graceful handling of invalid paths with clear error messages
+
+2. **Memory safety:**
+   - Contexts properly closed on eviction (`await ctx.db_manager.close()`)
+   - Orphaned locks cleaned up in Phase 4 of eviction (lines 513-517)
+   - No memory leaks observed in extended testing
+
+3. **Thread safety:**
+   - All shared state protected by appropriate locks
+   - No race conditions in context initialization (double-checked locking)
+   - Task-based tracking handles concurrent requests correctly
+
+---
+
 ## Deprecated Decorators (covenant.py)
 
 **File:** `daem0nmcp/covenant.py:440-596`
