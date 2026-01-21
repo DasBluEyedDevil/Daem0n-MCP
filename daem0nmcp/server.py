@@ -543,7 +543,7 @@ logger.info(f"Daem0nMCP Server initialized (default storage: {storage_path})")
 # ============================================================================
 # Tool 1: REMEMBER - Store a memory with conflict detection
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def remember(
@@ -587,7 +587,7 @@ async def remember(
 # ============================================================================
 # Tool 1b: REMEMBER_BATCH - Store multiple memories efficiently
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def remember_batch(
@@ -631,7 +631,7 @@ async def remember_batch(
 # ============================================================================
 # Tool 2: RECALL - Semantic memory retrieval with decay
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def recall(
@@ -699,7 +699,7 @@ async def recall(
 # ============================================================================
 # Tool 3: ADD_RULE - Create a decision tree node
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def add_rule(
@@ -741,7 +741,7 @@ async def add_rule(
 # ============================================================================
 # Tool 4: CHECK_RULES - Validate an action against rules
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def check_rules(
@@ -768,7 +768,7 @@ async def check_rules(
 # ============================================================================
 # Tool 5: RECORD_OUTCOME - Track if a decision worked
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def record_outcome(
@@ -1663,7 +1663,7 @@ def _build_briefing_message(
 # ============================================================================
 # Tool 6: GET_BRIEFING - Smart session start summary
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 async def get_briefing(
     project_path: Optional[str] = None,
@@ -1756,7 +1756,7 @@ async def get_briefing(
 # ============================================================================
 # Tool 7: SEARCH - Full text search across memories
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def search_memories(
@@ -1821,7 +1821,7 @@ async def search_memories(
 # ============================================================================
 # Tool 8: LIST_RULES - See all configured rules
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def list_rules(
@@ -1848,7 +1848,7 @@ async def list_rules(
 # ============================================================================
 # Tool 9: UPDATE_RULE - Modify existing rules
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def update_rule(
@@ -1890,7 +1890,7 @@ async def update_rule(
 # ============================================================================
 # Tool 10: FIND_RELATED - Discover connected memories
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def find_related(
@@ -1917,7 +1917,7 @@ async def find_related(
 # ============================================================================
 # Tool 11: CONTEXT_CHECK - Quick relevance check for current work
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def context_check(
@@ -2012,7 +2012,7 @@ async def context_check(
 # ============================================================================
 # Tool 12: RECALL_FOR_FILE - Get memories for a specific file
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def recall_for_file(
@@ -2168,7 +2168,7 @@ def _scan_for_todos(
 # ============================================================================
 # Tool 13: SCAN_TODOS - Find tech debt in codebase
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def scan_todos(
@@ -2513,7 +2513,7 @@ def _chunk_markdown_content(content: str, chunk_size: int, max_chunks: int) -> L
 # ============================================================================
 # Tool 14: INGEST_DOC - Import external documentation
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def ingest_doc(
@@ -2606,7 +2606,7 @@ async def ingest_doc(
 # ============================================================================
 # Tool 15: PROPOSE_REFACTOR - Generate refactor suggestions
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def propose_refactor(
@@ -2742,7 +2742,7 @@ async def propose_refactor(
 # ============================================================================
 # Tool 16: REBUILD_INDEX - Force rebuild of search indexes
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def rebuild_index(
@@ -2770,7 +2770,7 @@ async def rebuild_index(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def export_data(
@@ -2846,7 +2846,7 @@ async def export_data(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def import_data(
@@ -2954,7 +2954,7 @@ async def import_data(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def pin_memory(
@@ -2999,7 +2999,7 @@ async def pin_memory(
 # Graph Memory Tools - Explicit relationship edges between memories
 # ============================================================================
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def link_memories(
@@ -3031,7 +3031,7 @@ async def link_memories(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def unlink_memories(
@@ -3060,7 +3060,7 @@ async def unlink_memories(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def trace_chain(
@@ -3092,7 +3092,7 @@ async def trace_chain(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def get_graph(
@@ -3121,7 +3121,7 @@ async def get_graph(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def prune_memories(
@@ -3207,7 +3207,7 @@ async def prune_memories(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def archive_memory(
@@ -3247,7 +3247,7 @@ async def archive_memory(
         }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def cleanup_memories(
@@ -3368,7 +3368,7 @@ async def cleanup_memories(
 # ============================================================================
 # Tool: COMPACT_MEMORIES - Consolidate episodic memories into summaries
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_counsel
 async def compact_memories(
@@ -3401,7 +3401,7 @@ async def compact_memories(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 async def health(
     project_path: Optional[str] = None
@@ -3471,7 +3471,7 @@ async def health(
 # Code Understanding Tools (Phase 2)
 # ============================================================================
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def index_project(
@@ -3523,7 +3523,7 @@ async def index_project(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def find_code(
@@ -3575,7 +3575,7 @@ async def find_code(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def analyze_impact(
@@ -3616,7 +3616,7 @@ async def analyze_impact(
 # ============================================================================
 # LINKED PROJECTS - Cross-project memory awareness
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def link_projects(
@@ -3653,7 +3653,7 @@ async def link_projects(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def unlink_projects(
@@ -3684,7 +3684,7 @@ async def unlink_projects(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def list_linked_projects(
@@ -3711,7 +3711,7 @@ async def list_linked_projects(
     return {"links": links}
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def consolidate_linked_databases(
@@ -3746,7 +3746,7 @@ async def consolidate_linked_databases(
 # Active Working Context Tools (MemGPT-style always-hot memories)
 # ============================================================================
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def set_active_context(
@@ -3790,7 +3790,7 @@ async def set_active_context(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def get_active_context(
@@ -3816,7 +3816,7 @@ async def get_active_context(
     return await acm.get_active_context(ctx.project_path)
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def remove_from_active_context(
@@ -3844,7 +3844,7 @@ async def remove_from_active_context(
     return await acm.remove_from_context(ctx.project_path, memory_id)
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def clear_active_context(
@@ -3875,7 +3875,7 @@ async def clear_active_context(
 # ============================================================================
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def get_memory_versions(
@@ -3904,7 +3904,7 @@ async def get_memory_versions(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def get_memory_at_time(
@@ -3945,7 +3945,7 @@ async def get_memory_at_time(
 # ============================================================================
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def rebuild_communities(
@@ -3986,7 +3986,7 @@ async def rebuild_communities(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def list_communities(
@@ -4019,7 +4019,7 @@ async def list_communities(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def get_community_details(
@@ -4044,7 +4044,7 @@ async def get_community_details(
     return await cm.get_community_members(community_id)
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def recall_hierarchical(
@@ -4078,7 +4078,7 @@ async def recall_hierarchical(
 # ============================================================================
 # Entity Query Tools - Query memories by extracted entities
 # ============================================================================
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def recall_by_entity(
@@ -4113,7 +4113,7 @@ async def recall_by_entity(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def list_entities(
@@ -4153,7 +4153,7 @@ async def list_entities(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def backfill_entities(
@@ -4212,7 +4212,7 @@ async def backfill_entities(
 # CONTEXT TRIGGER TOOLS - Auto-recall based on patterns
 # ============================================================================
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def add_context_trigger(
@@ -4257,7 +4257,7 @@ async def add_context_trigger(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def list_context_triggers(
@@ -4296,7 +4296,7 @@ async def list_context_triggers(
     }
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def remove_context_trigger(
@@ -4329,7 +4329,7 @@ async def remove_context_trigger(
     )
 
 
-@mcp.tool()
+@mcp.tool(version="2.16.0")
 @with_request_id
 @requires_communion
 async def check_context_triggers(
