@@ -14,7 +14,7 @@ from sqlalchemy import select, or_
 
 from .database import DatabaseManager
 from .models import ExtractedEntity, MemoryEntityRef, Memory
-from .entity_extractor import EntityExtractor
+from .entity_extractor import EntityExtractor, PATTERNS as ENTITY_PATTERNS
 
 logger = logging.getLogger(__name__)
 
