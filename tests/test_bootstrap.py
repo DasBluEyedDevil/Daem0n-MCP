@@ -410,19 +410,19 @@ export async function fetchData(url: string) {
         (tmp_path / "docs").mkdir()
 
         # Initialize git repo with at least one commit
-        subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
+        subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True, stdin=subprocess.DEVNULL)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=str(tmp_path), capture_output=True, check=True
+            cwd=str(tmp_path), capture_output=True, check=True, stdin=subprocess.DEVNULL
         )
         subprocess.run(
             ["git", "config", "user.name", "Test User"],
-            cwd=str(tmp_path), capture_output=True, check=True
+            cwd=str(tmp_path), capture_output=True, check=True, stdin=subprocess.DEVNULL
         )
-        subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
+        subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True, stdin=subprocess.DEVNULL)
         subprocess.run(
             ["git", "commit", "-m", "Initial commit"],
-            cwd=str(tmp_path), capture_output=True, check=True
+            cwd=str(tmp_path), capture_output=True, check=True, stdin=subprocess.DEVNULL
         )
 
         # Run all extractors directly and verify each returns expected content

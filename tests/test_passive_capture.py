@@ -22,7 +22,8 @@ class TestRememberCLI:
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            stdin=subprocess.DEVNULL
         )
 
         assert result.returncode == 0, f"Failed: {result.stderr}"
@@ -44,7 +45,8 @@ class TestRememberCLI:
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            stdin=subprocess.DEVNULL
         )
 
         assert result.returncode == 0

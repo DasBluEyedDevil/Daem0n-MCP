@@ -360,7 +360,7 @@ class TestPreCommitCLI:
 
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli", "pre-commit", "--help"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
         assert result.returncode == 0
         assert "pre-commit" in result.stdout.lower() or "interactive" in result.stdout.lower()
@@ -395,7 +395,7 @@ class TestStatusCLI:
 
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli", "status", "--help"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
         assert result.returncode == 0
 
@@ -408,7 +408,7 @@ class TestStatusCLI:
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli",
              "--project-path", str(tmp_path), "--json", "status"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -426,7 +426,7 @@ class TestRecordOutcomeCLI:
 
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli", "record-outcome", "--help"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
         assert result.returncode == 0
         assert "memory" in result.stdout.lower() or "outcome" in result.stdout.lower()
@@ -438,7 +438,7 @@ class TestRecordOutcomeCLI:
 
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli", "record-outcome", "1", "test outcome"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
         assert result.returncode == 1
         assert "must specify" in result.stderr.lower()
@@ -454,7 +454,7 @@ class TestInstallHooksCLI:
 
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli", "install-hooks", "--help"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
         assert result.returncode == 0
 
@@ -470,7 +470,7 @@ class TestInstallHooksCLI:
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli",
              "--project-path", str(tmp_path), "install-hooks"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
 
         assert result.returncode == 0
@@ -487,7 +487,7 @@ class TestInstallHooksCLI:
 
         result = subprocess.run(
             [sys.executable, "-m", "daem0nmcp.cli", "uninstall-hooks", "--help"],
-            capture_output=True, text=True
+            capture_output=True, text=True, stdin=subprocess.DEVNULL
         )
         assert result.returncode == 0
 
