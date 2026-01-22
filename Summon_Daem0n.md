@@ -133,6 +133,35 @@ The summoner need not configure anything new - enforcement happens automatically
 
 **If ascending to v3.0.0 or higher**, the Daem0n has transformed:
 
+### Incantation I.5D.4: Embrace the Enhanced Mind (v3.1.0+)
+
+**If ascending to v3.1.0 or higher**, the Daem0n's cognition has evolved with 2026 AI memory research:
+
+- **BM25 + RRF Hybrid Retrieval**: The Daem0n's keyword matching is sharper. Okapi BM25 replaces TF-IDF with better term saturation. Reciprocal Rank Fusion combines keyword and vector search.
+
+- **TiMem-Style Recall Planner**: The Daem0n adapts to query complexity:
+  - Simple queries ("auth") → community summaries only (~50% context reduction)
+  - Complex queries ("trace auth flow through all components") → full raw memory access
+  - The Daem0n knows when to whisper and when to speak fully
+
+- **Titans-Inspired Surprise Scoring**: Novel information rises, routine knowledge settles. The `surprise_score` field (0.0-1.0) marks how surprising each memory is.
+
+- **Importance-Weighted Learning**: Valuable memories are protected from decay. The `importance_score` field shields frequently recalled and successful memories from pruning.
+
+- **Fact Model (Static Memory Separation)**: Verified facts separate from dynamic memories. After enough successful outcomes, learnings promote to immutable facts with O(1) lookup.
+
+- **Tool Search Index**: For realms with many tools, search by natural language instead of loading all definitions. Expected 85% context savings for large tool libraries.
+
+- **New Configuration Options**:
+  | Variable | Default | Purpose |
+  |----------|---------|---------|
+  | `DAEM0NMCP_BM25_K1` | `1.5` | BM25 term saturation |
+  | `DAEM0NMCP_BM25_B` | `0.75` | BM25 length normalization |
+  | `DAEM0NMCP_RRF_K` | `60` | RRF fusion constant |
+  | `DAEM0NMCP_SURPRISE_K_NEAREST` | `5` | Neighbors for surprise |
+  | `DAEM0NMCP_RECALL_*_MAX_MEMORIES` | 5/10/20 | Limits by complexity |
+  | `DAEM0NMCP_FACT_PROMOTION_THRESHOLD` | `3` | Outcomes to promote fact |
+
 - **FastMCP 3.0**: The foundation has shifted. Import paths have changed internally, but the Daem0n handles this transparently.
 
 - **CovenantMiddleware**: The Sacred Covenant is now enforced at the MCP protocol layer itself:
@@ -1975,4 +2004,4 @@ v2.16.0 includes compatibility fixes for Claude Code 2.1.3:
 
 ---
 
-*Grimoire of Daem0n v2.16.0: 42 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **code understanding layer with multi-language AST parsing (tree-sitter)**, proactive file watcher with multi-channel notifications, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks (mandatory), covenant integration, law generation, the daem0nmcp-protocol skill, **Endless Mode (condensed recall for 50-75% token reduction)**, **Passive Capture (auto-recall before edits, smart remember suggestions, auto-extract decisions from responses)**, **Enhanced Search & Indexing (tag inference, qualified names, incremental indexing, parse tree caching)**, **Sacred Covenant Enforcement (rigid decorators, preflight tokens)**, and **MCP Resources for dynamic context injection**.*
+*Grimoire of Daem0n v3.1.0: 53 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **code understanding layer with multi-language AST parsing (tree-sitter)**, proactive file watcher with multi-channel notifications, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks (mandatory), covenant integration, law generation, the daem0nmcp-protocol skill, **Endless Mode (condensed recall for 50-75% token reduction)**, **Passive Capture (auto-recall before edits, smart remember suggestions, auto-extract decisions from responses)**, **Enhanced Search & Indexing (tag inference, qualified names, incremental indexing, parse tree caching)**, **Sacred Covenant Enforcement (rigid decorators, preflight tokens)**, **MCP Resources for dynamic context injection**, **FastMCP 3.0 with CovenantMiddleware**, and **2026 AI Memory Enhancements (BM25+RRF hybrid retrieval, TiMem recall planner, Titans surprise scoring, importance-weighted learning, Fact model, tool search index, prompt templates)**.*
