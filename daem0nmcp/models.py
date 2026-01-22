@@ -94,6 +94,50 @@ class Memory(Base):
                        onupdate=lambda: datetime.now(timezone.utc))
 
 
+class Fact(Base):
+    """
+    A verified, static fact (Engram-inspired).
+
+    Facts are immutable knowledge that has been verified through:
+    - Multiple successful outcomes
+    - Explicit user verification
+    - Promotion from stable patterns
+
+    Uses content hash for O(1) lookup instead of semantic search.
+    """
+    __tablename__ = "facts"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Content hash for O(1) lookup (SHA256 of normalized content)
+    content_hash = Column(String(64), unique=True, nullable=False, index=True)
+
+    # The actual fact content
+    content = Column(Text, nullable=False)
+
+    # Category for organization (e.g., "language", "api", "convention")
+    category = Column(String, nullable=True, index=True)
+
+    # Original memory this fact was derived from
+    source_memory_id = Column(Integer, ForeignKey("memories.id", ondelete="SET NULL"), nullable=True)
+
+    # How many times this fact has been verified/confirmed
+    verification_count = Column(Integer, default=0)
+
+    # Whether this fact is fully verified
+    is_verified = Column(Boolean, default=False)
+
+    # Optional tags for filtering
+    tags = Column(JSON, default=list)
+
+    # Timestamps
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    verified_at = Column(DateTime, nullable=True)
+
+    # ORM relationship
+    source_memory = orm_relationship("Memory", backref="derived_facts")
+
+
 class Rule(Base):
     """
     A rule is a decision tree node - when a trigger condition is met,
