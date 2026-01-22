@@ -79,6 +79,10 @@ class Memory(Base):
     # Recall count - tracks how often this memory is accessed (for saliency-based pruning)
     recall_count = Column(Integer, default=0)
 
+    # Surprise score - measures information novelty (0.0-1.0)
+    # High surprise = novel information, low = routine/expected
+    surprise_score = Column(Float, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
