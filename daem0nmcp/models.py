@@ -83,6 +83,11 @@ class Memory(Base):
     # High surprise = novel information, low = routine/expected
     surprise_score = Column(Float, nullable=True)
 
+    # Importance score - EWC-inspired protection weight (0.0-1.0)
+    # High importance = protected from decay/pruning
+    # Based on: recall frequency, positive outcomes, user interactions
+    importance_score = Column(Float, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
