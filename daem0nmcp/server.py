@@ -4327,6 +4327,115 @@ async def backfill_entities(
 
 
 # ============================================================================
+# GRAPHRAG TOOLS - Multi-hop traversal and knowledge evolution queries
+# ============================================================================
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def trace_chain(
+    start_memory_id: int,
+    end_memory_id: int,
+    max_depth: int = 5,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Find causal paths between two memories. Answers: "How did decision X lead to outcome Y?"
+
+    Args:
+        start_memory_id: Starting memory ID
+        end_memory_id: Target memory ID
+        max_depth: Maximum path length (default: 5)
+        project_path: Project root
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    return await knowledge_graph.trace_chain(
+        start_memory_id=start_memory_id,
+        end_memory_id=end_memory_id,
+        max_depth=max_depth
+    )
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def trace_evolution(
+    entity_id: int,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Trace how knowledge about an entity evolved over time. Answers: "How has our understanding of X changed?"
+
+    Args:
+        entity_id: Entity database ID to trace
+        project_path: Project root
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    return await knowledge_graph.trace_evolution(entity_id=entity_id)
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_related_memories(
+    memory_id: int,
+    relationship_types: Optional[List[str]] = None,
+    direction: str = "both",
+    max_depth: int = 2,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Find memories related to a given memory via graph traversal. Answers: "What depends on this decision?"
+
+    Args:
+        memory_id: Starting memory ID
+        relationship_types: Filter by types (led_to, supersedes, depends_on, conflicts_with, related_to)
+        direction: "outgoing", "incoming", or "both"
+        max_depth: Maximum traversal depth (default: 2)
+        project_path: Project root
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    return await knowledge_graph.get_related(
+        memory_id=memory_id,
+        relationship_types=relationship_types,
+        direction=direction,
+        max_depth=max_depth
+    )
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_graph_stats(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get metrics about the knowledge graph structure: node/edge counts, density, components.
+
+    Args:
+        project_path: Project root
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    return knowledge_graph.get_metrics()
+
+
+# ============================================================================
 # CONTEXT TRIGGER TOOLS - Auto-recall based on patterns
 # ============================================================================
 
