@@ -648,7 +648,8 @@ async def remember(
     context: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None,
     file_path: Optional[str] = None,
-    project_path: Optional[str] = None
+    project_path: Optional[str] = None,
+    happened_at: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Store a memory (decision/pattern/warning/learning).
@@ -662,6 +663,8 @@ async def remember(
         tags: List of tags for retrieval
         file_path: Associate with a file
         project_path: Project root
+        happened_at: When this fact was true in reality (ISO 8601 string).
+                    Use for backfilling: "User told me last week they prefer Python"
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -674,6 +677,14 @@ async def remember(
     if violation:
         return violation
 
+    # Parse happened_at datetime if provided
+    happened_at_dt = None
+    if happened_at:
+        try:
+            happened_at_dt = datetime.fromisoformat(happened_at.replace('Z', '+00:00'))
+        except ValueError:
+            return {"error": f"Invalid 'happened_at' date format: {happened_at}. Use ISO format (e.g., '2025-01-01T00:00:00Z')"}
+
     ctx = await get_project_context(project_path)
     return await ctx.memory_manager.remember(
         category=category,
@@ -682,7 +693,8 @@ async def remember(
         context=context,
         tags=tags,
         file_path=file_path,
-        project_path=ctx.project_path
+        project_path=ctx.project_path,
+        happened_at=happened_at_dt
     )
 
 
