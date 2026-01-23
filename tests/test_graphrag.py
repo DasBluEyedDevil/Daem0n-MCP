@@ -639,11 +639,11 @@ class TestMCPGraphRAGTools:
     async def test_mcp_rebuild_communities_uses_leiden(self, covenant_compliant_project):
         """rebuild_communities MCP tool should use Leiden algorithm."""
         from daem0nmcp import server
+        from daem0nmcp.communities import CommunityManager
 
-        # Use context to get direct access to memory_manager (bypass covenant)
         ctx = await server.get_project_context(covenant_compliant_project)
 
-        # Create related memories
+        # Create related memories with shared entity to ensure graph connectivity
         await ctx.memory_manager.remember(
             category="decision",
             content="Use Docker for containerization",
@@ -662,7 +662,20 @@ class TestMCPGraphRAGTools:
         )
 
         assert "status" in result, "Should return status"
-        # Note: may or may not find communities depending on graph connectivity
+        assert result["status"] == "rebuilt"
+
+        # Verify communities were detected using Leiden (will have leiden_community_id)
+        if result["communities_found"] > 0:
+            cm = CommunityManager(ctx.db_manager)
+            communities = await cm.list_communities(covenant_compliant_project)
+            # At least one community should exist if rebuild found any
+            assert len(communities) > 0, "Should have saved communities"
+
+            # Critical: Verify Leiden algorithm was used by checking for leiden_community_id
+            # Leiden-based communities store the algorithm's partition ID
+            for community in communities:
+                assert "leiden_community_id" in community or hasattr(community, "leiden_community_id"), \
+                    f"Community should have leiden_community_id field (Leiden algorithm marker): {community}"
 
 
 # =============================================================================

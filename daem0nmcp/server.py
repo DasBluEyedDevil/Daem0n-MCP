@@ -4111,9 +4111,9 @@ async def rebuild_communities(
     )
 
     return {
+        **result,
         "status": "rebuilt",
         "communities_found": len(communities),
-        **result
     }
 
 
