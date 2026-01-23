@@ -15,9 +15,16 @@ Edge types:
 """
 
 import logging
-from typing import TYPE_CHECKING, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
 import networkx as nx
+
+from .traversal import (
+    find_related_memories as _find_related_memories,
+    get_graph_metrics,
+    trace_causal_chain,
+    trace_knowledge_evolution,
+)
 
 if TYPE_CHECKING:
     from ..database import DatabaseManager
@@ -452,3 +459,89 @@ class KnowledgeGraph:
             "direct_memories": direct_memory_ids,
             "related_memories": list(related_memory_ids),
         }
+
+    # =========================================================================
+    # Multi-hop Query Methods (GraphRAG traversal)
+    # =========================================================================
+
+    @property
+    def db(self) -> "DatabaseManager":
+        """Expose database manager for traversal functions."""
+        return self._db
+
+    async def trace_chain(
+        self,
+        start_memory_id: int,
+        end_memory_id: int,
+        max_depth: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        Find causal paths between two memories.
+
+        Answers: "How did the auth decision lead to the caching pattern?"
+
+        Args:
+            start_memory_id: Starting memory ID
+            end_memory_id: Target memory ID
+            max_depth: Maximum path length
+
+        Returns:
+            Dict with paths found and relationship details
+        """
+        await self.ensure_loaded()
+        return await trace_causal_chain(
+            self._graph, start_memory_id, end_memory_id, max_depth
+        )
+
+    async def get_related(
+        self,
+        memory_id: int,
+        relationship_types: Optional[List[str]] = None,
+        direction: str = "both",
+        max_depth: int = 2,
+    ) -> Dict[str, Any]:
+        """
+        Find memories related to a given memory.
+
+        Answers: "What depends on this decision?"
+
+        Args:
+            memory_id: Starting memory ID
+            relationship_types: Filter by these types (None = all)
+            direction: "outgoing", "incoming", or "both"
+            max_depth: Maximum traversal depth
+
+        Returns:
+            Dict with related memories grouped by relationship type
+        """
+        await self.ensure_loaded()
+        return await _find_related_memories(
+            self._graph, memory_id, relationship_types, direction, max_depth
+        )
+
+    async def trace_evolution(
+        self,
+        entity_id: int,
+    ) -> Dict[str, Any]:
+        """
+        Trace how knowledge about an entity evolved over time.
+
+        Answers: "How has our understanding of UserAuth changed?"
+
+        Args:
+            entity_id: Entity to trace
+
+        Returns:
+            Dict with timeline of memories mentioning this entity
+        """
+        await self.ensure_loaded()
+        return await trace_knowledge_evolution(self._graph, entity_id, self._db)
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """
+        Get metrics about the knowledge graph structure.
+
+        Returns:
+            Dict with node/edge counts, density, components, relationship distribution
+        """
+        return get_graph_metrics(self._graph)
