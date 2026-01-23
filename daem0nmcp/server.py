@@ -757,7 +757,8 @@ async def recall(
     until: Optional[str] = None,
     project_path: Optional[str] = None,
     include_linked: bool = False,
-    condensed: bool = False
+    condensed: bool = False,
+    as_of_time: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Semantic search for memories using TF-IDF. Results weighted by relevance, recency, importance.
@@ -772,6 +773,8 @@ async def recall(
         project_path: Project root
         include_linked: Search linked projects
         condensed: Compress output (~75% token reduction)
+        as_of_time: Return knowledge state as of this time (ISO 8601 string).
+                   Filters to memories valid at that time. Use for: "What did we know on 2025-12-01?"
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -787,6 +790,8 @@ async def recall(
     # Parse date strings if provided
     since_dt = None
     until_dt = None
+    as_of_time_dt = None
+
     if since:
         try:
             since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
@@ -798,6 +803,12 @@ async def recall(
             until_dt = datetime.fromisoformat(until.replace('Z', '+00:00'))
         except ValueError:
             return {"error": f"Invalid 'until' date format: {until}. Use ISO format (e.g., '2025-12-31T23:59:59Z')"}
+
+    if as_of_time:
+        try:
+            as_of_time_dt = datetime.fromisoformat(as_of_time.replace('Z', '+00:00'))
+        except ValueError:
+            return {"error": f"Invalid 'as_of_time' date format: {as_of_time}. Use ISO format (e.g., '2025-12-01T00:00:00Z')"}
 
     ctx = await get_project_context(project_path)
     return await ctx.memory_manager.recall(
@@ -811,7 +822,8 @@ async def recall(
         until=until_dt,
         project_path=ctx.project_path,
         include_linked=include_linked,
-        condensed=condensed
+        condensed=condensed,
+        as_of_time=as_of_time_dt
     )
 
 
