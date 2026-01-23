@@ -2,6 +2,7 @@
 from .entity_resolver import EntityResolver
 from .knowledge_graph import KnowledgeGraph
 from .leiden import LeidenConfig, get_community_stats, run_leiden_on_networkx
+from .summarizer import CommunitySummarizer, SummaryConfig
 from .traversal import (
     find_related_memories,
     get_graph_metrics,
@@ -19,4 +20,6 @@ __all__ = [
     "find_related_memories",
     "trace_knowledge_evolution",
     "get_graph_metrics",
+    "CommunitySummarizer",
+    "SummaryConfig",
 ]
