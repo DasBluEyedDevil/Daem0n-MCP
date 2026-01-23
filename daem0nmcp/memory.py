@@ -369,7 +369,8 @@ class MemoryManager:
         context: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         file_path: Optional[str] = None,
-        project_path: Optional[str] = None
+        project_path: Optional[str] = None,
+        happened_at: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Store a new memory with conflict detection.
@@ -382,6 +383,9 @@ class MemoryManager:
             tags: Tags for retrieval
             file_path: Optional file path to associate this memory with
             project_path: Optional project root path for normalizing file paths
+            happened_at: When this fact was true in reality (default: now).
+                        Use for backfilling: "User told me last week they prefer Python"
+                        Pass a datetime with timezone or naive datetime (treated as UTC).
 
         Returns:
             The created memory as a dict, with any detected conflicts
@@ -437,8 +441,16 @@ class MemoryManager:
             await session.flush()
             memory_id = memory.id
 
-            # Create initial version (version 1)
-            version = MemoryVersion(
+            # Create initial version (version 1) with bi-temporal tracking
+            from .graph.temporal import create_temporal_version
+
+            # Handle happened_at timezone (valid_from for bi-temporal)
+            valid_from = happened_at
+            if valid_from is not None and valid_from.tzinfo is None:
+                valid_from = valid_from.replace(tzinfo=timezone.utc)
+
+            version = await create_temporal_version(
+                session=session,
                 memory_id=memory.id,
                 version_number=1,
                 content=content,
@@ -448,9 +460,9 @@ class MemoryManager:
                 outcome=None,
                 worked=None,
                 change_type="created",
-                change_description="Initial creation"
+                change_description="Initial creation",
+                valid_from=valid_from,
             )
-            session.add(version)
 
             # Add to TF-IDF index
             index = await self._ensure_index()
@@ -485,7 +497,8 @@ class MemoryManager:
                 "tags": tags or [],
                 "file_path": file_path,
                 "is_permanent": is_permanent,
-                "created_at": memory.created_at.isoformat()
+                "created_at": memory.created_at.isoformat(),
+                "valid_from": version.valid_from.isoformat() if version.valid_from else None,
             }
 
             # Add conflict warnings if any
