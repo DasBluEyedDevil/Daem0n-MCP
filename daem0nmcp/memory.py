@@ -807,6 +807,67 @@ class MemoryManager:
                 "version_created_at": version.changed_at.isoformat() if version.changed_at else None
             }
 
+    async def get_memory_evolution(
+        self,
+        entity_name: str,
+        entity_type: Optional[str] = None,
+        include_invalidated: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Trace how understanding of an entity evolved over time.
+
+        Returns a timeline of memory versions that mention this entity,
+        including bi-temporal information (when true, when learned, invalidations).
+
+        Answers: "How has our understanding of X changed?"
+
+        Args:
+            entity_name: Name of the entity to trace (e.g., "UserService", "auth")
+            entity_type: Optional filter by entity type (e.g., "class", "concept")
+            include_invalidated: Whether to include invalidated versions (default True)
+
+        Returns:
+            Dict with:
+            - found: Whether entity was found
+            - entity: Entity details (name, type)
+            - timeline: List of version entries with temporal info
+            - current_beliefs: Versions still valid (not invalidated)
+            - invalidation_chain: Which versions invalidated which
+
+        Example:
+            >>> evolution = await manager.get_memory_evolution("UserService")
+            >>> for belief in evolution["timeline"]:
+            ...     print(f"{belief['valid_from']}: {belief['content_preview']}")
+        """
+        from .models import ExtractedEntity
+        from .graph.temporal import trace_knowledge_evolution
+
+        async with self.db.get_session() as session:
+            # Find entity by name (and optionally type)
+            query = select(ExtractedEntity).where(ExtractedEntity.name == entity_name)
+            if entity_type:
+                query = query.where(ExtractedEntity.entity_type == entity_type)
+
+            result = await session.execute(query.limit(1))
+            entity = result.scalar_one_or_none()
+
+            if not entity:
+                return {
+                    "found": False,
+                    "error": f"Entity '{entity_name}' not found",
+                    "entity": None,
+                    "timeline": [],
+                    "current_beliefs": [],
+                    "invalidation_chain": [],
+                }
+
+            # Use the trace_knowledge_evolution function from temporal module
+            return await trace_knowledge_evolution(
+                session=session,
+                entity_id=entity.id,
+                include_invalidated=include_invalidated,
+            )
+
     async def _check_conflicts(
         self,
         content: str,
