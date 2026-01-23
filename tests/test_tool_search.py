@@ -1,7 +1,6 @@
 # tests/test_tool_search.py
 """Tests for MCP tool search index."""
 
-import pytest
 from daem0nmcp.tool_search import ToolSearchIndex, ToolMetadata
 
 

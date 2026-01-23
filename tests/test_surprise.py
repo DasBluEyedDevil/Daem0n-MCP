@@ -1,7 +1,6 @@
 # tests/test_surprise.py
 """Tests for surprise-based memory scoring."""
 
-import pytest
 from daem0nmcp.models import Memory
 
 

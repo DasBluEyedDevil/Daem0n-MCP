@@ -1,7 +1,6 @@
 # tests/test_recall_planner.py
 """Tests for TiMem-style recall planner."""
 
-import pytest
 from daem0nmcp.recall_planner import (
     RecallPlanner,
     QueryComplexity,

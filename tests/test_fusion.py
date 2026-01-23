@@ -1,7 +1,6 @@
 # tests/test_fusion.py
 """Tests for Reciprocal Rank Fusion."""
 
-import pytest
 from daem0nmcp.fusion import reciprocal_rank_fusion, RRFHybridSearch
 
 

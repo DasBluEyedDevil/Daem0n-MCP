@@ -1,7 +1,6 @@
 # tests/test_prompt_templates.py
 """Tests for structured prompt templates."""
 
-import pytest
 from daem0nmcp.prompt_templates import (
     PromptTemplate,
     PromptSection,

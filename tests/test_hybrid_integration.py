@@ -1,7 +1,6 @@
 # tests/test_hybrid_integration.py
 """Integration tests for hybrid BM25 + vector search."""
 
-import pytest
 from daem0nmcp.bm25_index import BM25Index
 from daem0nmcp.vectors import VectorIndex
 from daem0nmcp.fusion import RRFHybridSearch
@@ -33,7 +32,6 @@ class TestHybridSearchIntegration:
         query = "secure user authentication"
 
         hybrid_results = hybrid.search(query, top_k=4)
-        bm25_results = bm25.search(query, top_k=4)
 
         # Hybrid should return results
         assert len(hybrid_results) >= 1

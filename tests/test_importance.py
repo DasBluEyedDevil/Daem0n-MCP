@@ -1,7 +1,6 @@
 # tests/test_importance.py
 """Tests for importance-weighted memory scoring."""
 
-import pytest
 from daem0nmcp.models import Memory
 
 

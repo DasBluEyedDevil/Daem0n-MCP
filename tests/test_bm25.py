@@ -1,7 +1,6 @@
 # tests/test_bm25.py
 """Tests for BM25 index."""
 
-import pytest
 from daem0nmcp.bm25_index import BM25Index
 
 

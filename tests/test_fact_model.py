@@ -1,7 +1,6 @@
 # tests/test_fact_model.py
 """Tests for static Fact model (Engram-inspired)."""
 
-import pytest
 from daem0nmcp.models import Fact
 
 
