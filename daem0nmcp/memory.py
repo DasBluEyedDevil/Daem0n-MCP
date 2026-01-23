@@ -889,7 +889,8 @@ class MemoryManager:
         include_warnings: bool = True,
         decay_half_life_days: float = 30.0,
         include_linked: bool = False,
-        condensed: bool = False  # Endless Mode compression
+        condensed: bool = False,  # Endless Mode compression
+        as_of_time: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Recall memories relevant to a topic using semantic similarity.
@@ -924,6 +925,10 @@ class MemoryManager:
             include_linked: If True, also search linked projects (read-only)
             condensed: If True, return compressed output (strips rationale, context,
                        truncates content). Reduces token usage by ~75%. Default: False.
+            as_of_time: Return knowledge state as of this time (default: current).
+                       Filters to memories where valid_from <= as_of_time AND
+                       (valid_to IS NULL OR valid_to > as_of_time).
+                       Use for: "What did we know about auth on 2025-12-01?"
 
         Returns:
             Dict with categorized memories and relevance scores
@@ -936,7 +941,8 @@ class MemoryManager:
             until.isoformat() if until else None,
             include_warnings, decay_half_life_days,
             include_linked,
-            condensed  # Include condensed in cache key for separate caching
+            condensed,  # Include condensed in cache key for separate caching
+            as_of_time.isoformat() if as_of_time else None,
         )
         found, cached_result = cache.get(cache_key)
         if found and cached_result is not None:
@@ -1019,6 +1025,29 @@ class MemoryManager:
                 mid: mem for mid, mem in memories.items()
                 if _matches_path(mem)
             }
+
+        # Filter by temporal validity (bi-temporal point-in-time query)
+        if as_of_time is not None:
+            # Normalize timezone
+            query_time = as_of_time
+            if query_time.tzinfo is None:
+                query_time = query_time.replace(tzinfo=timezone.utc)
+
+            # Filter memories by checking their latest version's validity
+            from .graph.temporal import get_versions_at_time
+
+            async def check_temporal_validity(memory_ids_to_check):
+                """Check which memories have valid versions at the query time."""
+                valid_ids = set()
+                async with self.db.get_session() as session:
+                    for mid in memory_ids_to_check:
+                        versions = await get_versions_at_time(session, mid, query_time)
+                        if versions:
+                            valid_ids.add(mid)
+                return valid_ids
+
+            valid_memory_ids = await check_temporal_validity(list(memories.keys()))
+            memories = {mid: mem for mid, mem in memories.items() if mid in valid_memory_ids}
 
         # Score with decay and organize
         scored_memories = []
@@ -1134,6 +1163,11 @@ class MemoryManager:
             'summary': " | ".join(summary_parts) if summary_parts else None,
             **by_category
         }
+
+        # Add temporal query metadata if point-in-time query was used
+        if as_of_time is not None:
+            result['query_time'] = as_of_time.isoformat()
+            result['temporal_filter'] = 'point_in_time'
 
         # Aggregate from linked projects if requested
         if include_linked and project_path:
