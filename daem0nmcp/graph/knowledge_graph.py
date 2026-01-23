@@ -264,3 +264,191 @@ class KnowledgeGraph:
         if not self._graph.has_edge(source_id, target_id):
             return None
         return dict(self._graph.edges[source_id, target_id])
+
+    # =========================================================================
+    # Traversal Helpers
+    # =========================================================================
+
+    def get_entity_nodes(self, entity_type: Optional[str] = None) -> List[str]:
+        """
+        Get all entity node IDs, optionally filtered by type.
+
+        Args:
+            entity_type: Filter by entity type (e.g., "function", "class").
+                        If None, returns all entity nodes.
+
+        Returns:
+            List of entity node IDs (e.g., ["entity:1", "entity:2"])
+        """
+        result = []
+        for node_id, attrs in self._graph.nodes(data=True):
+            if attrs.get("node_type") == "entity":
+                if entity_type is None or attrs.get("entity_type") == entity_type:
+                    result.append(node_id)
+        return result
+
+    def get_memory_nodes(self) -> List[str]:
+        """
+        Get all memory node IDs.
+
+        Returns:
+            List of memory node IDs (e.g., ["memory:1", "memory:2"])
+        """
+        return [
+            node_id
+            for node_id, attrs in self._graph.nodes(data=True)
+            if attrs.get("node_type") == "memory"
+        ]
+
+    def get_memories_for_entity(self, entity_id: int) -> List[int]:
+        """
+        Get memory IDs that reference a given entity.
+
+        Uses graph predecessors since edges flow memory -> entity.
+
+        Args:
+            entity_id: The entity's database ID (not the node ID)
+
+        Returns:
+            List of memory database IDs that reference this entity
+        """
+        entity_node = f"entity:{entity_id}"
+        if not self._graph.has_node(entity_node):
+            return []
+
+        memory_ids = []
+        for pred in self._graph.predecessors(entity_node):
+            if pred.startswith("memory:"):
+                try:
+                    memory_ids.append(int(pred.split(":")[1]))
+                except (ValueError, IndexError):
+                    continue
+        return memory_ids
+
+    def get_entities_for_memory(self, memory_id: int) -> List[int]:
+        """
+        Get entity IDs referenced by a given memory.
+
+        Uses graph successors since edges flow memory -> entity.
+
+        Args:
+            memory_id: The memory's database ID (not the node ID)
+
+        Returns:
+            List of entity database IDs referenced by this memory
+        """
+        memory_node = f"memory:{memory_id}"
+        if not self._graph.has_node(memory_node):
+            return []
+
+        entity_ids = []
+        for succ in self._graph.successors(memory_node):
+            if succ.startswith("entity:"):
+                try:
+                    entity_ids.append(int(succ.split(":")[1]))
+                except (ValueError, IndexError):
+                    continue
+        return entity_ids
+
+    def get_related_memories(
+        self, memory_id: int, max_depth: int = 2
+    ) -> List[int]:
+        """
+        Find memories related to the given memory via relationships.
+
+        Uses BFS traversal through MemoryRelationship edges to find
+        connected memories up to max_depth hops away.
+
+        Args:
+            memory_id: Starting memory's database ID
+            max_depth: Maximum traversal depth (default: 2)
+
+        Returns:
+            List of related memory database IDs (excludes the starting memory)
+        """
+        memory_node = f"memory:{memory_id}"
+        if not self._graph.has_node(memory_node):
+            return []
+
+        # BFS with depth limit
+        # Note: bfs_tree returns a DiGraph of the BFS tree
+        try:
+            bfs_tree = nx.bfs_tree(self._graph, memory_node, depth_limit=max_depth)
+        except nx.NetworkXError:
+            return []
+
+        related_memory_ids = []
+        for node in bfs_tree.nodes():
+            if node == memory_node:
+                continue  # Exclude starting node
+            if node.startswith("memory:"):
+                try:
+                    related_memory_ids.append(int(node.split(":")[1]))
+                except (ValueError, IndexError):
+                    continue
+
+        return related_memory_ids
+
+    def get_common_entities(
+        self, memory_id_a: int, memory_id_b: int
+    ) -> List[int]:
+        """
+        Find entities shared between two memories.
+
+        Useful for understanding why two memories might be related
+        even without an explicit MemoryRelationship edge.
+
+        Args:
+            memory_id_a: First memory's database ID
+            memory_id_b: Second memory's database ID
+
+        Returns:
+            List of entity database IDs referenced by both memories
+        """
+        entities_a = set(self.get_entities_for_memory(memory_id_a))
+        entities_b = set(self.get_entities_for_memory(memory_id_b))
+        return list(entities_a & entities_b)
+
+    def get_entity_neighborhood(
+        self, entity_id: int, max_hops: int = 2
+    ) -> dict:
+        """
+        Get the neighborhood of an entity including connected memories.
+
+        Returns a structured view useful for context assembly:
+        - Direct memories (1 hop)
+        - Related memories via shared entities (2+ hops)
+
+        Args:
+            entity_id: The entity's database ID
+            max_hops: Maximum depth to explore
+
+        Returns:
+            Dict with "entity", "direct_memories", "related_memories" keys
+        """
+        entity_node = f"entity:{entity_id}"
+        if not self._graph.has_node(entity_node):
+            return {
+                "entity": entity_id,
+                "direct_memories": [],
+                "related_memories": [],
+            }
+
+        # Direct memories are predecessors of the entity
+        direct_memory_ids = self.get_memories_for_entity(entity_id)
+
+        # Related memories: explore from direct memories
+        related_memory_ids: Set[int] = set()
+        if max_hops > 1:
+            for mem_id in direct_memory_ids:
+                related = self.get_related_memories(mem_id, max_depth=max_hops - 1)
+                related_memory_ids.update(related)
+
+        # Remove direct memories from related (no duplicates)
+        related_memory_ids -= set(direct_memory_ids)
+
+        return {
+            "entity": entity_id,
+            "direct_memories": direct_memory_ids,
+            "related_memories": list(related_memory_ids),
+        }
