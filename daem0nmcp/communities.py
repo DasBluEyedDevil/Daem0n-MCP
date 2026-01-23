@@ -476,3 +476,40 @@ class CommunityManager:
                     for m in memories
                 ]
             }
+
+    async def get_community_members_by_ids(
+        self,
+        community_ids: List[int]
+    ) -> Dict[str, Any]:
+        """
+        Get member memory IDs for multiple communities at once.
+
+        Efficient bulk lookup for hierarchical retrieval.
+
+        Args:
+            community_ids: List of community IDs to retrieve
+
+        Returns:
+            Dict mapping community_id to list of member_ids
+        """
+        if not community_ids:
+            return {"communities": {}}
+
+        async with self.db.get_session() as session:
+            result = await session.execute(
+                select(MemoryCommunity).where(
+                    MemoryCommunity.id.in_(community_ids)
+                )
+            )
+            communities = result.scalars().all()
+
+            return {
+                "communities": {
+                    c.id: {
+                        "name": c.name,
+                        "member_ids": c.member_ids or [],
+                        "member_count": c.member_count
+                    }
+                    for c in communities
+                }
+            }

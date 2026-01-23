@@ -7,6 +7,7 @@ This module handles:
 - Time-based memory decay
 - Conflict detection
 - Outcome tracking for learning
+- GraphRAG integration via KnowledgeGraph
 """
 
 import logging
@@ -29,6 +30,7 @@ from .similarity import (
 )
 from .cache import get_recall_cache, make_cache_key
 from . import vectors
+from .graph import KnowledgeGraph
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 # Valid relationship types for graph edges
@@ -168,6 +170,7 @@ class MemoryManager:
     Optionally uses vector embeddings for better semantic understanding.
     Applies memory decay to favor recent memories.
     Detects conflicts with existing memories.
+    Integrates with KnowledgeGraph for GraphRAG capabilities.
     """
 
     def __init__(self, db_manager: DatabaseManager):
@@ -176,6 +179,9 @@ class MemoryManager:
         self._index_loaded = False
         self._vectors_enabled = vectors.is_available()
         self._index_built_at: Optional[datetime] = None
+
+        # GraphRAG: Knowledge graph instance (lazy-loaded)
+        self._knowledge_graph: Optional[KnowledgeGraph] = None
 
         # Initialize Qdrant vector store if available
         self._qdrant = None
@@ -209,6 +215,34 @@ class MemoryManager:
                     else:
                         # Unexpected error - log with full details
                         logger.warning(f"Could not initialize Qdrant (falling back to TF-IDF only): {e}")
+
+    async def get_knowledge_graph(self) -> KnowledgeGraph:
+        """
+        Get or create the knowledge graph for GraphRAG operations.
+
+        Uses lazy loading - graph is only built when first accessed.
+        Call invalidate_graph_cache() when memories change to force reload.
+
+        Returns:
+            KnowledgeGraph instance synchronized with SQLite
+        """
+        if self._knowledge_graph is None:
+            self._knowledge_graph = KnowledgeGraph(self.db)
+
+        await self._knowledge_graph.ensure_loaded()
+        return self._knowledge_graph
+
+    def invalidate_graph_cache(self) -> None:
+        """
+        Invalidate the knowledge graph cache.
+
+        Call this after remember() or any operation that modifies
+        entities, memories, or relationships in the database.
+        Forces next get_knowledge_graph() to reload from SQLite.
+        """
+        if self._knowledge_graph is not None:
+            self._knowledge_graph._loaded = False
+            logger.debug("Knowledge graph cache invalidated")
 
     async def _check_index_freshness(self) -> bool:
         """
@@ -461,6 +495,9 @@ class MemoryManager:
 
         # Clear recall cache since memories changed
         get_recall_cache().clear()
+
+        # Invalidate knowledge graph cache (new memory added)
+        self.invalidate_graph_cache()
 
         # Auto-extract entities if project_path provided
         if project_path:
@@ -2233,7 +2270,8 @@ class MemoryManager:
         topic: str,
         project_path: Optional[str] = None,
         include_members: bool = False,
-        limit: int = 10
+        limit: int = 10,
+        use_leiden: bool = True
     ) -> Dict[str, Any]:
         """
         Hierarchical recall - community summaries first, then individual memories.
@@ -2242,11 +2280,15 @@ class MemoryManager:
         1. Relevant community summaries (high-level overview)
         2. Individual memories (detailed)
 
+        Uses Leiden-based communities (detected from knowledge graph) by default.
+        If no communities exist, suggests running rebuild_communities.
+
         Args:
             topic: What you're looking for
             project_path: Project path for community lookup
             include_members: If True, include full member content for each community
             limit: Max results per layer
+            use_leiden: If True, prefer Leiden-detected communities (default: True)
 
         Returns:
             Dict with communities and memories sections
@@ -2257,11 +2299,14 @@ class MemoryManager:
         result = {
             "topic": topic,
             "communities": [],
-            "memories": []
+            "memories": [],
+            "community_source": "none"
         }
 
         # Get relevant communities if project_path provided
         if project_path:
+            cm = CommunityManager(self.db)
+
             async with self.db.get_session() as session:
                 # Search communities by topic in name, summary, or tags
                 query = select(MemoryCommunity).where(
@@ -2270,37 +2315,76 @@ class MemoryManager:
                 communities_result = await session.execute(query)
                 all_communities = communities_result.scalars().all()
 
-                # Filter by topic relevance (simple substring match for now)
-                # TODO: Consider using TF-IDF/semantic similarity for community matching
-                # Currently uses substring match - "authentication" won't match "auth + jwt"
+                # If no communities exist, suggest detection
+                if not all_communities:
+                    result["community_hint"] = (
+                        "No communities detected yet. Run rebuild_communities to "
+                        "enable hierarchical summaries via Leiden algorithm."
+                    )
+                else:
+                    result["community_source"] = "leiden" if use_leiden else "tag_based"
+
+                # Use TF-IDF for semantic matching against community content
+                # This improves matching: "authentication" will match "auth + jwt"
                 topic_lower = topic.lower()
-                relevant_communities = []
+                scored_communities = []
+
                 for c in all_communities:
-                    name_match = topic_lower in c.name.lower()
-                    summary_match = topic_lower in c.summary.lower()
-                    tag_match = any(topic_lower in str(t).lower() for t in (c.tags or []))
+                    # Build searchable text from community
+                    search_text = f"{c.name} {c.summary} {' '.join(c.tags or [])}"
 
-                    if name_match or summary_match or tag_match:
-                        comm_dict = {
-                            "id": c.id,
-                            "name": c.name,
-                            "summary": c.summary,
-                            "tags": c.tags,
-                            "member_count": c.member_count,
-                            "level": c.level
-                        }
+                    # Compute relevance score using multiple signals
+                    score = 0.0
 
-                        if include_members:
-                            cm = CommunityManager(self.db)
-                            members = await cm.get_community_members(c.id)
-                            comm_dict["members"] = members.get("members", [])
+                    # Direct name match (highest weight)
+                    if topic_lower in c.name.lower():
+                        score += 1.0
 
-                        relevant_communities.append(comm_dict)
+                    # Summary contains topic
+                    if topic_lower in c.summary.lower():
+                        score += 0.5
 
-                result["communities"] = relevant_communities[:limit]
+                    # Tag match
+                    if any(topic_lower in str(t).lower() for t in (c.tags or [])):
+                        score += 0.3
+
+                    # Word overlap scoring (pseudo TF-IDF)
+                    topic_words = set(topic_lower.split())
+                    search_words = set(search_text.lower().split())
+                    overlap = topic_words & search_words
+                    if topic_words:
+                        overlap_score = len(overlap) / len(topic_words)
+                        score += overlap_score * 0.5
+
+                    if score > 0:
+                        scored_communities.append((c, score))
+
+                # Sort by relevance score
+                scored_communities.sort(key=lambda x: x[1], reverse=True)
+
+                # Build result with top communities
+                relevant_communities = []
+                for c, score in scored_communities[:limit]:
+                    comm_dict = {
+                        "id": c.id,
+                        "name": c.name,
+                        "summary": c.summary,
+                        "tags": c.tags,
+                        "member_count": c.member_count,
+                        "level": c.level,
+                        "relevance": round(score, 3)
+                    }
+
+                    if include_members:
+                        members = await cm.get_community_members(c.id)
+                        comm_dict["members"] = members.get("members", [])
+
+                    relevant_communities.append(comm_dict)
+
+                result["communities"] = relevant_communities
 
         # Also get individual memories via standard recall
-        memories = await self.recall(topic, limit=limit)
+        memories = await self.recall(topic, limit=limit, project_path=project_path)
         result["memories"] = {
             "decisions": memories.get("decisions", []),
             "patterns": memories.get("patterns", []),
