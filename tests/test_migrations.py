@@ -47,6 +47,23 @@ class TestMigrations:
                 created_at TIMESTAMP
             )
         """)
+        # memory_versions table needed for migration 14+
+        conn.execute("""
+            CREATE TABLE memory_versions (
+                id INTEGER PRIMARY KEY,
+                memory_id INTEGER,
+                version_number INTEGER,
+                content TEXT,
+                rationale TEXT,
+                context TEXT,
+                tags TEXT,
+                outcome TEXT,
+                worked BOOLEAN,
+                change_type TEXT,
+                change_description TEXT,
+                changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
         conn.close()
 
@@ -127,4 +144,101 @@ class TestMigrations:
             versions = [row[0] for row in cursor.fetchall()]
 
         assert len(versions) == count
-        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+
+
+def test_migration_14_bitemporal_columns():
+    """Test that migration 14 adds bi-temporal columns correctly."""
+    import tempfile
+    import sqlite3
+    from daem0nmcp.migrations.schema import run_migrations
+
+    with tempfile.TemporaryDirectory() as td:
+        db_path = f"{td}/test.db"
+
+        # Create minimal schema matching what earlier migrations expect
+        conn = sqlite3.connect(db_path)
+        conn.execute("""
+            CREATE TABLE memories (
+                id INTEGER PRIMARY KEY,
+                category TEXT,
+                content TEXT,
+                rationale TEXT,
+                context TEXT,
+                tags TEXT,
+                file_path TEXT,
+                keywords TEXT,
+                is_permanent BOOLEAN,
+                outcome TEXT,
+                worked BOOLEAN,
+                created_at TIMESTAMP,
+                updated_at TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE rules (
+                id INTEGER PRIMARY KEY,
+                trigger TEXT,
+                trigger_keywords TEXT,
+                must_do TEXT,
+                must_not TEXT,
+                ask_first TEXT,
+                warnings TEXT,
+                priority INTEGER,
+                enabled BOOLEAN,
+                created_at TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE memory_versions (
+                id INTEGER PRIMARY KEY,
+                memory_id INTEGER,
+                version_number INTEGER,
+                content TEXT,
+                rationale TEXT,
+                context TEXT,
+                tags TEXT,
+                outcome TEXT,
+                worked BOOLEAN,
+                change_type TEXT,
+                change_description TEXT,
+                changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Insert a test record to verify backfill
+        conn.execute("""
+            INSERT INTO memory_versions (memory_id, version_number, content, change_type, changed_at)
+            VALUES (1, 1, 'test', 'created', '2026-01-01 12:00:00')
+        """)
+        conn.commit()
+        conn.close()
+
+        # Run migrations
+        count, applied = run_migrations(db_path)
+
+        # Verify columns exist
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(memory_versions)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        assert "valid_from" in columns, "valid_from column missing"
+        assert "valid_to" in columns, "valid_to column missing"
+        assert "invalidated_by_version_id" in columns, "invalidated_by_version_id column missing"
+
+        # Verify backfill worked (valid_from should equal changed_at)
+        cursor.execute("SELECT valid_from, changed_at FROM memory_versions WHERE id = 1")
+        row = cursor.fetchone()
+        assert row[0] is not None, "valid_from should be backfilled"
+        assert row[0] == row[1], "valid_from should equal changed_at after backfill"
+
+        # Verify indexes exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE '%temporal%'")
+        indexes = {row[0] for row in cursor.fetchall()}
+        assert "idx_memory_versions_temporal" in indexes, "Temporal index missing"
+
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE '%transaction%'")
+        indexes = {row[0] for row in cursor.fetchall()}
+        assert "idx_memory_versions_transaction" in indexes, "Transaction time index missing"
+
+        conn.close()
