@@ -189,3 +189,149 @@ async def invalidate_version(
     )
 
     return result.rowcount > 0
+
+
+async def trace_knowledge_evolution(
+    session: "AsyncSession",
+    entity_id: int,
+    include_invalidated: bool = True,
+) -> dict:
+    """
+    Trace how understanding of an entity changed over time.
+
+    Returns a timeline of memory versions that mention this entity,
+    including bi-temporal information (when true, when learned, invalidations).
+
+    Args:
+        session: Database session
+        entity_id: Entity ID to trace evolution for
+        include_invalidated: Whether to include invalidated versions (default True)
+
+    Returns:
+        Dict with:
+        - found: Whether entity was found
+        - entity: Entity details (name, type)
+        - timeline: List of version entries with temporal info
+        - current_beliefs: Versions still valid (not invalidated)
+        - invalidation_chain: Which versions invalidated which
+
+    Each timeline entry includes:
+        - memory_id: ID of the memory
+        - version_id: ID of this version
+        - version_number: Sequential version within memory
+        - content_preview: First 200 chars of content
+        - valid_from: When this became true in reality
+        - valid_to: When this was superseded (NULL if current)
+        - transaction_time: When we learned this (changed_at)
+        - is_current: Whether this is the current belief
+        - invalidated_by_version_id: What version invalidated this
+    """
+    from sqlalchemy import select
+    from ..models import ExtractedEntity, MemoryEntityRef, MemoryVersion
+
+    # First, get the entity
+    entity_result = await session.execute(
+        select(ExtractedEntity).where(ExtractedEntity.id == entity_id)
+    )
+    entity = entity_result.scalar_one_or_none()
+
+    if not entity:
+        return {
+            "found": False,
+            "error": f"Entity {entity_id} not found",
+            "entity": None,
+            "timeline": [],
+            "current_beliefs": [],
+            "invalidation_chain": [],
+        }
+
+    # Get all memory IDs that reference this entity
+    refs_result = await session.execute(
+        select(MemoryEntityRef.memory_id)
+        .where(MemoryEntityRef.entity_id == entity_id)
+        .distinct()
+    )
+    memory_ids = [row[0] for row in refs_result.fetchall()]
+
+    if not memory_ids:
+        return {
+            "found": True,
+            "entity": {
+                "id": entity.id,
+                "name": entity.name,
+                "type": entity.entity_type,
+            },
+            "timeline": [],
+            "current_beliefs": [],
+            "invalidation_chain": [],
+            "message": "No memories reference this entity",
+        }
+
+    # Get all versions for these memories
+    query = select(MemoryVersion).where(MemoryVersion.memory_id.in_(memory_ids))
+
+    if not include_invalidated:
+        # Only include versions that are still valid (valid_to is NULL)
+        query = query.where(MemoryVersion.valid_to.is_(None))
+
+    # Order by valid_from (when true), then transaction_time (when learned)
+    query = query.order_by(
+        MemoryVersion.valid_from.asc().nullsfirst(),
+        MemoryVersion.changed_at.asc()
+    )
+
+    versions_result = await session.execute(query)
+    versions = versions_result.scalars().all()
+
+    # Build timeline and track invalidations
+    timeline = []
+    current_beliefs = []
+    invalidation_chain = []
+
+    for v in versions:
+        content_preview = v.content
+        if len(content_preview) > 200:
+            content_preview = content_preview[:200] + "..."
+
+        is_current = v.valid_to is None
+
+        entry = {
+            "memory_id": v.memory_id,
+            "version_id": v.id,
+            "version_number": v.version_number,
+            "content_preview": content_preview,
+            "valid_from": v.valid_from.isoformat() if v.valid_from else None,
+            "valid_to": v.valid_to.isoformat() if v.valid_to else None,
+            "transaction_time": v.changed_at.isoformat() if v.changed_at else None,
+            "is_current": is_current,
+            "invalidated_by_version_id": v.invalidated_by_version_id,
+            "change_type": v.change_type,
+            "outcome": v.outcome,
+            "worked": v.worked,
+        }
+
+        timeline.append(entry)
+
+        if is_current:
+            current_beliefs.append(entry)
+
+        if v.invalidated_by_version_id is not None:
+            invalidation_chain.append({
+                "invalidated_version_id": v.id,
+                "invalidated_by_version_id": v.invalidated_by_version_id,
+                "invalidation_time": v.valid_to.isoformat() if v.valid_to else None,
+            })
+
+    return {
+        "found": True,
+        "entity": {
+            "id": entity.id,
+            "name": entity.name,
+            "type": entity.entity_type,
+        },
+        "timeline": timeline,
+        "current_beliefs": current_beliefs,
+        "invalidation_chain": invalidation_chain,
+        "total_versions": len(timeline),
+        "invalidated_count": len(invalidation_chain),
+    }

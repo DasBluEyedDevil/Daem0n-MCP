@@ -10,12 +10,17 @@ from .entity_resolver import EntityResolver
 from .knowledge_graph import KnowledgeGraph
 from .leiden import LeidenConfig, get_community_stats, run_leiden_on_networkx
 from .summarizer import CommunitySummarizer, SummaryConfig
-from .temporal import create_temporal_version, get_versions_at_time, invalidate_version
+from .temporal import (
+    create_temporal_version,
+    get_versions_at_time,
+    invalidate_version,
+    trace_knowledge_evolution,
+)
 from .traversal import (
     find_related_memories,
     get_graph_metrics,
     trace_causal_chain,
-    trace_knowledge_evolution,
+    trace_knowledge_evolution as trace_knowledge_evolution_graph,
 )
 
 __all__ = [
