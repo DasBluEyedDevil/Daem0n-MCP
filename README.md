@@ -13,6 +13,74 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v3.1.0
+
+### 2026 AI Memory Research Enhancements
+Seven cutting-edge enhancements from 2026 AI memory research to improve retrieval precision, memory efficiency, and context utilization:
+
+#### BM25 + RRF Hybrid Retrieval
+Replaces TF-IDF with Okapi BM25 for better keyword matching, combined with Reciprocal Rank Fusion for hybrid search:
+- **BM25 Index**: Better term frequency saturation (k1=1.5) and document length normalization (b=0.75)
+- **RRF Fusion**: Combines BM25 and vector results with k=60 dampening constant
+- **Configurable**: `DAEM0NMCP_BM25_K1`, `DAEM0NMCP_BM25_B`, `DAEM0NMCP_RRF_K`
+
+#### TiMem-Style Recall Planner
+Complexity-aware retrieval that adapts to query difficulty:
+- **Simple queries** (e.g., "auth"): Returns community summaries only (~50% context reduction)
+- **Medium queries**: Summaries + key raw memories
+- **Complex queries** (e.g., "trace auth flow through all components"): Full raw memory access
+- **Configurable limits**: `DAEM0NMCP_RECALL_SIMPLE_MAX_MEMORIES`, `DAEM0NMCP_RECALL_MEDIUM_MAX_MEMORIES`, `DAEM0NMCP_RECALL_COMPLEX_MAX_MEMORIES`
+
+#### Titans-Inspired Surprise Scoring
+Novelty detection for memory prioritization:
+- **`surprise_score`** field on memories (0.0-1.0)
+- High surprise = novel information to prioritize
+- Low surprise = routine, can be deprioritized
+- Uses k-nearest neighbor distance metric
+- **Configurable**: `DAEM0NMCP_SURPRISE_K_NEAREST`, `DAEM0NMCP_SURPRISE_BOOST_THRESHOLD`
+
+#### Importance-Weighted Learning
+EWC-inspired protection for valuable memories:
+- **`importance_score`** field on memories (0.0-1.0)
+- High importance = protected from decay/pruning
+- Based on: recall frequency, positive outcomes, user interactions
+
+#### Fact Model (Static Memory Separation)
+Engram-inspired separation of verified facts from dynamic memories:
+- **`Fact`** model for immutable, verified knowledge
+- Content hash for O(1) lookup instead of semantic search
+- Verification count and promotion threshold
+- **Configurable**: `DAEM0NMCP_FACT_PROMOTION_THRESHOLD`
+
+#### Tool Search Index
+Dynamic tool discovery to reduce context bloat:
+- Register tools with metadata (name, description, category, tags)
+- Search by natural language query
+- Only load relevant tools into context
+- Expected context savings: 85% for large tool libraries
+
+#### Prompt Template System
+AutoPDL-inspired modular prompts:
+- Structured templates with sections (role, context, task, constraints)
+- Variable substitution with `{placeholder}` syntax
+- Optional sections and importance weights
+- A/B testing support via `PromptVariant`
+
+### New Configuration Options (v3.1.0)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_BM25_K1` | `1.5` | BM25 term frequency saturation |
+| `DAEM0NMCP_BM25_B` | `0.75` | BM25 document length normalization |
+| `DAEM0NMCP_RRF_K` | `60` | RRF fusion dampening constant |
+| `DAEM0NMCP_SURPRISE_K_NEAREST` | `5` | Neighbors for surprise calculation |
+| `DAEM0NMCP_SURPRISE_BOOST_THRESHOLD` | `0.7` | Boost memories above this surprise |
+| `DAEM0NMCP_RECALL_SIMPLE_MAX_MEMORIES` | `5` | Max memories for simple queries |
+| `DAEM0NMCP_RECALL_MEDIUM_MAX_MEMORIES` | `10` | Max memories for medium queries |
+| `DAEM0NMCP_RECALL_COMPLEX_MAX_MEMORIES` | `20` | Max memories for complex queries |
+| `DAEM0NMCP_FACT_PROMOTION_THRESHOLD` | `3` | Successful outcomes to promote to fact |
+
+---
+
 ## What's New in v3.0.0
 
 ### FastMCP 3.0 Upgrade
@@ -604,11 +672,17 @@ Environment variables (prefix: `DAEM0NMCP_`):
 
 ```
 daem0nmcp/
-├── server.py       # MCP server with 42+ tools (FastMCP)
+├── server.py       # MCP server with 53+ tools (FastMCP)
 ├── memory.py       # Memory storage & semantic retrieval
-├── rules.py        # Rule engine with TF-IDF matching
+├── rules.py        # Rule engine with BM25 matching
 ├── similarity.py   # TF-IDF index, decay, conflict detection
 ├── vectors.py      # Vector embeddings (sentence-transformers)
+├── bm25_index.py   # BM25 Okapi keyword retrieval
+├── fusion.py       # Reciprocal Rank Fusion for hybrid search
+├── surprise.py     # Titans-inspired novelty detection
+├── recall_planner.py # TiMem-style complexity classification
+├── prompt_templates.py # AutoPDL-inspired modular prompts
+├── tool_search.py  # Dynamic tool discovery index
 ├── covenant.py     # Sacred Covenant enforcement decorators & preflight tokens
 ├── transforms/     # FastMCP 3.0 transforms
 │   └── covenant.py # CovenantMiddleware & CovenantTransform
@@ -813,4 +887,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v3.0.0: FastMCP 3.0 upgrade—CovenantMiddleware, component versioning, OpenTelemetry tracing, Sacred Covenant enforcement.*
+*Daem0nMCP v3.1.0: 2026 AI Memory Research Enhancements—BM25+RRF hybrid retrieval, TiMem recall planner, Titans surprise scoring, importance-weighted learning, Fact model, tool search index, prompt templates. Plus FastMCP 3.0, CovenantMiddleware, OpenTelemetry tracing, Sacred Covenant enforcement.*

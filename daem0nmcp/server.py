@@ -1377,7 +1377,8 @@ def _get_git_changes(since_date: Optional[datetime] = None, project_path: Option
             capture_output=True,
             text=True,
             timeout=5,
-            cwd=cwd
+            cwd=cwd,
+            stdin=subprocess.DEVNULL
         )
         if result.returncode != 0:
             return None
@@ -1391,7 +1392,7 @@ def _get_git_changes(since_date: Optional[datetime] = None, project_path: Option
         else:
             cmd = ["git", "log", "--oneline", "-5"]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5, cwd=cwd)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5, cwd=cwd, stdin=subprocess.DEVNULL)
         if result.returncode == 0 and result.stdout.strip():
             git_info["recent_commits"] = result.stdout.strip().split("\n")
 
@@ -1401,7 +1402,8 @@ def _get_git_changes(since_date: Optional[datetime] = None, project_path: Option
             capture_output=True,
             text=True,
             timeout=5,
-            cwd=cwd
+            cwd=cwd,
+            stdin=subprocess.DEVNULL
         )
         if result.returncode == 0 and result.stdout.strip():
             changes = result.stdout.strip().split("\n")
@@ -1419,7 +1421,8 @@ def _get_git_changes(since_date: Optional[datetime] = None, project_path: Option
             capture_output=True,
             text=True,
             timeout=5,
-            cwd=cwd
+            cwd=cwd,
+            stdin=subprocess.DEVNULL
         )
         if result.returncode == 0:
             git_info["branch"] = result.stdout.strip()

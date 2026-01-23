@@ -41,6 +41,8 @@ dependencies = [
     "plyer>=2.1.0",
     # Phase 2: Code understanding (tree-sitter-language-pack has Python 3.14 wheels)
     "tree-sitter-language-pack>=0.13.0",
+    # BM25 for hybrid retrieval
+    "rank-bm25>=0.2.2",
 ]
 
 [project.optional-dependencies]

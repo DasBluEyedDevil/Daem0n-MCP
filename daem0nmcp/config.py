@@ -71,6 +71,25 @@ class Settings(BaseSettings):
     # Embedding Model
     embedding_model: str = "all-MiniLM-L6-v2"
 
+    # BM25 tuning parameters
+    bm25_k1: float = Field(default=1.5, ge=0.0, le=3.0)  # Term frequency saturation
+    bm25_b: float = Field(default=0.75, ge=0.0, le=1.0)  # Document length normalization
+
+    # RRF fusion parameter
+    rrf_k: int = Field(default=60, ge=1)  # Dampening constant for RRF
+
+    # Surprise scoring
+    surprise_k_nearest: int = Field(default=5, ge=1)  # Neighbors for surprise calc
+    surprise_boost_threshold: float = Field(default=0.7, ge=0.0, le=1.0)  # Boost if above
+
+    # Recall planner limits
+    recall_simple_max_memories: int = Field(default=5, ge=1)
+    recall_medium_max_memories: int = Field(default=10, ge=1)
+    recall_complex_max_memories: int = Field(default=20, ge=1)
+
+    # Fact promotion
+    fact_promotion_threshold: int = Field(default=3, ge=1)  # Successful outcomes to promote
+
     # Code Indexing
     parse_tree_cache_maxsize: int = 200
     index_languages: List[str] = []  # Empty = all supported

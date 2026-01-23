@@ -223,6 +223,29 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         """,
         "CREATE INDEX IF NOT EXISTS idx_file_hashes_project ON file_hashes(project_path);",
     ]),
+    (12, "Add surprise_score and importance_score columns to memories", [
+        "ALTER TABLE memories ADD COLUMN surprise_score REAL;",
+        "ALTER TABLE memories ADD COLUMN importance_score REAL;",
+    ]),
+    (13, "Add facts table for static knowledge (Engram-inspired)", [
+        """
+        CREATE TABLE IF NOT EXISTS facts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content_hash TEXT NOT NULL UNIQUE,
+            content TEXT NOT NULL,
+            category TEXT,
+            source_memory_id INTEGER,
+            verification_count INTEGER DEFAULT 0,
+            is_verified BOOLEAN DEFAULT 0,
+            tags TEXT DEFAULT '[]',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            verified_at TIMESTAMP,
+            FOREIGN KEY (source_memory_id) REFERENCES memories(id) ON DELETE SET NULL
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_facts_content_hash ON facts(content_hash);",
+        "CREATE INDEX IF NOT EXISTS idx_facts_category ON facts(category);",
+    ]),
 ]
 
 
