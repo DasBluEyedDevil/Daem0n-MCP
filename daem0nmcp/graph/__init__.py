@@ -1,4 +1,11 @@
 """Graph module for GraphRAG knowledge graph operations."""
+from .contradiction import (
+    Contradiction,
+    check_and_invalidate_contradictions,
+    detect_contradictions,
+    has_negation_mismatch,
+    invalidate_contradicted_facts,
+)
 from .entity_resolver import EntityResolver
 from .knowledge_graph import KnowledgeGraph
 from .leiden import LeidenConfig, get_community_stats, run_leiden_on_networkx
@@ -26,4 +33,9 @@ __all__ = [
     "create_temporal_version",
     "get_versions_at_time",
     "invalidate_version",
+    "Contradiction",
+    "detect_contradictions",
+    "invalidate_contradicted_facts",
+    "check_and_invalidate_contradictions",
+    "has_negation_mismatch",
 ]
