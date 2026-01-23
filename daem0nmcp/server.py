@@ -4074,13 +4074,15 @@ async def get_memory_at_time(
 @with_request_id
 async def rebuild_communities(
     min_community_size: int = 2,
+    resolution: float = 1.0,
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Detect memory communities based on tag co-occurrence. Auto-generates summaries.
+    Detect memory communities using Leiden algorithm on the knowledge graph.
 
     Args:
         min_community_size: Min members per community
+        resolution: Leiden resolution (>1 = smaller communities)
         project_path: Project root
     """
     if project_path is None and not _default_project_path:
@@ -4091,9 +4093,14 @@ async def rebuild_communities(
     ctx = await get_project_context(project_path)
     cm = CommunityManager(ctx.db_manager)
 
-    # Detect communities
-    communities = await cm.detect_communities(
+    # Get knowledge graph for Leiden algorithm
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    # Detect communities using Leiden algorithm
+    communities = await cm.detect_communities_from_graph(
         project_path=project_path or _default_project_path,
+        knowledge_graph=knowledge_graph,
+        resolution=resolution,
         min_community_size=min_community_size
     )
 
