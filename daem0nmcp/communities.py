@@ -18,6 +18,7 @@ from sqlalchemy import select, delete
 from .database import DatabaseManager
 from .graph import KnowledgeGraph
 from .graph.leiden import LeidenConfig, get_community_stats, run_leiden_on_networkx
+from .graph.summarizer import CommunitySummarizer, SummaryConfig
 from .models import Memory, MemoryCommunity
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,13 @@ class CommunityManager:
     - Summaries are generated from member content
     """
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        summarizer: Optional[CommunitySummarizer] = None,
+    ):
         self.db = db_manager
+        self.summarizer = summarizer or CommunitySummarizer()
 
     async def detect_communities(
         self,
@@ -283,17 +289,18 @@ class CommunityManager:
     async def generate_community_summary(
         self,
         member_ids: List[int],
-        community_name: str
+        community_name: str,
+        entity_names: Optional[List[str]] = None,
     ) -> str:
         """
         Generate a summary for a community from its members.
 
-        For now, creates a simple concatenation-based summary.
-        Could be enhanced with LLM summarization later.
+        Uses CommunitySummarizer for consistent summary generation.
 
         Args:
             member_ids: Memory IDs in this community
             community_name: Name of the community
+            entity_names: Optional list of key entities in this community
 
         Returns:
             Generated summary text
@@ -307,21 +314,24 @@ class CommunityManager:
         if not memories:
             return f"Empty community: {community_name}"
 
-        # Group by category
-        by_category: Dict[str, List[str]] = defaultdict(list)
-        for mem in memories:
-            by_category[mem.category].append(mem.content)
+        # Convert to member dicts for summarizer
+        members = [
+            {
+                "id": m.id,
+                "category": m.category,
+                "content": m.content,
+                "rationale": m.rationale,
+                "outcome": m.outcome,
+                "worked": m.worked,
+            }
+            for m in memories
+        ]
 
-        # Build summary
-        parts = [f"Community: {community_name}"]
-        parts.append(f"Contains {len(memories)} memories.")
-
-        for category, contents in by_category.items():
-            parts.append(f"\n{category.title()}s ({len(contents)}):")
-            for content in contents[:3]:  # Limit to first 3
-                parts.append(f"  - {content[:100]}...")
-
-        return "\n".join(parts)
+        return await self.summarizer.summarize_community(
+            community_name,
+            members,
+            entity_names,
+        )
 
     async def save_communities(
         self,
