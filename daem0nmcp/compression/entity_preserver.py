@@ -22,21 +22,29 @@ class CodeEntityPreserver:
         compressor.compress(code, force_tokens=force_tokens)
     """
 
+    # Maximum number of entity names to extract (to avoid overwhelming compressor)
+    MAX_ENTITY_NAMES: int = 50
+
     # Language-agnostic structural tokens
     STRUCTURAL_TOKENS: List[str] = [
         # Python keywords
-        "def", "class", "return", "import", "from", "async", "await",
-        "if", "else", "elif", "for", "while", "try", "except", "finally",
-        "with", "as", "yield", "raise", "pass", "break", "continue",
-        "lambda", "assert", "global", "nonlocal", "None", "True", "False",
+        "def ", "class ", "return ", "import ", "from ",
+        "async ", "await ", "if ", "else:", "elif ",
+        "for ", "while ", "try:", "except ", "finally:",
+        "with ", "as ", "yield ", "raise ", "pass",
+        "break", "continue", "lambda ", "assert ",
+        "global ", "nonlocal ", "None", "True", "False",
         # JavaScript/TypeScript keywords
-        "function", "const", "let", "var", "export", "import", "default",
-        "async", "await", "new", "this", "super", "extends", "implements",
-        "interface", "type", "enum", "readonly", "private", "public",
+        "function ", "const ", "let ", "var ", "export ",
+        "import ", "default", "async ", "await ", "new ",
+        "this.", "super", "extends ", "implements ",
+        "interface ", "type ", "enum ", "readonly ",
+        "private ", "public ", "protected ",
         # Control flow (multi-language)
-        "switch", "case", "default", "throw", "catch",
+        "switch ", "case ", "default:", "throw ", "catch ",
         # Common operators/delimiters
-        "=>", "->", "::", "self.", "this.",
+        "=>", "->", "::", "==", "!=", "===", "!==",
+        "self.", "this.",
     ]
 
     # Patterns to extract identifiers
@@ -89,6 +97,22 @@ class CodeEntityPreserver:
 
         return identifiers
 
+    def extract_entity_names(self, code: str) -> List[str]:
+        """
+        Extract function and class names from code, limited to MAX_ENTITY_NAMES.
+
+        Args:
+            code: Source code text
+
+        Returns:
+            List of entity names (limited to MAX_ENTITY_NAMES)
+        """
+        identifiers = self.extract_identifiers(code)
+        # Sort by length (shorter names are usually more important)
+        # and limit to MAX_ENTITY_NAMES
+        sorted_names = sorted(identifiers, key=len)
+        return sorted_names[:self.MAX_ENTITY_NAMES]
+
     def get_force_tokens(self, code: str) -> List[str]:
         """
         Get all tokens to force-preserve during compression.
@@ -101,6 +125,37 @@ class CodeEntityPreserver:
         Returns:
             List of tokens to preserve
         """
-        tokens = set(self._structural)
-        tokens.update(self.extract_identifiers(code))
-        return list(tokens)
+        tokens = list(self._structural)
+        tokens.extend(self.extract_entity_names(code))
+        return tokens
+
+    def is_code_heavy(self, text: str) -> bool:
+        """
+        Determine if text is code-heavy (vs. narrative).
+
+        Uses heuristics based on code indicator density.
+        Code-heavy text should get conservative compression.
+
+        Args:
+            text: Text to analyze
+
+        Returns:
+            True if text is code-heavy
+        """
+        if not text:
+            return False
+
+        code_indicators = [
+            "def ", "class ", "function ", "import ", "from ",
+            "=>", "->", "::", "();", "{}", "[]",
+            "self.", "this.", "return ", "async ", "await ",
+            "const ", "let ", "var ", "export ",
+        ]
+
+        code_score = sum(text.count(ind) for ind in code_indicators)
+
+        # Normalize by length (per 1000 chars)
+        density = code_score / max(len(text) / 1000, 1)
+
+        # Threshold: more than 5 code indicators per 1000 chars
+        return density > 5
