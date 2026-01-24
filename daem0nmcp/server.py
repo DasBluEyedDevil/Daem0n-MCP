@@ -19,11 +19,12 @@ A smarter MCP server that provides:
 13. Code understanding via tree-sitter parsing
 14. Active working context (MemGPT-style always-hot memories)
 
-44 Tools:
+45 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - verify_facts: Verify factual claims in text against stored knowledge
 - compress_context: Compress context using LLMLingua-2 for token reduction
+- execute_python: Execute Python code in isolated sandbox (action phase only)
 - recall_for_file: Get all memories for a specific file
 - recall_by_entity: Get all memories mentioning a specific code entity
 - list_entities: List most frequently mentioned entities
@@ -90,6 +91,15 @@ try:
     from .logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from .covenant import set_context_callback
     from .transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+    from .agency import (
+        RitualPhaseTracker,
+        AgencyMiddleware,
+        SandboxExecutor,
+        CapabilityScope,
+        CapabilityManager,
+        check_capability,
+    )
+    from .agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from .rwlock import RWLock
 except ImportError:
     # For fastmcp run which executes server.py directly
@@ -103,6 +113,15 @@ except ImportError:
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from daem0nmcp.covenant import set_context_callback
     from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+    from daem0nmcp.agency import (
+        RitualPhaseTracker,
+        AgencyMiddleware,
+        SandboxExecutor,
+        CapabilityScope,
+        CapabilityManager,
+        check_capability,
+    )
+    from daem0nmcp.agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from daem0nmcp.rwlock import RWLock
 from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
@@ -124,6 +143,9 @@ if os.getenv('DAEM0NMCP_STRUCTURED_LOGS'):
 
 # Initialize FastMCP server
 mcp = FastMCP("Daem0nMCP")
+
+# Global ritual phase tracker for tool visibility
+_ritual_phase_tracker = RitualPhaseTracker()
 
 
 # ============================================================================
@@ -157,6 +179,25 @@ _EVICTION_INTERVAL_SECONDS: float = 60.0
 
 # Default project path (ONLY used if DAEM0NMCP_PROJECT_ROOT is explicitly set)
 _default_project_path: Optional[str] = os.environ.get('DAEM0NMCP_PROJECT_ROOT')
+
+# Agency globals - sandbox executor and capability manager for execute_python
+_sandbox_executor = SandboxExecutor(timeout_seconds=30)
+_capability_manager = CapabilityManager()
+
+
+def _update_ritual_phase(project_path: str, tool_name: str) -> None:
+    """
+    Update ritual phase based on tool call.
+
+    Called at the end of key tool implementations to track phase transitions.
+    The phase tracker uses tool_name to determine the new phase:
+    - get_briefing -> stays in briefing
+    - context_check -> exploration
+    - remember, remember_batch, add_rule -> action
+    - record_outcome, verify_facts -> reflection
+    """
+    if project_path:
+        _ritual_phase_tracker.on_tool_called(project_path, tool_name)
 
 
 def _get_context_for_covenant(project_path: str) -> Optional[ProjectContext]:
@@ -213,6 +254,20 @@ else:
     logger.warning(
         "FastMCP 3.0 middleware not available - falling back to decorator-based enforcement"
     )
+
+
+def _get_ritual_phase_for_middleware(project_path: str) -> str:
+    """Get ritual phase for AgencyMiddleware."""
+    return _ritual_phase_tracker.get_phase(project_path)
+
+
+# Register AgencyMiddleware for phase-based tool filtering
+if _AGENCY_MIDDLEWARE_AVAILABLE:
+    _agency_middleware = AgencyMiddleware(
+        get_phase=_get_ritual_phase_for_middleware,
+    )
+    mcp.add_middleware(_agency_middleware)
+    logger.info("AgencyMiddleware registered with FastMCP server")
 
 
 def _missing_project_path_error() -> Dict[str, Any]:
@@ -2316,6 +2371,100 @@ async def compress_context(
     except Exception as e:
         logger.error(f"Compression failed: {e}")
         return f"[ERROR] Compression failed: {e}"
+
+
+# ============================================================================
+# Tool 45: EXECUTE_PYTHON - Sandboxed code execution
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def execute_python(
+    code: str,
+    project_path: Optional[str] = None,
+    timeout_seconds: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Execute Python code in an isolated sandbox.
+
+    The code runs in a Firecracker microVM with:
+    - No access to host filesystem
+    - No network access
+    - Hard timeout enforcement
+    - Resource limits
+
+    Use this for:
+    - Running calculations or data transformations
+    - Testing code snippets safely
+    - Executing user-provided code
+
+    Args:
+        code: Python code to execute
+        project_path: Project root (required for capability check)
+        timeout_seconds: Override default timeout (max 60s)
+
+    Returns:
+        Dict with:
+        - success: bool - Whether execution succeeded
+        - output: str - Captured stdout/print output
+        - error: str|None - Error message if failed
+        - execution_time_ms: int - Execution time in milliseconds
+        - logs: list - Execution logs
+    """
+    # Require project_path
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    effective_path = project_path or _default_project_path
+
+    # Check capability
+    violation = check_capability(
+        effective_path,
+        CapabilityScope.EXECUTE_CODE,
+        _capability_manager,
+    )
+    if violation:
+        return violation
+
+    # Check sandbox availability
+    if not _sandbox_executor.available:
+        return {
+            "status": "error",
+            "error": "SANDBOX_UNAVAILABLE",
+            "message": (
+                "Sandboxed execution is not available. "
+                "Ensure E2B_API_KEY is set and e2b-code-interpreter is installed."
+            ),
+        }
+
+    # Validate timeout
+    actual_timeout = min(timeout_seconds or 30, 60)  # Cap at 60s
+
+    # Log execution for anomaly detection
+    logger.info(
+        f"execute_python: project={effective_path}, "
+        f"code_len={len(code)}, timeout={actual_timeout}s"
+    )
+
+    # Create executor with requested timeout
+    executor = SandboxExecutor(timeout_seconds=actual_timeout)
+    result = await executor.execute(code)
+
+    # Log result for anomaly detection
+    logger.info(
+        f"execute_python result: success={result.success}, "
+        f"time={result.execution_time_ms}ms, output_len={len(result.output)}"
+    )
+
+    # Update ritual phase (action phase tool)
+    _update_ritual_phase(effective_path, "execute_python")
+
+    return {
+        "success": result.success,
+        "output": result.output,
+        "error": result.error,
+        "execution_time_ms": result.execution_time_ms,
+        "logs": result.logs,
+    }
 
 
 # ============================================================================
