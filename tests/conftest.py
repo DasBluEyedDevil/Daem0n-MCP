@@ -59,6 +59,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "asyncio: mark test as an asyncio test."
     )
+    config.addinivalue_line(
+        "markers", "slow: mark test as slow (requires model loading)."
+    )
 
     # Ensure pytest's tmp_path base directory exists on all platforms
     # This fixes issues on Windows CI where getpass.getuser() returns "unknown"
