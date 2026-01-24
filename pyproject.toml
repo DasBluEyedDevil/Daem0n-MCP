@@ -47,6 +47,9 @@ dependencies = [
     "networkx>=3.0",
     "leidenalg>=0.10.0",
     "python-igraph>=0.11.0",
+    # Phase 3: Metacognitive Architecture (Reflexion)
+    "langgraph>=1.0.7",
+    "langgraph-checkpoint-sqlite>=3.0.3",
 ]
 
 [project.optional-dependencies]
