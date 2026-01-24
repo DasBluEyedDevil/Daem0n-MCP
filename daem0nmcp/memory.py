@@ -31,6 +31,7 @@ from .similarity import (
 from .cache import get_recall_cache, make_cache_key
 from . import vectors
 from .graph import KnowledgeGraph
+from .recall_planner import RecallPlanner
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 # Valid relationship types for graph edges
@@ -183,6 +184,11 @@ class MemoryManager:
         # GraphRAG: Knowledge graph instance (lazy-loaded)
         self._knowledge_graph: Optional[KnowledgeGraph] = None
 
+        # Phase 4: Context compression (lazy initialized)
+        self._compressor: Optional["AdaptiveCompressor"] = None
+        self._hierarchical_context: Optional["HierarchicalContextManager"] = None
+        self.recall_planner = RecallPlanner()
+
         # Initialize Qdrant vector store if available
         self._qdrant = None
         if self._vectors_enabled:
@@ -243,6 +249,18 @@ class MemoryManager:
         if self._knowledge_graph is not None:
             self._knowledge_graph._loaded = False
             logger.debug("Knowledge graph cache invalidated")
+
+    @property
+    def compressor(self) -> "AdaptiveCompressor":
+        """Lazy-load compressor on first use."""
+        if self._compressor is None:
+            from .compression import AdaptiveCompressor, HierarchicalContextManager
+            self._compressor = AdaptiveCompressor()
+            self._hierarchical_context = HierarchicalContextManager(
+                compressor=self._compressor,
+                recall_planner=self.recall_planner,
+            )
+        return self._compressor
 
     async def _check_index_freshness(self) -> bool:
         """
@@ -1272,6 +1290,84 @@ class MemoryManager:
         cache.set(cache_key, result)
 
         return result
+
+    async def recall_with_compression(
+        self,
+        query: str,
+        project_path: str,
+        limit: int = 10,
+        include_communities: bool = True,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Recall memories with optional context compression.
+
+        Uses hierarchical strategy:
+        - Simple queries: Return community summaries (pre-compressed)
+        - Medium queries: Hybrid with moderate compression
+        - Complex queries: Full context with adaptive compression
+
+        Args:
+            query: Search query
+            project_path: Project path for community lookup
+            limit: Maximum memories to return
+            include_communities: Whether to include community summaries
+            **kwargs: Additional args passed to recall()
+
+        Returns:
+            Dict with memories and optimized context:
+                - memories: List of memory dicts
+                - context: Optimized context string
+                - compression_stats: Dict with compression details
+        """
+        # Get recall plan
+        plan = self.recall_planner.plan_recall(query)
+
+        # Get raw memories via existing recall
+        result = await self.recall(query, limit=limit, project_path=project_path, **kwargs)
+
+        # Flatten memories from categories
+        memories = []
+        for category in ["decisions", "patterns", "warnings", "learnings"]:
+            memories.extend(result.get(category, []))
+
+        # Get community summaries if requested
+        community_summaries = None
+        if include_communities and project_path:
+            try:
+                from .communities import CommunityManager
+                cm = CommunityManager(self.db)
+                communities = await cm.get_communities(project_path)
+                # Extract summaries from top communities
+                community_summaries = [
+                    c.get("summary", "") for c in communities[:plan.max_communities]
+                    if c.get("summary")
+                ]
+            except Exception as e:
+                logger.warning(f"Failed to get communities for compression: {e}")
+
+        # Ensure compressor is initialized (triggers lazy load)
+        _ = self.compressor
+
+        # Get optimized context
+        context_result = self._hierarchical_context.get_context(
+            query=query,
+            memories=memories,
+            community_summaries=community_summaries,
+            plan=plan,
+        )
+
+        return {
+            "memories": memories,
+            "context": context_result["context"],
+            "compression_stats": {
+                "strategy": context_result["strategy"],
+                "compression_applied": context_result["compression_applied"],
+                "token_count": context_result.get("token_count"),
+                "original_tokens": context_result.get("original_tokens"),
+                "compression_ratio": context_result.get("compression_ratio"),
+            },
+        }
 
     async def record_outcome(
         self,
