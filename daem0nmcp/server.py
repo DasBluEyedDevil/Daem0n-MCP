@@ -19,10 +19,11 @@ A smarter MCP server that provides:
 13. Code understanding via tree-sitter parsing
 14. Active working context (MemGPT-style always-hot memories)
 
-43 Tools:
+44 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - verify_facts: Verify factual claims in text against stored knowledge
+- compress_context: Compress context using LLMLingua-2 for token reduction
 - recall_for_file: Get all memories for a specific file
 - recall_by_entity: Get all memories mentioning a specific code entity
 - list_entities: List most frequently mentioned entities
@@ -2241,6 +2242,80 @@ def _build_verification_message(summary: Dict[str, Any]) -> str:
     )
 
     return f"{'; '.join(parts)}. Overall confidence: {confidence_desc} ({summary['overall_confidence']:.1%})"
+
+
+# ============================================================================
+# Tool: COMPRESS_CONTEXT - Intelligent context compression
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def compress_context(
+    context: str,
+    rate: Optional[float] = None,
+    content_type: Optional[str] = None,
+    preserve_code: bool = True,
+) -> str:
+    """
+    Compress context using LLMLingua-2 for token reduction.
+
+    Achieves 3x-6x compression while preserving meaning. Useful for:
+    - Reducing large context before sending to LLM
+    - Optimizing token usage in long conversations
+    - Compressing retrieved memories for efficiency
+
+    The daemon compresses wisely: preserving function names, entities, and
+    structural tokens while removing redundant phrasing.
+
+    Args:
+        context: Text to compress
+        rate: Compression rate (0.2-0.5). Lower = more aggressive. Auto-detects if None.
+        content_type: "code", "narrative", or "mixed". Auto-detects if None.
+        preserve_code: Whether to preserve code syntax (function names, etc.)
+
+    Returns:
+        Compressed context as string.
+
+    Example:
+        compressed = await compress_context(
+            context=long_document,
+            content_type="narrative",
+        )
+    """
+    try:
+        from .compression import AdaptiveCompressor, ContentType
+    except ImportError:
+        try:
+            from daem0nmcp.compression import AdaptiveCompressor, ContentType
+        except ImportError:
+            return "[ERROR] Compression dependencies not installed. Run: pip install llmlingua tiktoken"
+
+    try:
+        adaptive = AdaptiveCompressor()
+
+        # Parse content type if provided
+        ct = None
+        if content_type:
+            ct = ContentType(content_type.lower())
+
+        # Compress
+        result = adaptive.compress(
+            context,
+            content_type=ct,
+            rate_override=rate,
+        )
+
+        # Log stats
+        if not result.get("skipped"):
+            logger.info(
+                f"Compressed context: {result['original_tokens']} -> "
+                f"{result['compressed_tokens']} tokens ({result['ratio']:.1f}x)"
+            )
+
+        return result["compressed_prompt"]
+
+    except Exception as e:
+        logger.error(f"Compression failed: {e}")
+        return f"[ERROR] Compression failed: {e}"
 
 
 # ============================================================================
