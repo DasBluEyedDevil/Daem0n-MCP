@@ -245,3 +245,132 @@ class TestContextCompressorIntegration:
 
         # Output should still contain structure
         assert "\n" in result["compressed_prompt"]
+
+
+class TestHierarchicalContextManager:
+    """Tests for HierarchicalContextManager."""
+
+    def test_simple_query_uses_summaries(self):
+        """Simple queries prefer community summaries."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+        summaries = ["Summary 1: Auth system overview", "Summary 2: Database patterns"]
+        memories = [{"content": "Raw memory 1", "category": "decision"}]
+
+        result = manager.get_context(
+            query="what is auth?",  # Simple (3 words)
+            memories=memories,
+            community_summaries=summaries,
+        )
+
+        assert result["strategy"] == "summaries"
+        assert result["compression_applied"] is False
+        assert "Auth system" in result["context"]
+
+    def test_simple_query_fallback_to_raw(self):
+        """Simple queries fall back to raw if no summaries."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+        memories = [{"content": "Raw memory content", "category": "decision"}]
+
+        result = manager.get_context(
+            query="what is auth?",
+            memories=memories,
+            community_summaries=None,
+        )
+
+        assert result["strategy"] == "raw_fallback"
+        assert "Raw memory content" in result["context"]
+
+    def test_complex_query_uses_compression(self):
+        """Complex queries use compression strategy."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+        memories = [{"content": "Memory " * 100, "category": "decision"}]
+
+        result = manager.get_context(
+            query="trace the complete history of all authentication decisions and their outcomes",
+            memories=memories,
+            community_summaries=None,
+        )
+
+        # Strategy should be compression-oriented (may skip if under threshold)
+        assert result["strategy"] in ["compressed", "raw"]
+
+    def test_format_memories(self):
+        """Memories are formatted correctly."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+        memories = [
+            {"content": "First memory", "category": "decision"},
+            {"content": "Second memory", "category": "pattern"},
+        ]
+
+        formatted = manager._format_memories(memories)
+
+        assert "[decision] First memory" in formatted
+        assert "[pattern] Second memory" in formatted
+
+    def test_format_summaries(self):
+        """Summaries are joined correctly."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+        summaries = ["Summary A", "Summary B"]
+
+        formatted = manager._format_summaries(summaries)
+
+        assert "Summary A" in formatted
+        assert "Summary B" in formatted
+
+    def test_result_includes_token_count(self):
+        """All results include token count."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+        memories = [{"content": "Test memory", "category": "test"}]
+
+        result = manager.get_context(
+            query="test",
+            memories=memories,
+            community_summaries=None,
+        )
+
+        assert "token_count" in result
+        assert isinstance(result["token_count"], int)
+
+    def test_medium_query_hybrid_strategy(self):
+        """Medium complexity queries use hybrid strategy."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+        summaries = ["Summary 1: Auth overview"]
+        memories = [{"content": "Raw memory details", "category": "decision"}]
+
+        result = manager.get_context(
+            query="how does auth work",  # Medium complexity (4 words, no complex patterns)
+            memories=memories,
+            community_summaries=summaries,
+        )
+
+        # Should be hybrid or hybrid_compressed
+        assert result["strategy"] in ["hybrid", "hybrid_compressed"]
+
+    def test_empty_memories_handled(self):
+        """Empty memory list is handled gracefully."""
+        from daem0nmcp.compression import HierarchicalContextManager
+
+        manager = HierarchicalContextManager()
+
+        result = manager.get_context(
+            query="test",
+            memories=[],
+            community_summaries=None,
+        )
+
+        assert result["context"] == ""
+        assert result["token_count"] == 0
