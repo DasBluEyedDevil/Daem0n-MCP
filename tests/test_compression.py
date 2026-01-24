@@ -131,6 +131,89 @@ class TestContextCompressor:
         assert compressor._tokenizer is not None
 
 
+class TestAdaptiveCompressor:
+    """Tests for AdaptiveCompressor."""
+
+    def test_classify_code(self):
+        """Classifies code-heavy content correctly."""
+        from daem0nmcp.compression import AdaptiveCompressor, ContentType
+        adaptive = AdaptiveCompressor()
+
+        code = '''
+def function_one():
+    return 1
+
+def function_two():
+    return 2
+
+class MyClass:
+    def __init__(self):
+        self.value = 42
+'''
+        assert adaptive.classify_content(code) == ContentType.CODE
+
+    def test_classify_narrative(self):
+        """Classifies narrative content correctly."""
+        from daem0nmcp.compression import AdaptiveCompressor, ContentType
+        adaptive = AdaptiveCompressor()
+
+        prose = """
+        This document describes the architecture of our system.
+        The system is designed to handle multiple concurrent users
+        while maintaining data consistency and performance.
+        We use a microservices approach with message queues.
+        """
+        assert adaptive.classify_content(prose) == ContentType.NARRATIVE
+
+    def test_classify_mixed(self):
+        """Classifies mixed content correctly."""
+        from daem0nmcp.compression import AdaptiveCompressor, ContentType
+        adaptive = AdaptiveCompressor()
+
+        mixed = """
+        The authentication module handles user login.
+
+        def authenticate(username, password):
+            return check_credentials(username, password)
+
+        Users are validated against the database.
+        """
+        assert adaptive.classify_content(mixed) == ContentType.MIXED
+
+    def test_get_rate_for_code(self):
+        """Code gets conservative 2x compression."""
+        from daem0nmcp.compression import AdaptiveCompressor, ContentType
+        adaptive = AdaptiveCompressor()
+
+        rate = adaptive.get_rate_for_content(ContentType.CODE)
+        assert rate == 0.5  # 2x compression
+
+    def test_get_rate_for_narrative(self):
+        """Narrative gets aggressive 5x compression."""
+        from daem0nmcp.compression import AdaptiveCompressor, ContentType
+        adaptive = AdaptiveCompressor()
+
+        rate = adaptive.get_rate_for_content(ContentType.NARRATIVE)
+        assert rate == 0.2  # 5x compression
+
+    def test_compress_includes_content_type(self):
+        """Compression result includes detected content type."""
+        from daem0nmcp.compression import AdaptiveCompressor
+        adaptive = AdaptiveCompressor()
+
+        result = adaptive.compress("This is prose.")
+        assert "content_type" in result
+        assert result["content_type"] == "narrative"
+
+    def test_compress_simple_returns_string(self):
+        """compress_simple returns just the text."""
+        from daem0nmcp.compression import AdaptiveCompressor
+        adaptive = AdaptiveCompressor()
+
+        result = adaptive.compress_simple("Short text.")
+        assert isinstance(result, str)
+
+
 class TestContextCompressorIntegration:
     """Integration tests that require model loading."""
 
