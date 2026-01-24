@@ -103,6 +103,8 @@ OUTCOME_PATTERNS = [
     (r"\bthis\s+(worked|failed|succeeded|broke)", "outcome"),
     (r"\bwe\s+(?:tried|tested)\s+(?:that\s+)?and\s+it\s+(worked|failed)", "outcome"),
     (r"\bthe\s+result\s+was\s+(.+?)(?:\.|,|$)", "outcome"),
+    # Generic "X failed/worked/succeeded" pattern
+    (r"\bthe\s+(\w+(?:\s+\w+)?)\s+(worked|failed|succeeded|broke)", "outcome_subject"),
 ]
 
 # Factual assertion patterns - best effort verification
@@ -170,6 +172,11 @@ def _extract_subject_predicate(match: re.Match, pattern_type: str) -> tuple[Opti
         # Outcome patterns: the outcome word is the predicate
         if groups:
             return match.group(0).strip(), groups[0].strip()
+
+    if pattern_type == "outcome_subject":
+        # "the X failed" patterns: X is subject, outcome is predicate
+        if len(groups) >= 2:
+            return groups[0].strip(), groups[1].strip()
 
     return None, None
 
