@@ -1,9 +1,19 @@
-"""Reflexion loop components for metacognitive architecture.
+"""
+Reflexion Module - Actor-Evaluator-Reflector Loop for Metacognitive Architecture.
 
-This module implements the Actor-Evaluator-Reflector pattern for
-self-critiquing and verifying claims before returning outputs.
+Implements self-critique and iterative improvement via LangGraph state machine.
+Verifies claims against stored knowledge before returning outputs.
 """
 
+from .state import ReflexionState, VerificationResult
 from .claims import Claim, ClaimType, VerificationLevel, extract_claims, is_opinion
 
-__all__ = ["Claim", "ClaimType", "VerificationLevel", "extract_claims", "is_opinion"]
+__all__ = [
+    "ReflexionState",
+    "VerificationResult",
+    "Claim",
+    "ClaimType",
+    "VerificationLevel",
+    "extract_claims",
+    "is_opinion",
+]
