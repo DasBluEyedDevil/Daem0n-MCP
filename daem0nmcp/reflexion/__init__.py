@@ -15,6 +15,22 @@ from .verification import (
     VerificationResult,
     VerificationEvidence,
 )
+from .nodes import (
+    create_actor_node,
+    create_evaluator_node,
+    create_reflector_node,
+    actor_node,
+    reflector_node,
+    QUALITY_THRESHOLD_EXIT,
+    MAX_ITERATIONS,
+    WARNING_ITERATION,
+)
+from .graph import (
+    build_reflexion_graph,
+    create_reflexion_app,
+    run_reflexion,
+    should_continue,
+)
 
 __all__ = [
     # State definitions
@@ -32,4 +48,18 @@ __all__ = [
     "summarize_verification",
     "VerificationResult",
     "VerificationEvidence",
+    # Node functions
+    "create_actor_node",
+    "create_evaluator_node",
+    "create_reflector_node",
+    "actor_node",
+    "reflector_node",
+    "QUALITY_THRESHOLD_EXIT",
+    "MAX_ITERATIONS",
+    "WARNING_ITERATION",
+    # Graph construction
+    "build_reflexion_graph",
+    "create_reflexion_app",
+    "run_reflexion",
+    "should_continue",
 ]
