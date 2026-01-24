@@ -743,7 +743,7 @@ async def remember(
             return {"error": f"Invalid 'happened_at' date format: {happened_at}. Use ISO format (e.g., '2025-01-01T00:00:00Z')"}
 
     ctx = await get_project_context(project_path)
-    return await ctx.memory_manager.remember(
+    result = await ctx.memory_manager.remember(
         category=category,
         content=content,
         rationale=rationale,
@@ -753,6 +753,11 @@ async def remember(
         project_path=ctx.project_path,
         happened_at=happened_at_dt
     )
+
+    # Track phase transition (action phase)
+    _update_ritual_phase(ctx.project_path, "remember")
+
+    return result
 
 
 # ============================================================================
@@ -794,6 +799,9 @@ async def remember_batch(
         f"Stored {result['created_count']} memories"
         + (f" with {result['error_count']} error(s)" if result['error_count'] else "")
     )
+
+    # Track phase transition (action phase)
+    _update_ritual_phase(ctx.project_path, "remember_batch")
 
     return result
 
@@ -915,7 +923,7 @@ async def add_rule(
         return _missing_project_path_error()
 
     ctx = await get_project_context(project_path)
-    return await ctx.rules_engine.add_rule(
+    result = await ctx.rules_engine.add_rule(
         trigger=trigger,
         must_do=must_do,
         must_not=must_not,
@@ -923,6 +931,11 @@ async def add_rule(
         warnings=warnings,
         priority=priority
     )
+
+    # Track phase transition (action phase)
+    _update_ritual_phase(ctx.project_path, "add_rule")
+
+    return result
 
 
 # ============================================================================
@@ -977,12 +990,17 @@ async def record_outcome(
 
     ctx = await get_project_context(project_path)
     effective_project_path = project_path or _default_project_path
-    return await ctx.memory_manager.record_outcome(
+    result = await ctx.memory_manager.record_outcome(
         memory_id=memory_id,
         outcome=outcome,
         worked=worked,
         project_path=effective_project_path
     )
+
+    # Track phase transition (reflection phase)
+    _update_ritual_phase(ctx.project_path, "record_outcome")
+
+    return result
 
 
 # Directories to exclude when scanning project structure
@@ -1977,6 +1995,9 @@ async def get_briefing(
         logger.warning(f"Failed to fetch active context: {e}")
         active_context["error"] = str(e)
 
+    # Track phase transition (briefing phase)
+    _update_ritual_phase(ctx.project_path, "get_briefing")
+
     return {
         "status": "ready",
         "statistics": stats,
@@ -2262,6 +2283,9 @@ async def verify_facts(
     summary = summarize_verification(verification_results)
     summary["message"] = _build_verification_message(summary)
 
+    # Track phase transition (reflection phase)
+    _update_ritual_phase(ctx.project_path, "verify_facts")
+
     return {
         "claims": [
             {"text": c.text, "type": c.claim_type.value, "subject": c.subject}
@@ -2543,6 +2567,9 @@ async def context_check(
         session_id=get_session_id(ctx.project_path),
         project_path=ctx.project_path,
     )
+
+    # Track phase transition (exploration phase)
+    _update_ritual_phase(ctx.project_path, "context_check")
 
     return {
         "description": description,
