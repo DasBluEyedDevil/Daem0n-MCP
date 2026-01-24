@@ -24,6 +24,18 @@ class ReflexionState(TypedDict):
 
     Scalar fields (query, draft, critique, quality_score, iteration) overwrite.
     List fields with Annotated[..., operator.add] accumulate across iterations.
+
+    Fields:
+        query: The original query to respond to
+        draft: The current draft response from Actor
+        critique: Verbal gradient describing issues from Evaluator
+        quality_score: 0.0-1.0, early exit if >= 0.8
+        claims: Extracted claims (accumulated across iterations)
+        verification_results: Verification results (accumulated)
+        iteration: Current iteration (1, 2, 3), hard cap at 3
+        should_continue: Set by evaluator based on score + iteration
+        context_filter: Categories, tags to filter verification queries
+        ritual_phase: Current ritual phase for tool visibility filtering (Phase 5 Agency)
     """
     # Input - the original query to respond to
     query: str
@@ -45,3 +57,8 @@ class ReflexionState(TypedDict):
 
     # Optional context for claim verification
     context_filter: Optional[dict]  # Categories, tags to filter verification queries
+
+    # Ritual phase for tool visibility (Phase 5 Agency)
+    # Values: "briefing" | "exploration" | "action" | "reflection"
+    # Optional with default "briefing" - existing code that doesn't set it still works
+    ritual_phase: Optional[str]
