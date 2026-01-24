@@ -8,6 +8,7 @@ import logging
 from typing import Optional, List, Dict, Any
 
 from .config import CompressionConfig
+from .entity_preserver import CodeEntityPreserver
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class ContextCompressor:
         self.config = config or CompressionConfig()
         self._compressor = None  # Lazy loaded
         self._tokenizer = None   # Lazy loaded
+        self._entity_preserver = CodeEntityPreserver()  # Code entity preservation
 
     def _ensure_initialized(self) -> None:
         """Lazy-load the compressor and tokenizer on first use."""
@@ -151,3 +153,37 @@ class ContextCompressor:
         """
         result = self.compress(context, rate=rate, force_tokens=force_tokens)
         return result["compressed_prompt"]
+
+    def compress_with_code_preservation(
+        self,
+        context: str,
+        rate: Optional[float] = None,
+        additional_force_tokens: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Compress with automatic code entity preservation.
+
+        Uses CodeEntityPreserver to extract function names, class names,
+        file paths, etc. and add them to force_tokens. Use this method
+        when compressing code-heavy context.
+
+        Args:
+            context: Text to compress
+            rate: Compression rate. If None, uses 0.5 for code-heavy, 0.33 otherwise.
+            additional_force_tokens: Extra tokens to preserve beyond auto-extracted.
+
+        Returns:
+            Same dict as compress() with compression metrics.
+        """
+        # Get code-aware force tokens
+        code_force_tokens = self._entity_preserver.get_force_tokens(context)
+
+        # Add any additional tokens
+        if additional_force_tokens:
+            code_force_tokens.extend(additional_force_tokens)
+
+        # Use conservative rate for code if not specified
+        if rate is None and self._entity_preserver.is_code_heavy(context):
+            rate = 0.5  # 2x compression for code
+
+        return self.compress(context, rate=rate, force_tokens=code_force_tokens)

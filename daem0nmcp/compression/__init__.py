@@ -7,5 +7,6 @@ achieving 3x-6x reduction while preserving critical information.
 
 from .config import CompressionConfig
 from .compressor import ContextCompressor
+from .entity_preserver import CodeEntityPreserver
 
-__all__ = ["CompressionConfig", "ContextCompressor"]
+__all__ = ["CompressionConfig", "ContextCompressor", "CodeEntityPreserver"]
