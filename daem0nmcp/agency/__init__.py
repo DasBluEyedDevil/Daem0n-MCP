@@ -7,8 +7,12 @@ Provides:
 - PHASE_TOOL_VISIBILITY: Mapping of phases to visible tool sets
 - SandboxExecutor: Secure Python execution via E2B Firecracker microVMs
 - ExecutionResult: Structured result dataclass
+- CapabilityScope: Enum of capability scopes for least-privilege access
+- CapabilityManager: Manage per-project capabilities
+- check_capability: Helper to verify capability access
 """
 
+from .capabilities import CapabilityManager, CapabilityScope, check_capability
 from .phase_tracker import (
     PHASE_TOOL_VISIBILITY,
     RitualPhase,
@@ -22,4 +26,7 @@ __all__ = [
     "PHASE_TOOL_VISIBILITY",
     "SandboxExecutor",
     "ExecutionResult",
+    "CapabilityScope",
+    "CapabilityManager",
+    "check_capability",
 ]
