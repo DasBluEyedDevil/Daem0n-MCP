@@ -3,6 +3,7 @@ Reflexion Module - Actor-Evaluator-Reflector Loop for Metacognitive Architecture
 
 Implements self-critique and iterative improvement via LangGraph state machine.
 Verifies claims against stored knowledge before returning outputs.
+Persists reflections as memories for learning from past corrections.
 """
 
 from .state import ReflexionState
@@ -30,6 +31,14 @@ from .graph import (
     create_reflexion_app,
     run_reflexion,
     should_continue,
+)
+from .persistence import (
+    Reflection,
+    compute_error_signature,
+    persist_reflection,
+    retrieve_similar_reflections,
+    has_seen_error_before,
+    create_reflection_from_evaluation,
 )
 
 __all__ = [
@@ -62,4 +71,11 @@ __all__ = [
     "create_reflexion_app",
     "run_reflexion",
     "should_continue",
+    # Persistence
+    "Reflection",
+    "compute_error_signature",
+    "persist_reflection",
+    "retrieve_similar_reflections",
+    "has_seen_error_before",
+    "create_reflection_from_evaluation",
 ]
