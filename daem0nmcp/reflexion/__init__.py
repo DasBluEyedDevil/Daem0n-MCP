@@ -4,6 +4,7 @@ Reflexion Module - Actor-Evaluator-Reflector Loop for Metacognitive Architecture
 Implements self-critique and iterative improvement via LangGraph state machine.
 Verifies claims against stored knowledge before returning outputs.
 Persists reflections as memories for learning from past corrections.
+Consolidates similar episodic reflections into semantic pattern memories.
 """
 
 from .state import ReflexionState
@@ -39,6 +40,13 @@ from .persistence import (
     retrieve_similar_reflections,
     has_seen_error_before,
     create_reflection_from_evaluation,
+)
+from .consolidation import (
+    consolidate_reflections,
+    check_and_consolidate,
+    extract_common_elements,
+    identify_pattern_type,
+    DEFAULT_CONSOLIDATION_THRESHOLD,
 )
 
 __all__ = [
@@ -78,4 +86,10 @@ __all__ = [
     "retrieve_similar_reflections",
     "has_seen_error_before",
     "create_reflection_from_evaluation",
+    # Consolidation
+    "consolidate_reflections",
+    "check_and_consolidate",
+    "extract_common_elements",
+    "identify_pattern_type",
+    "DEFAULT_CONSOLIDATION_THRESHOLD",
 ]
