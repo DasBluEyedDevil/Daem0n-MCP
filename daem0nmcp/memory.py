@@ -7,6 +7,7 @@ This module handles:
 - Time-based memory decay
 - Conflict detection
 - Outcome tracking for learning
+- GraphRAG integration via KnowledgeGraph
 """
 
 import logging
@@ -29,6 +30,8 @@ from .similarity import (
 )
 from .cache import get_recall_cache, make_cache_key
 from . import vectors
+from .graph import KnowledgeGraph
+from .recall_planner import RecallPlanner
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 # Valid relationship types for graph edges
@@ -168,6 +171,7 @@ class MemoryManager:
     Optionally uses vector embeddings for better semantic understanding.
     Applies memory decay to favor recent memories.
     Detects conflicts with existing memories.
+    Integrates with KnowledgeGraph for GraphRAG capabilities.
     """
 
     def __init__(self, db_manager: DatabaseManager):
@@ -176,6 +180,14 @@ class MemoryManager:
         self._index_loaded = False
         self._vectors_enabled = vectors.is_available()
         self._index_built_at: Optional[datetime] = None
+
+        # GraphRAG: Knowledge graph instance (lazy-loaded)
+        self._knowledge_graph: Optional[KnowledgeGraph] = None
+
+        # Phase 4: Context compression (lazy initialized)
+        self._compressor: Optional["AdaptiveCompressor"] = None
+        self._hierarchical_context: Optional["HierarchicalContextManager"] = None
+        self.recall_planner = RecallPlanner()
 
         # Initialize Qdrant vector store if available
         self._qdrant = None
@@ -209,6 +221,46 @@ class MemoryManager:
                     else:
                         # Unexpected error - log with full details
                         logger.warning(f"Could not initialize Qdrant (falling back to TF-IDF only): {e}")
+
+    async def get_knowledge_graph(self) -> KnowledgeGraph:
+        """
+        Get or create the knowledge graph for GraphRAG operations.
+
+        Uses lazy loading - graph is only built when first accessed.
+        Call invalidate_graph_cache() when memories change to force reload.
+
+        Returns:
+            KnowledgeGraph instance synchronized with SQLite
+        """
+        if self._knowledge_graph is None:
+            self._knowledge_graph = KnowledgeGraph(self.db)
+
+        await self._knowledge_graph.ensure_loaded()
+        return self._knowledge_graph
+
+    def invalidate_graph_cache(self) -> None:
+        """
+        Invalidate the knowledge graph cache.
+
+        Call this after remember() or any operation that modifies
+        entities, memories, or relationships in the database.
+        Forces next get_knowledge_graph() to reload from SQLite.
+        """
+        if self._knowledge_graph is not None:
+            self._knowledge_graph._loaded = False
+            logger.debug("Knowledge graph cache invalidated")
+
+    @property
+    def compressor(self) -> "AdaptiveCompressor":
+        """Lazy-load compressor on first use."""
+        if self._compressor is None:
+            from .compression import AdaptiveCompressor, HierarchicalContextManager
+            self._compressor = AdaptiveCompressor()
+            self._hierarchical_context = HierarchicalContextManager(
+                compressor=self._compressor,
+                recall_planner=self.recall_planner,
+            )
+        return self._compressor
 
     async def _check_index_freshness(self) -> bool:
         """
@@ -335,7 +387,8 @@ class MemoryManager:
         context: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         file_path: Optional[str] = None,
-        project_path: Optional[str] = None
+        project_path: Optional[str] = None,
+        happened_at: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Store a new memory with conflict detection.
@@ -348,6 +401,9 @@ class MemoryManager:
             tags: Tags for retrieval
             file_path: Optional file path to associate this memory with
             project_path: Optional project root path for normalizing file paths
+            happened_at: When this fact was true in reality (default: now).
+                        Use for backfilling: "User told me last week they prefer Python"
+                        Pass a datetime with timezone or naive datetime (treated as UTC).
 
         Returns:
             The created memory as a dict, with any detected conflicts
@@ -403,8 +459,16 @@ class MemoryManager:
             await session.flush()
             memory_id = memory.id
 
-            # Create initial version (version 1)
-            version = MemoryVersion(
+            # Create initial version (version 1) with bi-temporal tracking
+            from .graph.temporal import create_temporal_version
+
+            # Handle happened_at timezone (valid_from for bi-temporal)
+            valid_from = happened_at
+            if valid_from is not None and valid_from.tzinfo is None:
+                valid_from = valid_from.replace(tzinfo=timezone.utc)
+
+            version = await create_temporal_version(
+                session=session,
                 memory_id=memory.id,
                 version_number=1,
                 content=content,
@@ -414,9 +478,9 @@ class MemoryManager:
                 outcome=None,
                 worked=None,
                 change_type="created",
-                change_description="Initial creation"
+                change_description="Initial creation",
+                valid_from=valid_from,
             )
-            session.add(version)
 
             # Add to TF-IDF index
             index = await self._ensure_index()
@@ -451,7 +515,8 @@ class MemoryManager:
                 "tags": tags or [],
                 "file_path": file_path,
                 "is_permanent": is_permanent,
-                "created_at": memory.created_at.isoformat()
+                "created_at": memory.created_at.isoformat(),
+                "valid_from": version.valid_from.isoformat() if version.valid_from else None,
             }
 
             # Add conflict warnings if any
@@ -461,6 +526,9 @@ class MemoryManager:
 
         # Clear recall cache since memories changed
         get_recall_cache().clear()
+
+        # Invalidate knowledge graph cache (new memory added)
+        self.invalidate_graph_cache()
 
         # Auto-extract entities if project_path provided
         if project_path:
@@ -757,6 +825,67 @@ class MemoryManager:
                 "version_created_at": version.changed_at.isoformat() if version.changed_at else None
             }
 
+    async def get_memory_evolution(
+        self,
+        entity_name: str,
+        entity_type: Optional[str] = None,
+        include_invalidated: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Trace how understanding of an entity evolved over time.
+
+        Returns a timeline of memory versions that mention this entity,
+        including bi-temporal information (when true, when learned, invalidations).
+
+        Answers: "How has our understanding of X changed?"
+
+        Args:
+            entity_name: Name of the entity to trace (e.g., "UserService", "auth")
+            entity_type: Optional filter by entity type (e.g., "class", "concept")
+            include_invalidated: Whether to include invalidated versions (default True)
+
+        Returns:
+            Dict with:
+            - found: Whether entity was found
+            - entity: Entity details (name, type)
+            - timeline: List of version entries with temporal info
+            - current_beliefs: Versions still valid (not invalidated)
+            - invalidation_chain: Which versions invalidated which
+
+        Example:
+            >>> evolution = await manager.get_memory_evolution("UserService")
+            >>> for belief in evolution["timeline"]:
+            ...     print(f"{belief['valid_from']}: {belief['content_preview']}")
+        """
+        from .models import ExtractedEntity
+        from .graph.temporal import trace_knowledge_evolution
+
+        async with self.db.get_session() as session:
+            # Find entity by name (and optionally type)
+            query = select(ExtractedEntity).where(ExtractedEntity.name == entity_name)
+            if entity_type:
+                query = query.where(ExtractedEntity.entity_type == entity_type)
+
+            result = await session.execute(query.limit(1))
+            entity = result.scalar_one_or_none()
+
+            if not entity:
+                return {
+                    "found": False,
+                    "error": f"Entity '{entity_name}' not found",
+                    "entity": None,
+                    "timeline": [],
+                    "current_beliefs": [],
+                    "invalidation_chain": [],
+                }
+
+            # Use the trace_knowledge_evolution function from temporal module
+            return await trace_knowledge_evolution(
+                session=session,
+                entity_id=entity.id,
+                include_invalidated=include_invalidated,
+            )
+
     async def _check_conflicts(
         self,
         content: str,
@@ -839,7 +968,8 @@ class MemoryManager:
         include_warnings: bool = True,
         decay_half_life_days: float = 30.0,
         include_linked: bool = False,
-        condensed: bool = False  # Endless Mode compression
+        condensed: bool = False,  # Endless Mode compression
+        as_of_time: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Recall memories relevant to a topic using semantic similarity.
@@ -874,6 +1004,10 @@ class MemoryManager:
             include_linked: If True, also search linked projects (read-only)
             condensed: If True, return compressed output (strips rationale, context,
                        truncates content). Reduces token usage by ~75%. Default: False.
+            as_of_time: Return knowledge state as of this time (default: current).
+                       Filters to memories where valid_from <= as_of_time AND
+                       (valid_to IS NULL OR valid_to > as_of_time).
+                       Use for: "What did we know about auth on 2025-12-01?"
 
         Returns:
             Dict with categorized memories and relevance scores
@@ -886,7 +1020,8 @@ class MemoryManager:
             until.isoformat() if until else None,
             include_warnings, decay_half_life_days,
             include_linked,
-            condensed  # Include condensed in cache key for separate caching
+            condensed,  # Include condensed in cache key for separate caching
+            as_of_time.isoformat() if as_of_time else None,
         )
         found, cached_result = cache.get(cache_key)
         if found and cached_result is not None:
@@ -969,6 +1104,39 @@ class MemoryManager:
                 mid: mem for mid, mem in memories.items()
                 if _matches_path(mem)
             }
+
+        # Filter by temporal validity (bi-temporal point-in-time query)
+        if as_of_time is not None:
+            # Normalize timezone
+            query_time = as_of_time
+            if query_time.tzinfo is None:
+                query_time = query_time.replace(tzinfo=timezone.utc)
+
+            # Filter memories by checking their latest version's validity
+            from .graph.temporal import get_versions_at_time
+
+            async def check_temporal_validity(memory_ids_to_check):
+                """Check which memories have valid versions at the query time.
+
+                Uses valid_time filtering only (when fact was true), not
+                transaction_time (when we learned it). This supports the common
+                use case of backfilling historical data with happened_at.
+
+                For full bi-temporal "what did we know then?" queries, use
+                get_versions_at_time() directly with as_of_transaction_time.
+                """
+                valid_ids = set()
+                async with self.db.get_session() as session:
+                    for mid in memory_ids_to_check:
+                        # Only filter by valid_time, allowing backfilled data
+                        # to be found even though it was recorded recently
+                        versions = await get_versions_at_time(session, mid, query_time)
+                        if versions:
+                            valid_ids.add(mid)
+                return valid_ids
+
+            valid_memory_ids = await check_temporal_validity(list(memories.keys()))
+            memories = {mid: mem for mid, mem in memories.items() if mid in valid_memory_ids}
 
         # Score with decay and organize
         scored_memories = []
@@ -1085,6 +1253,11 @@ class MemoryManager:
             **by_category
         }
 
+        # Add temporal query metadata if point-in-time query was used
+        if as_of_time is not None:
+            result['query_time'] = as_of_time.isoformat()
+            result['temporal_filter'] = 'point_in_time'
+
         # Aggregate from linked projects if requested
         if include_linked and project_path:
             from .links import LinkManager
@@ -1127,6 +1300,84 @@ class MemoryManager:
         cache.set(cache_key, result)
 
         return result
+
+    async def recall_with_compression(
+        self,
+        query: str,
+        project_path: str,
+        limit: int = 10,
+        include_communities: bool = True,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Recall memories with optional context compression.
+
+        Uses hierarchical strategy:
+        - Simple queries: Return community summaries (pre-compressed)
+        - Medium queries: Hybrid with moderate compression
+        - Complex queries: Full context with adaptive compression
+
+        Args:
+            query: Search query
+            project_path: Project path for community lookup
+            limit: Maximum memories to return
+            include_communities: Whether to include community summaries
+            **kwargs: Additional args passed to recall()
+
+        Returns:
+            Dict with memories and optimized context:
+                - memories: List of memory dicts
+                - context: Optimized context string
+                - compression_stats: Dict with compression details
+        """
+        # Get recall plan
+        plan = self.recall_planner.plan_recall(query)
+
+        # Get raw memories via existing recall
+        result = await self.recall(query, limit=limit, project_path=project_path, **kwargs)
+
+        # Flatten memories from categories
+        memories = []
+        for category in ["decisions", "patterns", "warnings", "learnings"]:
+            memories.extend(result.get(category, []))
+
+        # Get community summaries if requested
+        community_summaries = None
+        if include_communities and project_path:
+            try:
+                from .communities import CommunityManager
+                cm = CommunityManager(self.db)
+                communities = await cm.get_communities(project_path)
+                # Extract summaries from top communities
+                community_summaries = [
+                    c.get("summary", "") for c in communities[:plan.max_communities]
+                    if c.get("summary")
+                ]
+            except Exception as e:
+                logger.warning(f"Failed to get communities for compression: {e}")
+
+        # Ensure compressor is initialized (triggers lazy load)
+        _ = self.compressor
+
+        # Get optimized context
+        context_result = self._hierarchical_context.get_context(
+            query=query,
+            memories=memories,
+            community_summaries=community_summaries,
+            plan=plan,
+        )
+
+        return {
+            "memories": memories,
+            "context": context_result["context"],
+            "compression_stats": {
+                "strategy": context_result["strategy"],
+                "compression_applied": context_result["compression_applied"],
+                "token_count": context_result.get("token_count"),
+                "original_tokens": context_result.get("original_tokens"),
+                "compression_ratio": context_result.get("compression_ratio"),
+            },
+        }
 
     async def record_outcome(
         self,
@@ -2233,7 +2484,8 @@ class MemoryManager:
         topic: str,
         project_path: Optional[str] = None,
         include_members: bool = False,
-        limit: int = 10
+        limit: int = 10,
+        use_leiden: bool = True
     ) -> Dict[str, Any]:
         """
         Hierarchical recall - community summaries first, then individual memories.
@@ -2242,11 +2494,15 @@ class MemoryManager:
         1. Relevant community summaries (high-level overview)
         2. Individual memories (detailed)
 
+        Uses Leiden-based communities (detected from knowledge graph) by default.
+        If no communities exist, suggests running rebuild_communities.
+
         Args:
             topic: What you're looking for
             project_path: Project path for community lookup
             include_members: If True, include full member content for each community
             limit: Max results per layer
+            use_leiden: If True, prefer Leiden-detected communities (default: True)
 
         Returns:
             Dict with communities and memories sections
@@ -2257,11 +2513,14 @@ class MemoryManager:
         result = {
             "topic": topic,
             "communities": [],
-            "memories": []
+            "memories": [],
+            "community_source": "none"
         }
 
         # Get relevant communities if project_path provided
         if project_path:
+            cm = CommunityManager(self.db)
+
             async with self.db.get_session() as session:
                 # Search communities by topic in name, summary, or tags
                 query = select(MemoryCommunity).where(
@@ -2270,37 +2529,76 @@ class MemoryManager:
                 communities_result = await session.execute(query)
                 all_communities = communities_result.scalars().all()
 
-                # Filter by topic relevance (simple substring match for now)
-                # TODO: Consider using TF-IDF/semantic similarity for community matching
-                # Currently uses substring match - "authentication" won't match "auth + jwt"
+                # If no communities exist, suggest detection
+                if not all_communities:
+                    result["community_hint"] = (
+                        "No communities detected yet. Run rebuild_communities to "
+                        "enable hierarchical summaries via Leiden algorithm."
+                    )
+                else:
+                    result["community_source"] = "leiden" if use_leiden else "tag_based"
+
+                # Use TF-IDF for semantic matching against community content
+                # This improves matching: "authentication" will match "auth + jwt"
                 topic_lower = topic.lower()
-                relevant_communities = []
+                scored_communities = []
+
                 for c in all_communities:
-                    name_match = topic_lower in c.name.lower()
-                    summary_match = topic_lower in c.summary.lower()
-                    tag_match = any(topic_lower in str(t).lower() for t in (c.tags or []))
+                    # Build searchable text from community
+                    search_text = f"{c.name} {c.summary} {' '.join(c.tags or [])}"
 
-                    if name_match or summary_match or tag_match:
-                        comm_dict = {
-                            "id": c.id,
-                            "name": c.name,
-                            "summary": c.summary,
-                            "tags": c.tags,
-                            "member_count": c.member_count,
-                            "level": c.level
-                        }
+                    # Compute relevance score using multiple signals
+                    score = 0.0
 
-                        if include_members:
-                            cm = CommunityManager(self.db)
-                            members = await cm.get_community_members(c.id)
-                            comm_dict["members"] = members.get("members", [])
+                    # Direct name match (highest weight)
+                    if topic_lower in c.name.lower():
+                        score += 1.0
 
-                        relevant_communities.append(comm_dict)
+                    # Summary contains topic
+                    if topic_lower in c.summary.lower():
+                        score += 0.5
 
-                result["communities"] = relevant_communities[:limit]
+                    # Tag match
+                    if any(topic_lower in str(t).lower() for t in (c.tags or [])):
+                        score += 0.3
+
+                    # Word overlap scoring (pseudo TF-IDF)
+                    topic_words = set(topic_lower.split())
+                    search_words = set(search_text.lower().split())
+                    overlap = topic_words & search_words
+                    if topic_words:
+                        overlap_score = len(overlap) / len(topic_words)
+                        score += overlap_score * 0.5
+
+                    if score > 0:
+                        scored_communities.append((c, score))
+
+                # Sort by relevance score
+                scored_communities.sort(key=lambda x: x[1], reverse=True)
+
+                # Build result with top communities
+                relevant_communities = []
+                for c, score in scored_communities[:limit]:
+                    comm_dict = {
+                        "id": c.id,
+                        "name": c.name,
+                        "summary": c.summary,
+                        "tags": c.tags,
+                        "member_count": c.member_count,
+                        "level": c.level,
+                        "relevance": round(score, 3)
+                    }
+
+                    if include_members:
+                        members = await cm.get_community_members(c.id)
+                        comm_dict["members"] = members.get("members", [])
+
+                    relevant_communities.append(comm_dict)
+
+                result["communities"] = relevant_communities
 
         # Also get individual memories via standard recall
-        memories = await self.recall(topic, limit=limit)
+        memories = await self.recall(topic, limit=limit, project_path=project_path)
         result["memories"] = {
             "decisions": memories.get("decisions", []),
             "patterns": memories.get("patterns", []),

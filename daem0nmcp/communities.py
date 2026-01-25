@@ -1,17 +1,25 @@
 """
 Community Manager - GraphRAG-style hierarchical clustering for Daem0n.
 
-Clusters memories into communities based on tag co-occurrence
-and generates summaries for each community.
+Supports two community detection modes:
+1. Tag co-occurrence clustering (legacy, detect_communities)
+2. Leiden algorithm on knowledge graph (detect_communities_from_graph)
+
+The Leiden algorithm is preferred for proper graph-based community
+detection that guarantees well-connected communities.
 """
 
 import logging
-from typing import Dict, List, Any, Optional, Set
 from collections import defaultdict
+from typing import Any, Dict, List, Optional, Set
+
 from sqlalchemy import select, delete
 
 from .database import DatabaseManager
-from .models import MemoryCommunity, Memory
+from .graph import KnowledgeGraph
+from .graph.leiden import LeidenConfig, get_community_stats, run_leiden_on_networkx
+from .graph.summarizer import CommunitySummarizer, SummaryConfig
+from .models import Memory, MemoryCommunity
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +34,26 @@ class CommunityManager:
     - Summaries are generated from member content
     """
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        summarizer: Optional[CommunitySummarizer] = None,
+    ):
         self.db = db_manager
+        self.summarizer = summarizer or CommunitySummarizer()
 
     async def detect_communities(
         self,
         project_path: str,
         min_community_size: int = 2,
-        min_shared_tags: int = 2
+        min_shared_tags: int = 2,
     ) -> List[Dict[str, Any]]:
         """
-        Detect communities based on tag co-occurrence.
+        Detect communities based on tag co-occurrence (legacy method).
+
+        NOTE: For graph-based community detection using Leiden algorithm,
+        use detect_communities_from_graph() instead. The Leiden algorithm
+        provides true graph communities with guaranteed well-connectedness.
 
         Algorithm:
         1. Build tag co-occurrence matrix
@@ -155,20 +172,135 @@ class CommunityManager:
 
         return clusters
 
+    async def _get_entity_names(self, entity_ids: List[int]) -> List[str]:
+        """Get entity names for a list of entity IDs, ordered by mention count."""
+        if not entity_ids:
+            return []
+
+        async with self.db.get_session() as session:
+            from .models import ExtractedEntity
+
+            result = await session.execute(
+                select(ExtractedEntity)
+                .where(ExtractedEntity.id.in_(entity_ids))
+                .order_by(ExtractedEntity.mention_count.desc())
+            )
+            entities = result.scalars().all()
+            return [e.name for e in entities]
+
+    async def detect_communities_from_graph(
+        self,
+        project_path: str,
+        knowledge_graph: Optional[KnowledgeGraph] = None,
+        resolution: float = 1.0,
+        min_community_size: int = 2,
+    ) -> List[Dict[str, Any]]:
+        """
+        Detect communities using Leiden algorithm on the knowledge graph.
+
+        This replaces the old tag-based clustering with true graph community detection.
+        Leiden algorithm guarantees well-connected communities unlike union-find on tags.
+
+        Args:
+            project_path: Project to analyze
+            knowledge_graph: Optional pre-loaded graph (will create if not provided)
+            resolution: Leiden resolution parameter (>1 = smaller communities)
+            min_community_size: Minimum members for a community
+
+        Returns:
+            List of detected community dicts (not yet persisted)
+        """
+        # Load or use provided graph
+        if knowledge_graph is None:
+            knowledge_graph = KnowledgeGraph(self.db)
+
+        await knowledge_graph.ensure_loaded()
+
+        # Get the internal NetworkX graph
+        nx_graph = knowledge_graph._graph
+
+        if nx_graph.number_of_nodes() == 0:
+            logger.info("Knowledge graph is empty, no communities to detect")
+            return []
+
+        # Run Leiden
+        config = LeidenConfig(resolution=resolution, seed=42)
+        community_map = run_leiden_on_networkx(nx_graph, config)
+
+        # Log stats
+        stats = get_community_stats(community_map)
+        logger.info(
+            f"Leiden stats: {stats['num_communities']} raw communities, "
+            f"sizes: {stats['sizes'][:5]}..."
+        )
+
+        # Group nodes by community
+        communities_nodes: Dict[int, List[str]] = defaultdict(list)
+        for node_id, comm_id in community_map.items():
+            communities_nodes[comm_id].append(node_id)
+
+        # Convert to community dicts
+        communities = []
+        for comm_id, node_ids in communities_nodes.items():
+            # Separate memory and entity nodes
+            memory_ids = []
+            entity_ids = []
+            for node_id in node_ids:
+                if node_id.startswith("memory:"):
+                    try:
+                        memory_ids.append(int(node_id.split(":")[1]))
+                    except (ValueError, IndexError):
+                        continue
+                elif node_id.startswith("entity:"):
+                    try:
+                        entity_ids.append(int(node_id.split(":")[1]))
+                    except (ValueError, IndexError):
+                        continue
+
+            # Skip if too small (based on memories, not total nodes)
+            if len(memory_ids) < min_community_size:
+                continue
+
+            # Get entity names for community name
+            entity_names = await self._get_entity_names(entity_ids)
+
+            # Generate name from top entities
+            if entity_names:
+                name = " + ".join(entity_names[:3])
+            else:
+                name = f"Community {comm_id}"
+
+            communities.append({
+                "name": name,
+                "tags": entity_names[:10],  # Use entity names as tags
+                "member_ids": memory_ids,
+                "member_count": len(memory_ids),
+                "entity_ids": entity_ids,
+                "level": 0,
+                "leiden_community_id": comm_id,
+            })
+
+        # Sort by size descending
+        communities.sort(key=lambda c: c["member_count"], reverse=True)
+
+        logger.info(f"Detected {len(communities)} communities from graph")
+        return communities
+
     async def generate_community_summary(
         self,
         member_ids: List[int],
-        community_name: str
+        community_name: str,
+        entity_names: Optional[List[str]] = None,
     ) -> str:
         """
         Generate a summary for a community from its members.
 
-        For now, creates a simple concatenation-based summary.
-        Could be enhanced with LLM summarization later.
+        Uses CommunitySummarizer for consistent summary generation.
 
         Args:
             member_ids: Memory IDs in this community
             community_name: Name of the community
+            entity_names: Optional list of key entities in this community
 
         Returns:
             Generated summary text
@@ -182,34 +314,40 @@ class CommunityManager:
         if not memories:
             return f"Empty community: {community_name}"
 
-        # Group by category
-        by_category: Dict[str, List[str]] = defaultdict(list)
-        for mem in memories:
-            by_category[mem.category].append(mem.content)
+        # Convert to member dicts for summarizer
+        members = [
+            {
+                "id": m.id,
+                "category": m.category,
+                "content": m.content,
+                "rationale": m.rationale,
+                "outcome": m.outcome,
+                "worked": m.worked,
+            }
+            for m in memories
+        ]
 
-        # Build summary
-        parts = [f"Community: {community_name}"]
-        parts.append(f"Contains {len(memories)} memories.")
-
-        for category, contents in by_category.items():
-            parts.append(f"\n{category.title()}s ({len(contents)}):")
-            for content in contents[:3]:  # Limit to first 3
-                parts.append(f"  - {content[:100]}...")
-
-        return "\n".join(parts)
+        return await self.summarizer.summarize_community(
+            community_name,
+            members,
+            entity_names,
+        )
 
     async def save_communities(
         self,
         project_path: str,
         communities: List[Dict[str, Any]],
-        replace_existing: bool = True
+        replace_existing: bool = True,
     ) -> Dict[str, Any]:
         """
         Persist detected communities to the database.
 
+        Works with communities from both detect_communities() (tag-based)
+        and detect_communities_from_graph() (Leiden-based).
+
         Args:
             project_path: Project these communities belong to
-            communities: List of community dicts from detect_communities()
+            communities: List of community dicts from detect methods
             replace_existing: If True, delete existing communities first
 
         Returns:
@@ -228,17 +366,23 @@ class CommunityManager:
                 # Generate summary
                 summary = await self.generate_community_summary(
                     comm["member_ids"],
-                    comm["name"]
+                    comm["name"],
                 )
+
+                # Get tags - handle both tag-based and entity-based communities
+                tags = comm.get("tags", [])
+                if not tags and comm.get("entity_ids"):
+                    # Fall back to entity names if tags not provided
+                    tags = await self._get_entity_names(comm["entity_ids"])
 
                 community = MemoryCommunity(
                     project_path=project_path,
                     name=comm["name"],
                     summary=summary,
-                    tags=comm["tags"],
+                    tags=tags,
                     member_count=comm["member_count"],
                     member_ids=comm["member_ids"],
-                    level=comm.get("level", 0)
+                    level=comm.get("level", 0),
                 )
                 session.add(community)
                 await session.flush()
@@ -247,7 +391,7 @@ class CommunityManager:
         return {
             "status": "saved",
             "created_count": len(created_ids),
-            "community_ids": created_ids
+            "community_ids": created_ids,
         }
 
     async def get_communities(
@@ -331,4 +475,41 @@ class CommunityManager:
                     }
                     for m in memories
                 ]
+            }
+
+    async def get_community_members_by_ids(
+        self,
+        community_ids: List[int]
+    ) -> Dict[str, Any]:
+        """
+        Get member memory IDs for multiple communities at once.
+
+        Efficient bulk lookup for hierarchical retrieval.
+
+        Args:
+            community_ids: List of community IDs to retrieve
+
+        Returns:
+            Dict mapping community_id to list of member_ids
+        """
+        if not community_ids:
+            return {"communities": {}}
+
+        async with self.db.get_session() as session:
+            result = await session.execute(
+                select(MemoryCommunity).where(
+                    MemoryCommunity.id.in_(community_ids)
+                )
+            )
+            communities = result.scalars().all()
+
+            return {
+                "communities": {
+                    c.id: {
+                        "name": c.name,
+                        "member_ids": c.member_ids or [],
+                        "member_count": c.member_count
+                    }
+                    for c in communities
+                }
             }

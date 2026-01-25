@@ -55,3 +55,28 @@ class TestRecallPlanner:
         assert plan.use_communities is True
         assert plan.use_raw_memories is True
         assert plan.max_raw_memories >= 10
+
+    def test_simple_plan_no_compression(self):
+        """Simple queries don't need compression (use summaries)."""
+        planner = RecallPlanner()
+        plan = planner.plan_recall("what is Python?")
+
+        assert plan.compress is False
+
+    def test_complex_plan_has_compression(self):
+        """Complex queries enable compression."""
+        planner = RecallPlanner()
+        plan = planner.plan_recall("trace the complete history of all decisions")
+
+        assert plan.compress is True
+        assert plan.compression_rate > 0
+        assert plan.compression_rate < 1
+
+    def test_medium_plan_moderate_compression(self):
+        """Medium queries use moderate compression rate."""
+        planner = RecallPlanner()
+        # 4-8 words is MEDIUM
+        plan = planner.plan_recall("find patterns in the codebase")
+
+        assert plan.compress is True
+        assert plan.compression_rate >= 0.3  # Not too aggressive

@@ -15,6 +15,7 @@ from sqlalchemy import select, or_
 from .database import DatabaseManager
 from .models import ExtractedEntity, MemoryEntityRef, Memory
 from .entity_extractor import EntityExtractor
+from .graph.entity_resolver import EntityResolver
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class EntityManager:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self.extractor = EntityExtractor()
+        self.resolver = EntityResolver(db_manager)
 
     async def process_memory(
         self,
@@ -51,6 +53,9 @@ class EntityManager:
         text = content
         if rationale:
             text += " " + rationale
+
+        # Ensure resolver cache is loaded for this project
+        await self.resolver.ensure_cache_loaded(project_path)
 
         # Extract entities
         extracted = self.extractor.extract_all(text)
@@ -104,29 +109,21 @@ class EntityManager:
         entity_type: str,
         name: str
     ) -> ExtractedEntity:
-        """Get existing entity or create new one."""
-        result = await session.execute(
-            select(ExtractedEntity).where(
-                ExtractedEntity.project_path == project_path,
-                ExtractedEntity.entity_type == entity_type,
-                ExtractedEntity.name == name
-            )
+        """Get existing entity or create new one using resolver."""
+        entity_id, is_new = await self.resolver.resolve(
+            name=name,
+            entity_type=entity_type,
+            project_path=project_path,
+            session=session
         )
-        entity = result.scalar_one_or_none()
 
-        if entity:
-            # Increment mention count
+        # Get the entity object
+        entity = await session.get(ExtractedEntity, entity_id)
+
+        if not is_new:
+            # Increment mention count for existing entity
             entity.mention_count += 1
             entity.updated_at = datetime.now(timezone.utc)
-        else:
-            entity = ExtractedEntity(
-                project_path=project_path,
-                entity_type=entity_type,
-                name=name,
-                mention_count=1
-            )
-            session.add(entity)
-            await session.flush()
 
         return entity
 
