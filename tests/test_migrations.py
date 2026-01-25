@@ -149,8 +149,6 @@ class TestMigrations:
 
 def test_migration_14_bitemporal_columns():
     """Test that migration 14 adds bi-temporal columns correctly."""
-    import tempfile
-    import sqlite3
     from daem0nmcp.migrations.schema import run_migrations
 
     with tempfile.TemporaryDirectory() as td:

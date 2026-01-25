@@ -201,10 +201,12 @@ class TestVerifyClaim:
             as_of_time="2025-01-01T00:00:00Z",
         )
 
-        # Verify as_of_time was passed to recall
+        # Verify as_of_time was parsed and passed to recall as datetime
         mock_memory_manager.recall.assert_called_once()
         call_kwargs = mock_memory_manager.recall.call_args.kwargs
-        assert call_kwargs.get("as_of_time") == "2025-01-01T00:00:00Z"
+        from datetime import datetime, timezone
+        expected_dt = datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc)
+        assert call_kwargs.get("as_of_time") == expected_dt
 
     @pytest.mark.asyncio
     async def test_verify_low_similarity_not_evidence(self, mock_memory_manager, memory_reference_claim):

@@ -148,7 +148,6 @@ async def test_on_list_tools_exploration_phase():
 
     filtered = await middleware.on_list_tools(context, mock_call_next)
 
-    exploration_tools = PHASE_TOOL_VISIBILITY["exploration"]
     filtered_names = {tool.name for tool in filtered}
 
     # Exploration includes briefing tools plus more
@@ -178,7 +177,6 @@ async def test_on_list_tools_action_phase():
 
     filtered = await middleware.on_list_tools(context, mock_call_next)
 
-    action_tools = PHASE_TOOL_VISIBILITY["action"]
     filtered_names = {tool.name for tool in filtered}
 
     # Action includes mutation tools
@@ -208,7 +206,6 @@ async def test_on_list_tools_reflection_phase():
 
     filtered = await middleware.on_list_tools(context, mock_call_next)
 
-    reflection_tools = PHASE_TOOL_VISIBILITY["reflection"]
     filtered_names = {tool.name for tool in filtered}
 
     # Reflection includes evaluation tools

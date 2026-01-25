@@ -1,7 +1,7 @@
 """Tests for reflection persistence in Metacognitive Architecture."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 from daem0nmcp.reflexion.persistence import (
     Reflection,

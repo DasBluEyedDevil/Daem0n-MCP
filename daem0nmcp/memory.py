@@ -1116,10 +1116,20 @@ class MemoryManager:
             from .graph.temporal import get_versions_at_time
 
             async def check_temporal_validity(memory_ids_to_check):
-                """Check which memories have valid versions at the query time."""
+                """Check which memories have valid versions at the query time.
+
+                Uses valid_time filtering only (when fact was true), not
+                transaction_time (when we learned it). This supports the common
+                use case of backfilling historical data with happened_at.
+
+                For full bi-temporal "what did we know then?" queries, use
+                get_versions_at_time() directly with as_of_transaction_time.
+                """
                 valid_ids = set()
                 async with self.db.get_session() as session:
                     for mid in memory_ids_to_check:
+                        # Only filter by valid_time, allowing backfilled data
+                        # to be found even though it was recorded recently
                         versions = await get_versions_at_time(session, mid, query_time)
                         if versions:
                             valid_ids.add(mid)

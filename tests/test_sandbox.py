@@ -1,7 +1,6 @@
 """Tests for SandboxExecutor - E2B-based sandboxed Python execution."""
 
 import os
-import sys
 from unittest.mock import patch, MagicMock
 
 import pytest

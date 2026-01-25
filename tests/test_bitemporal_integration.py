@@ -203,7 +203,7 @@ class TestHappenedAtPrecision:
         now = datetime.now(timezone.utc)
         today = now.replace(hour=12, minute=0, second=0, microsecond=0)
 
-        result = await memory_manager.remember(
+        await memory_manager.remember(
             category="pattern",
             content="Use async/await for I/O operations",
             happened_at=today
@@ -227,7 +227,7 @@ class TestHappenedAtPrecision:
         # Record a fact that happened yesterday
         yesterday = datetime.now(timezone.utc) - timedelta(days=1)
 
-        result = await memory_manager.remember(
+        await memory_manager.remember(
             category="pattern",
             content="Always validate user input",
             happened_at=yesterday

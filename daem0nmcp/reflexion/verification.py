@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ..vectors import cosine_similarity, decode, encode
 from ..graph.contradiction import has_negation_mismatch
@@ -59,7 +60,7 @@ async def verify_claim(
     claim: "Claim",
     memory_manager: "MemoryManager",
     knowledge_graph: Optional["KnowledgeGraph"] = None,
-    as_of_time: Optional[str] = None,
+    as_of_time: Optional[Union[str, datetime]] = None,
     categories: Optional[List[str]] = None,
 ) -> VerificationResult:
     """
@@ -74,7 +75,7 @@ async def verify_claim(
         claim: The Claim object to verify
         memory_manager: MemoryManager instance for recall
         knowledge_graph: Optional KnowledgeGraph for entity lookup
-        as_of_time: Optional ISO 8601 datetime for point-in-time verification
+        as_of_time: Optional ISO 8601 string or datetime for point-in-time verification
         categories: Optional list of categories to filter memory search
 
     Returns:
@@ -98,6 +99,18 @@ async def verify_claim(
     has_conflict = False
     conflict_reason = None
 
+    # Parse as_of_time string to datetime if provided
+    query_time: Optional[datetime] = None
+    if as_of_time is not None:
+        if isinstance(as_of_time, str):
+            try:
+                # Parse ISO 8601 format
+                query_time = datetime.fromisoformat(as_of_time.replace('Z', '+00:00'))
+            except ValueError:
+                logger.warning(f"Invalid as_of_time format: {as_of_time}, ignoring")
+        elif isinstance(as_of_time, datetime):
+            query_time = as_of_time
+
     # Encode claim for similarity comparison
     claim_embedding_bytes = encode(claim.text)
     claim_embedding = decode(claim_embedding_bytes) if claim_embedding_bytes else None
@@ -108,7 +121,7 @@ async def verify_claim(
             topic=claim.subject or claim.text,
             categories=categories,
             limit=5,
-            as_of_time=as_of_time,
+            as_of_time=query_time,
         )
 
         memories = recall_result.get("memories", [])
@@ -178,7 +191,7 @@ async def verify_claim(
                     try:
                         entity_id = int(entity_node.split(":")[1]) if ":" in entity_node else None
                     except (ValueError, IndexError):
-                        pass
+                        pass  # entity_id stays None if parsing fails - expected for malformed nodes
 
                     evidence_list.append(VerificationEvidence(
                         source="entity",
