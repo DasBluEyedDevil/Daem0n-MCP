@@ -92,7 +92,7 @@ class AgencyMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object):
 
         if project_path is None:
             # No project context - show ALL tools so Claude Code can discover them
-            # Phase filtering will still apply at call time via on_call_tool()
+            # Execution is restricted to briefing-phase tools via on_call_tool()
             logger.debug("AgencyMiddleware: No project context, showing all tools for discovery")
             return all_tools
 
@@ -122,10 +122,10 @@ class AgencyMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object):
         project_path = self._get_project_path_from_context(context)
 
         if project_path is None:
-            # No project path - allow through (let other middleware handle)
-            return await call_next(context)
-
-        phase = self._get_phase(project_path)
+            # No project path - enforce briefing phase (restrictive default)
+            phase = "briefing"
+        else:
+            phase = self._get_phase(project_path)
         allowed_tools = PHASE_TOOL_VISIBILITY.get(phase, PHASE_TOOL_VISIBILITY["briefing"])
 
         if tool_name not in allowed_tools:
