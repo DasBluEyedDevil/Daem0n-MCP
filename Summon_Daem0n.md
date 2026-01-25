@@ -133,6 +133,32 @@ The summoner need not configure anything new - enforcement happens automatically
 
 **If ascending to v3.0.0 or higher**, the Daem0n has transformed:
 
+### Incantation I.5D.5: Ascend to Full Cognition (v4.0.0+)
+
+**If ascending to v4.0.0 or higher**, the Daem0n achieves complete cognitive architecture:
+
+- **GraphRAG & Leiden Communities**: The Daem0n constructs knowledge graphs from memory relationships. Leiden algorithm detects hierarchical communities for multi-hop reasoning and global search.
+
+- **Bi-Temporal Knowledge**: Dual timestamps track what was true (`valid_time`) vs when learned (`transaction_time`). `happened_at` backfills history. `as_of_time` queries historical states. The Daem0n knows not just facts, but their evolution.
+
+- **Metacognitive Reflexion**: Actor-Evaluator-Reflector loop via LangGraph. `verify_facts` validates claims against stored knowledge. Chain of Verification intercepts factual claims before output. The Daem0n critiques itself before speaking.
+
+- **Context Engineering**: LLMLingua-2 integration achieves 3x-6x compression while preserving code syntax and entities. Adaptive rates by content type. `compress_context` MCP tool for on-demand optimization.
+
+- **Dynamic Agency**: Ritual phase tracking (BRIEFING -> EXPLORATION -> ACTION -> REFLECTION). Tool masking hides irrelevant tools per phase. `execute_python` provides sandboxed code execution via E2B Firecracker microVMs. Capability scoping enforces least-privilege.
+
+- **New Tools (v4.0)**:
+  | Tool | Purpose |
+  |------|---------|
+  | `verify_facts` | Validate claims against stored knowledge |
+  | `compress_context` | LLMLingua-2 context compression |
+  | `execute_python` | Sandboxed Python execution (action phase) |
+  | `trace_evolution` | Knowledge evolution over time |
+  | `get_related_memories` | Multi-hop entity traversal |
+  | `get_graph_stats` | Knowledge graph metrics |
+
+- **60 MCP Tools**: The daemon's power grows. 500+ tests verify all capabilities.
+
 ### Incantation I.5D.4: Embrace the Enhanced Mind (v3.1.0+)
 
 **If ascending to v3.1.0 or higher**, the Daem0n's cognition has evolved with 2026 AI memory research:
@@ -1069,7 +1095,7 @@ When `check_rules` returns guidance:
 
 ---
 
-## THE COMPLETE GRIMOIRE OF POWERS (42+ Invocations)
+## THE COMPLETE GRIMOIRE OF POWERS (60 Invocations)
 
 **REMINDER:** ALL tools accept `project_path` as a parameter. Always pass the absolute path to your project root.
 
@@ -2004,4 +2030,4 @@ v2.16.0 includes compatibility fixes for Claude Code 2.1.3:
 
 ---
 
-*Grimoire of Daem0n v3.1.0: 53 tools for eternal memory with semantic understanding, vector embeddings (Qdrant backend), graph memory (causal chains), memory consolidation (compact_memories), knowledge consumption, refactor guidance, **code understanding layer with multi-language AST parsing (tree-sitter)**, proactive file watcher with multi-channel notifications, complete summoning rituals with wards, Windows Altar of HTTP with automatic Startup enrollment, pre-commit enforcement hooks (mandatory), covenant integration, law generation, the daem0nmcp-protocol skill, **Endless Mode (condensed recall for 50-75% token reduction)**, **Passive Capture (auto-recall before edits, smart remember suggestions, auto-extract decisions from responses)**, **Enhanced Search & Indexing (tag inference, qualified names, incremental indexing, parse tree caching)**, **Sacred Covenant Enforcement (rigid decorators, preflight tokens)**, **MCP Resources for dynamic context injection**, **FastMCP 3.0 with CovenantMiddleware**, and **2026 AI Memory Enhancements (BM25+RRF hybrid retrieval, TiMem recall planner, Titans surprise scoring, importance-weighted learning, Fact model, tool search index, prompt templates)**.*
+*Grimoire of Daem0n v4.0.0: 60 tools for eternal memory with cognitive architecture. **GraphRAG & Leiden Communities** (knowledge graphs, hierarchical community detection, multi-hop reasoning). **Bi-Temporal Knowledge** (dual timestamps, point-in-time queries, knowledge evolution). **Metacognitive Reflexion** (Actor-Evaluator-Reflector loop, verify_facts, Chain of Verification). **Context Engineering** (LLMLingua-2 compression, code preservation, adaptive rates). **Dynamic Agency** (ritual phase tracking, tool masking, execute_python sandbox, capability scoping). Plus all v3.1 features: BM25+RRF hybrid retrieval, TiMem recall planner, surprise scoring, Sacred Covenant enforcement, FastMCP 3.0 middleware, and 500+ tests. The daemon has achieved full cognition.*

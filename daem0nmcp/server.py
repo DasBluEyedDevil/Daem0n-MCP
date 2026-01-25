@@ -19,7 +19,7 @@ A smarter MCP server that provides:
 13. Code understanding via tree-sitter parsing
 14. Active working context (MemGPT-style always-hot memories)
 
-45 Tools:
+60 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
 - verify_facts: Verify factual claims in text against stored knowledge

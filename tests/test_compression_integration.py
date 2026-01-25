@@ -284,9 +284,9 @@ class TestMCPToolIntegration:
         assert callable(compress_context)
 
     def test_server_tool_count_updated(self):
-        """Server docstring shows 44 tools."""
+        """Server docstring shows 60 tools."""
         import daem0nmcp.server as server
 
-        # Check the module docstring mentions 44 tools
-        assert "44 Tools" in server.__doc__
+        # Check the module docstring mentions 60 tools
+        assert "60 Tools" in server.__doc__
         assert "compress_context" in server.__doc__
