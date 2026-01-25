@@ -246,6 +246,20 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         "CREATE INDEX IF NOT EXISTS idx_facts_content_hash ON facts(content_hash);",
         "CREATE INDEX IF NOT EXISTS idx_facts_category ON facts(category);",
     ]),
+    (14, "Add bi-temporal columns to memory_versions", [
+        # Add valid_from column (when fact became true in reality)
+        "ALTER TABLE memory_versions ADD COLUMN valid_from TIMESTAMP;",
+        # Add valid_to column (when fact was superseded, NULL = still valid)
+        "ALTER TABLE memory_versions ADD COLUMN valid_to TIMESTAMP;",
+        # Add invalidated_by_version_id column (for contradiction tracking)
+        "ALTER TABLE memory_versions ADD COLUMN invalidated_by_version_id INTEGER REFERENCES memory_versions(id);",
+        # Backfill valid_from with changed_at for existing records (backwards compatible)
+        "UPDATE memory_versions SET valid_from = changed_at WHERE valid_from IS NULL;",
+        # Create temporal index for point-in-time queries (valid time dimension)
+        "CREATE INDEX IF NOT EXISTS idx_memory_versions_temporal ON memory_versions(memory_id, valid_from);",
+        # Create index for transaction time queries
+        "CREATE INDEX IF NOT EXISTS idx_memory_versions_transaction ON memory_versions(memory_id, changed_at);",
+    ]),
 ]
 
 

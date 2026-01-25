@@ -32,6 +32,9 @@ class RecallPlan:
     max_communities: int   # Max community summaries to return
     max_raw_memories: int  # Max raw memories to return
     filter_threshold: float  # Similarity threshold for filtering
+    # Phase 4: Compression parameters
+    compress: bool = False           # Whether to compress retrieved context
+    compression_rate: float = 0.33   # Target compression rate (0.33 = 3x)
 
 
 # Patterns indicating complex queries
@@ -133,7 +136,10 @@ class RecallPlanner:
                 use_raw_memories=True,
                 max_communities=self.simple_max_communities,
                 max_raw_memories=self.simple_max_raw,
-                filter_threshold=0.5  # Higher threshold for simple queries
+                filter_threshold=0.5,  # Higher threshold for simple queries
+                # Simple queries use community summaries (already compressed)
+                compress=False,
+                compression_rate=0.33,
             )
         elif complexity == QueryComplexity.MEDIUM:
             return RecallPlan(
@@ -142,7 +148,10 @@ class RecallPlanner:
                 use_raw_memories=True,
                 max_communities=self.medium_max_communities,
                 max_raw_memories=self.medium_max_raw,
-                filter_threshold=0.3
+                filter_threshold=0.3,
+                # Medium queries may benefit from moderate compression
+                compress=True,
+                compression_rate=0.4,  # ~2.5x
             )
         else:  # COMPLEX
             return RecallPlan(
@@ -151,5 +160,8 @@ class RecallPlanner:
                 use_raw_memories=True,
                 max_communities=self.complex_max_communities,
                 max_raw_memories=self.complex_max_raw,
-                filter_threshold=0.2  # Lower threshold to get more context
+                filter_threshold=0.2,  # Lower threshold to get more context
+                # Complex queries need context, use conservative compression
+                compress=True,
+                compression_rate=0.25,  # 4x, but will be tempered by adaptive
             )

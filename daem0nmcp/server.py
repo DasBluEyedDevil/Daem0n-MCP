@@ -19,9 +19,12 @@ A smarter MCP server that provides:
 13. Code understanding via tree-sitter parsing
 14. Active working context (MemGPT-style always-hot memories)
 
-42 Tools:
+60 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
 - recall: Retrieve relevant memories for a topic (semantic search)
+- verify_facts: Verify factual claims in text against stored knowledge
+- compress_context: Compress context using LLMLingua-2 for token reduction
+- execute_python: Execute Python code in isolated sandbox (action phase only)
 - recall_for_file: Get all memories for a specific file
 - recall_by_entity: Get all memories mentioning a specific code entity
 - list_entities: List most frequently mentioned entities
@@ -88,6 +91,15 @@ try:
     from .logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from .covenant import set_context_callback
     from .transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+    from .agency import (
+        RitualPhaseTracker,
+        AgencyMiddleware,
+        SandboxExecutor,
+        CapabilityScope,
+        CapabilityManager,
+        check_capability,
+    )
+    from .agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from .rwlock import RWLock
 except ImportError:
     # For fastmcp run which executes server.py directly
@@ -101,6 +113,15 @@ except ImportError:
     from daem0nmcp.logging_config import StructuredFormatter, with_request_id, request_id_var, set_release_callback
     from daem0nmcp.covenant import set_context_callback
     from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
+    from daem0nmcp.agency import (
+        RitualPhaseTracker,
+        AgencyMiddleware,
+        SandboxExecutor,
+        CapabilityScope,
+        CapabilityManager,
+        check_capability,
+    )
+    from daem0nmcp.agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from daem0nmcp.rwlock import RWLock
 from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
@@ -122,6 +143,9 @@ if os.getenv('DAEM0NMCP_STRUCTURED_LOGS'):
 
 # Initialize FastMCP server
 mcp = FastMCP("Daem0nMCP")
+
+# Global ritual phase tracker for tool visibility
+_ritual_phase_tracker = RitualPhaseTracker()
 
 
 # ============================================================================
@@ -155,6 +179,25 @@ _EVICTION_INTERVAL_SECONDS: float = 60.0
 
 # Default project path (ONLY used if DAEM0NMCP_PROJECT_ROOT is explicitly set)
 _default_project_path: Optional[str] = os.environ.get('DAEM0NMCP_PROJECT_ROOT')
+
+# Agency globals - sandbox executor and capability manager for execute_python
+_sandbox_executor = SandboxExecutor(timeout_seconds=30)
+_capability_manager = CapabilityManager()
+
+
+def _update_ritual_phase(project_path: str, tool_name: str) -> None:
+    """
+    Update ritual phase based on tool call.
+
+    Called at the end of key tool implementations to track phase transitions.
+    The phase tracker uses tool_name to determine the new phase:
+    - get_briefing -> stays in briefing
+    - context_check -> exploration
+    - remember, remember_batch, add_rule -> action
+    - record_outcome, verify_facts -> reflection
+    """
+    if project_path:
+        _ritual_phase_tracker.on_tool_called(project_path, tool_name)
 
 
 def _get_context_for_covenant(project_path: str) -> Optional[ProjectContext]:
@@ -211,6 +254,20 @@ else:
     logger.warning(
         "FastMCP 3.0 middleware not available - falling back to decorator-based enforcement"
     )
+
+
+def _get_ritual_phase_for_middleware(project_path: str) -> str:
+    """Get ritual phase for AgencyMiddleware."""
+    return _ritual_phase_tracker.get_phase(project_path)
+
+
+# Register AgencyMiddleware for phase-based tool filtering
+if _AGENCY_MIDDLEWARE_AVAILABLE:
+    _agency_middleware = AgencyMiddleware(
+        get_phase=_get_ritual_phase_for_middleware,
+    )
+    mcp.add_middleware(_agency_middleware)
+    logger.info("AgencyMiddleware registered with FastMCP server")
 
 
 def _missing_project_path_error() -> Dict[str, Any]:
@@ -648,7 +705,8 @@ async def remember(
     context: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None,
     file_path: Optional[str] = None,
-    project_path: Optional[str] = None
+    project_path: Optional[str] = None,
+    happened_at: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Store a memory (decision/pattern/warning/learning).
@@ -662,6 +720,8 @@ async def remember(
         tags: List of tags for retrieval
         file_path: Associate with a file
         project_path: Project root
+        happened_at: When this fact was true in reality (ISO 8601 string).
+                    Use for backfilling: "User told me last week they prefer Python"
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -674,16 +734,30 @@ async def remember(
     if violation:
         return violation
 
+    # Parse happened_at datetime if provided
+    happened_at_dt = None
+    if happened_at:
+        try:
+            happened_at_dt = datetime.fromisoformat(happened_at.replace('Z', '+00:00'))
+        except ValueError:
+            return {"error": f"Invalid 'happened_at' date format: {happened_at}. Use ISO format (e.g., '2025-01-01T00:00:00Z')"}
+
     ctx = await get_project_context(project_path)
-    return await ctx.memory_manager.remember(
+    result = await ctx.memory_manager.remember(
         category=category,
         content=content,
         rationale=rationale,
         context=context,
         tags=tags,
         file_path=file_path,
-        project_path=ctx.project_path
+        project_path=ctx.project_path,
+        happened_at=happened_at_dt
     )
+
+    # Track phase transition (action phase)
+    _update_ritual_phase(ctx.project_path, "remember")
+
+    return result
 
 
 # ============================================================================
@@ -726,6 +800,9 @@ async def remember_batch(
         + (f" with {result['error_count']} error(s)" if result['error_count'] else "")
     )
 
+    # Track phase transition (action phase)
+    _update_ritual_phase(ctx.project_path, "remember_batch")
+
     return result
 
 
@@ -745,7 +822,8 @@ async def recall(
     until: Optional[str] = None,
     project_path: Optional[str] = None,
     include_linked: bool = False,
-    condensed: bool = False
+    condensed: bool = False,
+    as_of_time: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Semantic search for memories using TF-IDF. Results weighted by relevance, recency, importance.
@@ -760,6 +838,8 @@ async def recall(
         project_path: Project root
         include_linked: Search linked projects
         condensed: Compress output (~75% token reduction)
+        as_of_time: Return knowledge state as of this time (ISO 8601 string).
+                   Filters to memories valid at that time. Use for: "What did we know on 2025-12-01?"
     """
     # Require project_path for multi-project support
     if not project_path and not _default_project_path:
@@ -775,6 +855,8 @@ async def recall(
     # Parse date strings if provided
     since_dt = None
     until_dt = None
+    as_of_time_dt = None
+
     if since:
         try:
             since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
@@ -786,6 +868,12 @@ async def recall(
             until_dt = datetime.fromisoformat(until.replace('Z', '+00:00'))
         except ValueError:
             return {"error": f"Invalid 'until' date format: {until}. Use ISO format (e.g., '2025-12-31T23:59:59Z')"}
+
+    if as_of_time:
+        try:
+            as_of_time_dt = datetime.fromisoformat(as_of_time.replace('Z', '+00:00'))
+        except ValueError:
+            return {"error": f"Invalid 'as_of_time' date format: {as_of_time}. Use ISO format (e.g., '2025-12-01T00:00:00Z')"}
 
     ctx = await get_project_context(project_path)
     return await ctx.memory_manager.recall(
@@ -799,7 +887,8 @@ async def recall(
         until=until_dt,
         project_path=ctx.project_path,
         include_linked=include_linked,
-        condensed=condensed
+        condensed=condensed,
+        as_of_time=as_of_time_dt
     )
 
 
@@ -834,7 +923,7 @@ async def add_rule(
         return _missing_project_path_error()
 
     ctx = await get_project_context(project_path)
-    return await ctx.rules_engine.add_rule(
+    result = await ctx.rules_engine.add_rule(
         trigger=trigger,
         must_do=must_do,
         must_not=must_not,
@@ -842,6 +931,11 @@ async def add_rule(
         warnings=warnings,
         priority=priority
     )
+
+    # Track phase transition (action phase)
+    _update_ritual_phase(ctx.project_path, "add_rule")
+
+    return result
 
 
 # ============================================================================
@@ -896,12 +990,17 @@ async def record_outcome(
 
     ctx = await get_project_context(project_path)
     effective_project_path = project_path or _default_project_path
-    return await ctx.memory_manager.record_outcome(
+    result = await ctx.memory_manager.record_outcome(
         memory_id=memory_id,
         outcome=outcome,
         worked=worked,
         project_path=effective_project_path
     )
+
+    # Track phase transition (reflection phase)
+    _update_ritual_phase(ctx.project_path, "record_outcome")
+
+    return result
 
 
 # Directories to exclude when scanning project structure
@@ -1896,6 +1995,9 @@ async def get_briefing(
         logger.warning(f"Failed to fetch active context: {e}")
         active_context["error"] = str(e)
 
+    # Track phase transition (briefing phase)
+    _update_ritual_phase(ctx.project_path, "get_briefing")
+
     return {
         "status": "ready",
         "statistics": stats,
@@ -2070,7 +2172,327 @@ async def find_related(
 
 
 # ============================================================================
-# Tool 11: CONTEXT_CHECK - Quick relevance check for current work
+# Tool 11: VERIFY_FACTS - Verify factual claims against stored knowledge
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def verify_facts(
+    text: str,
+    categories: Optional[List[str]] = None,
+    as_of_time: Optional[str] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Verify factual claims in text against stored knowledge.
+
+    Extracts claims from the provided text and verifies them against:
+    1. Stored memories (via recall)
+    2. GraphRAG entities (if available)
+    3. Bi-temporal history (if as_of_time provided)
+
+    Per CONTEXT.md: Verification failures surface as "[unverified]" markers,
+    not hard blocks.
+
+    Args:
+        text: Text containing claims to verify
+        categories: Optional list of memory categories to search
+        as_of_time: Optional ISO 8601 datetime for point-in-time verification
+        project_path: Project root
+
+    Returns:
+        Dict with:
+        - claims: List of extracted claims
+        - verified: List of verified claims with evidence
+        - unverified: List of unverified claims
+        - conflicts: List of conflicting claims with reasons
+        - summary: Overall verification summary
+    """
+    # Require project_path for multi-project support
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Import reflexion modules
+    try:
+        from .reflexion.claims import extract_claims
+        from .reflexion.verification import verify_claims, summarize_verification
+    except ImportError:
+        from daem0nmcp.reflexion.claims import extract_claims
+        from daem0nmcp.reflexion.verification import verify_claims, summarize_verification
+
+    # Extract claims from text
+    claims = extract_claims(text)
+
+    if not claims:
+        return {
+            "claims": [],
+            "verified": [],
+            "unverified": [],
+            "conflicts": [],
+            "summary": {
+                "verified_count": 0,
+                "unverified_count": 0,
+                "conflict_count": 0,
+                "overall_confidence": 1.0,
+                "message": "No verifiable claims found in text",
+            },
+        }
+
+    # Get knowledge graph if available
+    knowledge_graph = None
+    try:
+        knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+    except Exception:
+        pass  # GraphRAG optional
+
+    # Verify claims
+    verification_results = await verify_claims(
+        claims=claims,
+        memory_manager=ctx.memory_manager,
+        knowledge_graph=knowledge_graph,
+        as_of_time=as_of_time,
+        categories=categories,
+    )
+
+    # Categorize results
+    verified = []
+    unverified = []
+    conflicts = []
+
+    for result in verification_results:
+        result_dict = {
+            "claim": result.claim_text,
+            "type": result.claim_type,
+            "confidence": round(result.confidence, 3),
+            "evidence": [
+                {"source": e.source, "content": e.content[:100]}
+                for e in result.evidence[:3]  # Limit evidence for readability
+            ],
+        }
+
+        if result.status == "verified":
+            verified.append(result_dict)
+        elif result.status == "conflict":
+            result_dict["conflict_reason"] = result.conflict_reason
+            conflicts.append(result_dict)
+        else:
+            unverified.append(result_dict)
+
+    # Build summary
+    summary = summarize_verification(verification_results)
+    summary["message"] = _build_verification_message(summary)
+
+    # Track phase transition (reflection phase)
+    _update_ritual_phase(ctx.project_path, "verify_facts")
+
+    return {
+        "claims": [
+            {"text": c.text, "type": c.claim_type.value, "subject": c.subject}
+            for c in claims
+        ],
+        "verified": verified,
+        "unverified": unverified,
+        "conflicts": conflicts,
+        "summary": summary,
+    }
+
+
+def _build_verification_message(summary: Dict[str, Any]) -> str:
+    """Build human-readable verification message."""
+    parts = []
+
+    if summary["verified_count"] > 0:
+        parts.append(f"{summary['verified_count']} claim(s) verified")
+
+    if summary["unverified_count"] > 0:
+        parts.append(f"{summary['unverified_count']} claim(s) unverified [unverified]")
+
+    if summary["conflict_count"] > 0:
+        parts.append(f"{summary['conflict_count']} claim(s) CONFLICT with stored knowledge")
+
+    if not parts:
+        return "No claims to verify"
+
+    confidence_desc = (
+        "high" if summary["overall_confidence"] >= 0.8
+        else "medium" if summary["overall_confidence"] >= 0.5
+        else "low"
+    )
+
+    return f"{'; '.join(parts)}. Overall confidence: {confidence_desc} ({summary['overall_confidence']:.1%})"
+
+
+# ============================================================================
+# Tool: COMPRESS_CONTEXT - Intelligent context compression
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def compress_context(
+    context: str,
+    rate: Optional[float] = None,
+    content_type: Optional[str] = None,
+    preserve_code: bool = True,
+) -> str:
+    """
+    Compress context using LLMLingua-2 for token reduction.
+
+    Achieves 3x-6x compression while preserving meaning. Useful for:
+    - Reducing large context before sending to LLM
+    - Optimizing token usage in long conversations
+    - Compressing retrieved memories for efficiency
+
+    The daemon compresses wisely: preserving function names, entities, and
+    structural tokens while removing redundant phrasing.
+
+    Args:
+        context: Text to compress
+        rate: Compression rate (0.2-0.5). Lower = more aggressive. Auto-detects if None.
+        content_type: "code", "narrative", or "mixed". Auto-detects if None.
+        preserve_code: Whether to preserve code syntax (function names, etc.)
+
+    Returns:
+        Compressed context as string.
+
+    Example:
+        compressed = await compress_context(
+            context=long_document,
+            content_type="narrative",
+        )
+    """
+    try:
+        from .compression import AdaptiveCompressor, ContentType
+    except ImportError:
+        try:
+            from daem0nmcp.compression import AdaptiveCompressor, ContentType
+        except ImportError:
+            return "[ERROR] Compression dependencies not installed. Run: pip install llmlingua tiktoken"
+
+    try:
+        adaptive = AdaptiveCompressor()
+
+        # Parse content type if provided
+        ct = None
+        if content_type:
+            ct = ContentType(content_type.lower())
+
+        # Compress
+        result = adaptive.compress(
+            context,
+            content_type=ct,
+            rate_override=rate,
+        )
+
+        # Log stats
+        if not result.get("skipped"):
+            logger.info(
+                f"Compressed context: {result['original_tokens']} -> "
+                f"{result['compressed_tokens']} tokens ({result['ratio']:.1f}x)"
+            )
+
+        return result["compressed_prompt"]
+
+    except Exception as e:
+        logger.error(f"Compression failed: {e}")
+        return f"[ERROR] Compression failed: {e}"
+
+
+# ============================================================================
+# Tool 45: EXECUTE_PYTHON - Sandboxed code execution
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def execute_python(
+    code: str,
+    project_path: Optional[str] = None,
+    timeout_seconds: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Execute Python code in an isolated sandbox.
+
+    The code runs in a Firecracker microVM with:
+    - No access to host filesystem
+    - No network access
+    - Hard timeout enforcement
+    - Resource limits
+
+    Use this for:
+    - Running calculations or data transformations
+    - Testing code snippets safely
+    - Executing user-provided code
+
+    Args:
+        code: Python code to execute
+        project_path: Project root (required for capability check)
+        timeout_seconds: Override default timeout (max 60s)
+
+    Returns:
+        Dict with:
+        - success: bool - Whether execution succeeded
+        - output: str - Captured stdout/print output
+        - error: str|None - Error message if failed
+        - execution_time_ms: int - Execution time in milliseconds
+        - logs: list - Execution logs
+    """
+    # Require project_path
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    effective_path = project_path or _default_project_path
+
+    # Check capability
+    violation = check_capability(
+        effective_path,
+        CapabilityScope.EXECUTE_CODE,
+        _capability_manager,
+    )
+    if violation:
+        return violation
+
+    # Check sandbox availability
+    if not _sandbox_executor.available:
+        return {
+            "status": "error",
+            "error": "SANDBOX_UNAVAILABLE",
+            "message": (
+                "Sandboxed execution is not available. "
+                "Ensure E2B_API_KEY is set and e2b-code-interpreter is installed."
+            ),
+        }
+
+    # Validate timeout
+    actual_timeout = min(timeout_seconds or 30, 60)  # Cap at 60s
+
+    # Log execution for anomaly detection
+    logger.info(
+        f"execute_python: project={effective_path}, "
+        f"code_len={len(code)}, timeout={actual_timeout}s"
+    )
+
+    # Create executor with requested timeout
+    executor = SandboxExecutor(timeout_seconds=actual_timeout)
+    result = await executor.execute(code)
+
+    # Log result for anomaly detection
+    logger.info(
+        f"execute_python result: success={result.success}, "
+        f"time={result.execution_time_ms}ms, output_len={len(result.output)}"
+    )
+
+    # Update ritual phase (action phase tool)
+    _update_ritual_phase(effective_path, "execute_python")
+
+    return {
+        "success": result.success,
+        "output": result.output,
+        "error": result.error,
+        "execution_time_ms": result.execution_time_ms,
+        "logs": result.logs,
+    }
+
+
+# ============================================================================
+# Tool 12: CONTEXT_CHECK - Quick relevance check for current work
 # ============================================================================
 @mcp.tool(version="3.0.0")
 @with_request_id
@@ -2145,6 +2567,9 @@ async def context_check(
         session_id=get_session_id(ctx.project_path),
         project_path=ctx.project_path,
     )
+
+    # Track phase transition (exploration phase)
+    _update_ritual_phase(ctx.project_path, "context_check")
 
     return {
         "description": description,
@@ -4074,13 +4499,15 @@ async def get_memory_at_time(
 @with_request_id
 async def rebuild_communities(
     min_community_size: int = 2,
+    resolution: float = 1.0,
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Detect memory communities based on tag co-occurrence. Auto-generates summaries.
+    Detect memory communities using Leiden algorithm on the knowledge graph.
 
     Args:
         min_community_size: Min members per community
+        resolution: Leiden resolution (>1 = smaller communities)
         project_path: Project root
     """
     if project_path is None and not _default_project_path:
@@ -4091,9 +4518,14 @@ async def rebuild_communities(
     ctx = await get_project_context(project_path)
     cm = CommunityManager(ctx.db_manager)
 
-    # Detect communities
-    communities = await cm.detect_communities(
+    # Get knowledge graph for Leiden algorithm
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    # Detect communities using Leiden algorithm
+    communities = await cm.detect_communities_from_graph(
         project_path=project_path or _default_project_path,
+        knowledge_graph=knowledge_graph,
+        resolution=resolution,
         min_community_size=min_community_size
     )
 
@@ -4104,9 +4536,9 @@ async def rebuild_communities(
     )
 
     return {
+        **result,
         "status": "rebuilt",
         "communities_found": len(communities),
-        **result
     }
 
 
@@ -4324,6 +4756,138 @@ async def backfill_entities(
         "entities_extracted": total_entities_extracted,
         "message": f"Processed {memories_processed} memories, extracted {total_entities_extracted} entities"
     }
+
+
+# ============================================================================
+# GRAPHRAG TOOLS - Multi-hop traversal and knowledge evolution queries
+# ============================================================================
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def trace_chain(
+    start_memory_id: int,
+    end_memory_id: int,
+    max_depth: int = 5,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Find causal paths between two memories. Answers: "How did decision X lead to outcome Y?"
+
+    Args:
+        start_memory_id: Starting memory ID
+        end_memory_id: Target memory ID
+        max_depth: Maximum path length (default: 5)
+        project_path: Project root
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    return await knowledge_graph.trace_chain(
+        start_memory_id=start_memory_id,
+        end_memory_id=end_memory_id,
+        max_depth=max_depth
+    )
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def trace_evolution(
+    entity_name: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    include_invalidated: bool = True,
+    entity_id: Optional[int] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Trace how knowledge about an entity evolved over time. Answers: "How has our understanding of X changed?"
+
+    Returns a bi-temporal timeline with valid_from, valid_to, transaction_time, and invalidation info.
+    Critical for answering: "T1 believed X, at T2 learned X wrong, query at T3 shows invalidation"
+
+    Args:
+        entity_name: Name of the entity to trace (e.g., "UserService", "auth")
+        entity_type: Filter by entity type (e.g., "class", "concept", "function")
+        include_invalidated: Include invalidated versions in timeline (default: True)
+        entity_id: Entity database ID (alternative to entity_name)
+        project_path: Project root
+
+    Either entity_name or entity_id must be provided.
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    if not entity_name and not entity_id:
+        return {"error": "Either entity_name or entity_id must be provided"}
+
+    ctx = await get_project_context(project_path)
+
+    # If entity_name provided, use MemoryManager.get_memory_evolution (bi-temporal)
+    if entity_name:
+        return await ctx.memory_manager.get_memory_evolution(
+            entity_name=entity_name,
+            entity_type=entity_type,
+            include_invalidated=include_invalidated
+        )
+
+    # If only entity_id provided, use KnowledgeGraph.trace_evolution (graph-based)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+    return await knowledge_graph.trace_evolution(entity_id=entity_id)
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_related_memories(
+    memory_id: int,
+    relationship_types: Optional[List[str]] = None,
+    direction: str = "both",
+    max_depth: int = 2,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Find memories related to a given memory via graph traversal. Answers: "What depends on this decision?"
+
+    Args:
+        memory_id: Starting memory ID
+        relationship_types: Filter by types (led_to, supersedes, depends_on, conflicts_with, related_to)
+        direction: "outgoing", "incoming", or "both"
+        max_depth: Maximum traversal depth (default: 2)
+        project_path: Project root
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    return await knowledge_graph.get_related(
+        memory_id=memory_id,
+        relationship_types=relationship_types,
+        direction=direction,
+        max_depth=max_depth
+    )
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_graph_stats(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get metrics about the knowledge graph structure: node/edge counts, density, components.
+
+    Args:
+        project_path: Project root
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+    knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+
+    return knowledge_graph.get_metrics()
 
 
 # ============================================================================

@@ -188,6 +188,15 @@ class MemoryVersion(Base):
     """
     Tracks historical versions of memories for temporal queries.
 
+    Bi-Temporal Model:
+    - transaction_time: When we learned/recorded this version (tracked via changed_at)
+    - valid_time: When the fact was actually true in reality (tracked via valid_from/valid_to)
+
+    This dual-time tracking enables:
+    - Point-in-time queries: "What did we know at time T?"
+    - As-of queries: "What was true at time T?"
+    - Bitemporal queries: "What did we know at T1 about what was true at T2?"
+
     Captures snapshots when:
     - Memory content changes
     - Memory relationships change
@@ -197,6 +206,7 @@ class MemoryVersion(Base):
     - "What did we believe about auth at time T?"
     - "How has this decision evolved?"
     - "When did this relationship change?"
+    - "What facts were invalidated by new information?"
     """
     __tablename__ = "memory_versions"
 
@@ -222,8 +232,19 @@ class MemoryVersion(Base):
     change_type = Column(String, nullable=False)  # created, content_updated, outcome_recorded, relationship_changed
     change_description = Column(Text, nullable=True)
 
-    # When this version was created
+    # Transaction time: when this version was recorded in the system
     changed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Valid time: when this version's content became true in reality
+    # NULL means "same as changed_at" (backwards compatible default)
+    valid_from = Column(DateTime, nullable=True)
+
+    # Valid time: when this version's content was superseded (NULL = still valid)
+    valid_to = Column(DateTime, nullable=True)
+
+    # Reference to the version that invalidated this one (for contradiction tracking)
+    # Enables tracking causal chains of fact updates
+    invalidated_by_version_id = Column(Integer, ForeignKey("memory_versions.id"), nullable=True)
 
     # Composite index for efficient version lookups
     __table_args__ = (

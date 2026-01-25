@@ -73,6 +73,23 @@ class TestEnforcementMigration:
                 content TEXT
             )
         """)
+        # Create memory_versions table (required for migration 14+)
+        conn.execute("""
+            CREATE TABLE memory_versions (
+                id INTEGER PRIMARY KEY,
+                memory_id INTEGER,
+                version_number INTEGER,
+                content TEXT,
+                rationale TEXT,
+                context TEXT,
+                tags TEXT,
+                outcome TEXT,
+                worked BOOLEAN,
+                change_type TEXT,
+                change_description TEXT,
+                changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
         conn.close()
 

@@ -13,6 +13,70 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v4.0.0
+
+### Cognitive Architecture
+The daemon awakens to full cognition. v4.0 transforms Daem0n-MCP from a reactive semantic engine into a complete **Cognitive Architecture** with five major capabilities:
+
+#### GraphRAG & Leiden Communities
+Knowledge graph construction with hierarchical community detection:
+- **Entity extraction**: Automatically extracts entities and relationships during `remember` operations
+- **NetworkX graph**: In-memory graph manipulation with directed edges
+- **Leiden algorithm**: Hierarchical community detection (replaces basic tag clustering)
+- **Multi-hop queries**: `trace_chain`, `trace_evolution`, `get_related_memories` MCP tools
+- **Global search**: `recall_hierarchical` uses community summaries for high-level queries
+
+#### Bi-Temporal Knowledge
+Track what was true vs when you learned it:
+- **Dual timestamps**: `valid_time` (when happened) and `transaction_time` (when learned)
+- **`happened_at` parameter**: Backfill historical knowledge with accurate timestamps
+- **Point-in-time queries**: `as_of_time` parameter for "what did we know then?" queries
+- **Knowledge evolution**: `trace_evolution` shows how understanding changed over time
+- **Contradiction detection**: Identifies when new facts invalidate existing beliefs
+
+#### Metacognitive Architecture (Reflexion)
+Self-correction before speaking:
+- **Actor-Evaluator-Reflector loop**: LangGraph state machine for iterative refinement
+- **`verify_facts` tool**: Validates claims against stored knowledge before output
+- **Chain of Verification**: Intercepts factual claims for grounding verification
+- **Reflection persistence**: Stores self-critiques as retrievable memories
+- **Episodic-to-semantic consolidation**: Automatic memory summarization
+
+#### Context Engineering
+Intelligent context compression:
+- **LLMLingua-2 integration**: 3x-6x compression while preserving meaning
+- **Code entity preservation**: Protects function signatures, variable names, syntax
+- **Adaptive compression**: Rates adjust based on content type (code vs narrative)
+- **Hierarchical compression**: Leverages Leiden community summaries
+- **`compress_context` tool**: On-demand context optimization
+
+#### Dynamic Agency
+Context-aware tool control:
+- **Ritual phase tracking**: BRIEFING -> EXPLORATION -> ACTION -> REFLECTION
+- **Tool masking**: Hides irrelevant tools based on current phase
+- **`execute_python` tool**: Sandboxed code execution via E2B Firecracker microVMs
+- **Capability scoping**: Least-privilege access enforcement
+- **Security logging**: All sandbox activity logged for anomaly detection
+
+### New Tools (v4.0)
+| Tool | Purpose |
+|------|---------|
+| `verify_facts` | Validate claims against stored knowledge |
+| `compress_context` | LLMLingua-2 context compression |
+| `execute_python` | Sandboxed Python code execution |
+| `trace_chain` | Multi-hop graph traversal |
+| `trace_evolution` | Knowledge evolution tracking |
+| `get_related_memories` | Entity relationship discovery |
+| `get_graph_stats` | Knowledge graph metrics |
+
+### Stats
+- **60 MCP tools** (up from 53)
+- **500+ tests** passing
+- **48,554 lines** of Python
+- **32 requirements** satisfied
+
+---
+
 ## What's New in v3.1.0
 
 ### 2026 AI Memory Research Enhancements
@@ -383,7 +447,7 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Core Tools (53 Total)
+## Core Tools (60 Total)
 
 ### Memory Tools
 
@@ -887,4 +951,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v3.1.0: 2026 AI Memory Research Enhancements—BM25+RRF hybrid retrieval, TiMem recall planner, Titans surprise scoring, importance-weighted learning, Fact model, tool search index, prompt templates. Plus FastMCP 3.0, CovenantMiddleware, OpenTelemetry tracing, Sacred Covenant enforcement.*
+*Daem0nMCP v4.0.0: Cognitive Architecture—GraphRAG knowledge graphs with Leiden communities, bi-temporal memory model, metacognitive Reflexion loop, LLMLingua-2 context compression, dynamic agency with sandboxed execution. 60 MCP tools, 500+ tests, full cognitive architecture.*

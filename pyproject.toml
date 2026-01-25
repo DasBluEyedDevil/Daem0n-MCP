@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daem0nmcp"
-version = "3.1.0"
+version = "4.0.0"
 description = "AI Memory & Decision System - Give AI agents persistent memory and consistent decision-making"
 readme = "README.md"
 license = {text = "MIT"}
@@ -43,6 +43,18 @@ dependencies = [
     "tree-sitter-language-pack>=0.13.0",
     # BM25 for hybrid retrieval
     "rank-bm25>=0.2.2",
+    # Phase 1: GraphRAG
+    "networkx>=3.0",
+    "leidenalg>=0.10.0",
+    "python-igraph>=0.11.0",
+    # Phase 3: Metacognitive Architecture (Reflexion)
+    "langgraph>=1.0.7",
+    "langgraph-checkpoint-sqlite>=3.0.3",
+    # Phase 4: Context Engineering
+    "llmlingua>=0.2.2",
+    "tiktoken>=0.5.0",
+    # Phase 5: Dynamic Agency
+    "e2b-code-interpreter>=1.0.0",
 ]
 
 [project.optional-dependencies]
