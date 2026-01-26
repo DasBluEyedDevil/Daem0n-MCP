@@ -36,6 +36,9 @@ PHASE_TOOL_VISIBILITY: Dict[str, Set[str]] = {
         "recall",
         "list_rules",
         "get_graph",
+        # context_check is an entry point - must be visible in briefing to allow
+        # transition to exploration phase (fixes Catch-22 phase-lock bug)
+        "context_check",
     },
     "exploration": {
         "get_briefing",
