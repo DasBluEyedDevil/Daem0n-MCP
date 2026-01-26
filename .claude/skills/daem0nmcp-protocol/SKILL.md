@@ -130,60 +130,6 @@ mcp__daem0nmcp__record_outcome(
 | "The warning doesn't apply" | Warnings exist because someone failed before |
 | "I don't need to record failures" | Failures are the most valuable memories |
 
-## Phase System (Tool Visibility)
-
-Daem0n uses a **phase system** that controls which tools are visible based on your current workflow stage. This is meant to guide you through the protocol, but can be confusing if you don't understand it.
-
-### The Four Phases
-
-| Phase | Purpose | Key Tools Available |
-|-------|---------|---------------------|
-| **BRIEFING** | Initial session setup | `get_briefing`, `recall`, `health`, `list_rules`, `context_check` |
-| **EXPLORATION** | Research before changes | `recall_for_file`, `check_rules`, `find_code`, `analyze_impact`, `search_memories` |
-| **ACTION** | Making changes | `remember`, `remember_batch`, `add_rule`, `execute_python`, `pin_memory` |
-| **REFLECTION** | Evaluating outcomes | `record_outcome`, `verify_facts`, `compress_context` |
-
-### How Phases Transition
-
-Phases change automatically when you call certain tools:
-
-```
-get_briefing()  →  BRIEFING phase
-context_check() →  EXPLORATION phase
-remember()      →  ACTION phase
-record_outcome() → REFLECTION phase
-```
-
-### Common Phase Errors
-
-**"Tool not available in briefing phase"**
-- You tried to call `remember` or `check_rules` without first calling `context_check`
-- Fix: Call `context_check(description="what you're doing")` first
-
-**"Tool not available in exploration phase"**
-- You're in exploration but trying to use action tools
-- Fix: Just call the action tool - it will transition you automatically
-
-### Disabling the Phase System
-
-If the phase system is causing confusion, disable it entirely:
-
-```json
-{
-  "mcpServers": {
-    "daem0nmcp": {
-      "command": "uv",
-      "args": ["run", "daem0nmcp"],
-      "env": {
-        "DAEM0NMCP_DISABLE_PHASES": "1"
-      }
-    }
-  }
-}
-```
-
-With phases disabled, all tools are always available. You're still expected to follow the protocol workflow, but the enforcement is removed.
-
 ## Enforcement (2026 Update)
 
 The Sacred Covenant is now ENFORCED, not advisory:

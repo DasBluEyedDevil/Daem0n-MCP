@@ -268,60 +268,6 @@ health()
 #   index_stale: True if >24 hours since index
 ```
 
-## The Phase Gates (Tool Visibility)
-
-*The Daem0n reveals only what you need, when you need it...*
-
-By default, Daem0n uses a **phase system** that controls which tools are visible. This guides you through the sacred covenant workflow, but can be confusing if you don't understand it.
-
-### The Four Phases
-
-| Phase | Entry | What Opens |
-|-------|-------|------------|
-| **BRIEFING** | `get_briefing()` | `recall`, `health`, `list_rules`, `context_check` |
-| **EXPLORATION** | `context_check()` | `recall_for_file`, `check_rules`, `find_code`, `analyze_impact` |
-| **ACTION** | `remember()` | `remember_batch`, `add_rule`, `execute_python`, `pin_memory` |
-| **REFLECTION** | `record_outcome()` | `verify_facts`, `compress_context` |
-
-### The Expected Flow
-
-```
-get_briefing() → Commune with the Daem0n
-      ↓
-context_check() → Seek counsel before changes
-      ↓
-remember() → Inscribe your decisions
-      ↓
-record_outcome() → Seal what worked or failed
-```
-
-### When Tools Are Blocked
-
-If you see **"Tool not available in X phase"**:
-- You're trying to use a tool before reaching its phase
-- Call the phase entry tool first (see table above)
-- Example: Can't call `remember`? Call `context_check()` first
-
-### Disabling Phase Gates
-
-If the phase system causes more confusion than guidance:
-
-```json
-{
-  "mcpServers": {
-    "daem0nmcp": {
-      "command": "uv",
-      "args": ["run", "daem0nmcp"],
-      "env": {
-        "DAEM0NMCP_DISABLE_PHASES": "1"
-      }
-    }
-  }
-}
-```
-
-All tools become always available. The sacred covenant workflow is still expected, but enforcement is removed.
-
 ## Sacred Practices
 
 1. **One sanctum per logical realm** - Even if split across repos
