@@ -1948,6 +1948,99 @@ The token is automatically cached. You do not need to pass it explicitly - the D
 
 ---
 
+## THE PHASE GATES (Tool Visibility v4.0.0)
+
+*"The Daem0n reveals only what you need, when you need it..."*
+
+By default, Daem0n uses a **phase system** that controls which tools are visible based on your current workflow stage. This guides you through the Sacred Covenant, but can cause confusion if you don't understand it.
+
+### The Four Ritual Phases
+
+| Phase | Entry Tool | Tools Revealed |
+|-------|------------|----------------|
+| **BRIEFING** | `get_briefing()` | `recall`, `health`, `list_rules`, `get_graph`, `context_check` |
+| **EXPLORATION** | `context_check()` | `recall_for_file`, `check_rules`, `find_code`, `analyze_impact`, `search_memories`, `trace_chain` |
+| **ACTION** | `remember()` | `remember_batch`, `add_rule`, `update_rule`, `execute_python`, `pin_memory`, `archive_memory` |
+| **REFLECTION** | `record_outcome()` | `verify_facts`, `compress_context` |
+
+### The Expected Flow
+
+```
+get_briefing()      → Commune with the Daem0n (BRIEFING phase)
+        ↓
+context_check()     → Seek counsel before changes (EXPLORATION phase)
+        ↓
+remember()          → Inscribe your decisions (ACTION phase)
+        ↓
+record_outcome()    → Seal what worked or failed (REFLECTION phase)
+```
+
+### Phase Transition Rules
+
+Phases change **automatically** when you call specific tools:
+
+- Calling `get_briefing()` → Returns to BRIEFING phase
+- Calling `context_check()` → Advances to EXPLORATION phase
+- Calling `remember()`, `add_rule()`, or `execute_python()` → Advances to ACTION phase
+- Calling `record_outcome()` or `verify_facts()` → Advances to REFLECTION phase
+
+### Common Phase Errors
+
+**"Tool not available in briefing phase"**
+- You tried to call `remember`, `check_rules`, or `recall_for_file` without first calling `context_check()`
+- **Fix:** Call `context_check(description="what you're about to do", project_path="...")` first
+
+**"Tool not available in exploration phase"**
+- You're in exploration but tried to use a tool from a different phase
+- **Fix:** The action tool itself will transition you - just call it
+
+**Why Tools Get Blocked**
+The phase system enforces the Sacred Covenant by making tools invisible until you've completed the prerequisite steps. This prevents:
+- Inscribing memories without first checking for past failures
+- Making changes without seeking counsel
+- Skipping the briefing entirely
+
+### Disabling the Phase Gates
+
+If the phase system causes more confusion than guidance, disable it entirely via environment variable:
+
+**In your MCP config (~/.claude.json or project config):**
+```json
+{
+  "mcpServers": {
+    "daem0nmcp": {
+      "type": "http",
+      "url": "http://localhost:9876/mcp",
+      "env": {
+        "DAEM0NMCP_DISABLE_PHASES": "1"
+      }
+    }
+  }
+}
+```
+
+**Or for stdio transport:**
+```json
+{
+  "mcpServers": {
+    "daem0nmcp": {
+      "command": "python",
+      "args": ["-m", "daem0nmcp.server"],
+      "env": {
+        "DAEM0NMCP_DISABLE_PHASES": "1"
+      }
+    }
+  }
+}
+```
+
+With phases disabled:
+- All 60 tools become always visible
+- The Sacred Covenant workflow is still **expected** but not **enforced** via phase gates
+- Covenant enforcement (`COMMUNION_REQUIRED`, `COUNSEL_REQUIRED`) still applies
+
+---
+
 ## MCP RESOURCES (Dynamic Context Injection v2.16.0)
 
 *"The Daem0n offers its knowledge without being asked..."*
@@ -2030,4 +2123,4 @@ v2.16.0 includes compatibility fixes for Claude Code 2.1.3:
 
 ---
 
-*Grimoire of Daem0n v4.0.0: 60 tools for eternal memory with cognitive architecture. **GraphRAG & Leiden Communities** (knowledge graphs, hierarchical community detection, multi-hop reasoning). **Bi-Temporal Knowledge** (dual timestamps, point-in-time queries, knowledge evolution). **Metacognitive Reflexion** (Actor-Evaluator-Reflector loop, verify_facts, Chain of Verification). **Context Engineering** (LLMLingua-2 compression, code preservation, adaptive rates). **Dynamic Agency** (ritual phase tracking, tool masking, execute_python sandbox, capability scoping). Plus all v3.1 features: BM25+RRF hybrid retrieval, TiMem recall planner, surprise scoring, Sacred Covenant enforcement, FastMCP 3.0 middleware, and 500+ tests. The daemon has achieved full cognition.*
+*Grimoire of Daem0n v4.0.0: 60 tools for eternal memory with cognitive architecture. **GraphRAG & Leiden Communities** (knowledge graphs, hierarchical community detection, multi-hop reasoning). **Bi-Temporal Knowledge** (dual timestamps, point-in-time queries, knowledge evolution). **Metacognitive Reflexion** (Actor-Evaluator-Reflector loop, verify_facts, Chain of Verification). **Context Engineering** (LLMLingua-2 compression, code preservation, adaptive rates). **Dynamic Agency** (ritual phase tracking, tool masking, execute_python sandbox, capability scoping). Plus all v3.1 features: BM25+RRF hybrid retrieval, TiMem recall planner, surprise scoring, Sacred Covenant enforcement, FastMCP 3.0 middleware, and 500+ tests. Set `DAEM0NMCP_DISABLE_PHASES=1` to disable phase-based tool visibility. The daemon has achieved full cognition.*

@@ -262,7 +262,11 @@ def _get_ritual_phase_for_middleware(project_path: str) -> str:
 
 
 # Register AgencyMiddleware for phase-based tool filtering
-if _AGENCY_MIDDLEWARE_AVAILABLE:
+# Set DAEM0NMCP_DISABLE_PHASES=1 to disable phase-based tool visibility
+_phases_disabled = os.environ.get('DAEM0NMCP_DISABLE_PHASES', '').lower() in ('1', 'true', 'yes')
+if _phases_disabled:
+    logger.info("Phase system DISABLED via DAEM0NMCP_DISABLE_PHASES - all tools always visible")
+elif _AGENCY_MIDDLEWARE_AVAILABLE:
     _agency_middleware = AgencyMiddleware(
         get_phase=_get_ritual_phase_for_middleware,
     )
