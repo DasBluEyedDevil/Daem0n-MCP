@@ -88,6 +88,12 @@
                 <button class="graph-details__close" id="details-close">&times;</button>
                 <div id="details-content"></div>
             </div>
+
+            <!-- Temporal slider for bi-temporal filtering -->
+            <div class="graph-temporal" id="temporal-slider">
+                <div class="graph-temporal__label">Time range filter (as_of_time)</div>
+                <svg id="temporal-svg"></svg>
+            </div>
         </div>
     </div>
     <script>
@@ -753,6 +759,120 @@
     // Progressive loading threshold (use for graphs larger than this)
     var PROGRESSIVE_THRESHOLD = 200;
 
+    // Temporal slider reference
+    var temporalSlider = null;
+
+    /**
+     * Create temporal slider for bi-temporal date range filtering
+     * @param {Date} minDate - Earliest date in graph
+     * @param {Date} maxDate - Latest date in graph
+     * @param {Function} onChange - Callback when selection changes
+     */
+    function createTemporalSlider(minDate, maxDate, onChange) {
+        var container = document.getElementById('temporal-slider');
+        var svg = d3.select('#temporal-svg');
+
+        // Slider dimensions
+        var margin = { left: 10, right: 10 };
+        var sliderWidth = container.clientWidth - margin.left - margin.right;
+        var sliderHeight = 30;
+
+        svg.attr('width', sliderWidth + margin.left + margin.right)
+           .attr('height', sliderHeight + 15);  // Extra for axis
+
+        var g = svg.append('g')
+            .attr('transform', 'translate(' + margin.left + ', 0)');
+
+        // Time scale
+        var x = d3.scaleTime()
+            .domain([minDate, maxDate])
+            .range([0, sliderWidth]);
+
+        // Axis
+        var xAxis = d3.axisBottom(x)
+            .ticks(5)
+            .tickFormat(d3.timeFormat('%b %d'));
+
+        g.append('g')
+            .attr('transform', 'translate(0, ' + sliderHeight + ')')
+            .call(xAxis);
+
+        // Brush for range selection
+        var brush = d3.brushX()
+            .extent([[0, 0], [sliderWidth, sliderHeight]])
+            .on('brush end', function(event) {
+                if (!event.selection) {
+                    // No selection - show all
+                    onChange(null, null);
+                    return;
+                }
+                var s = event.selection;
+                onChange(x.invert(s[0]), x.invert(s[1]));
+            });
+
+        g.append('g')
+            .attr('class', 'brush')
+            .call(brush)
+            .call(brush.move, [0, sliderWidth]);  // Initial: full range
+
+        return {
+            reset: function() {
+                g.select('.brush').call(brush.move, [0, sliderWidth]);
+            }
+        };
+    }
+
+    // Debounced filter handler
+    var filterTimeout = null;
+    function handleTemporalFilter(startDate, endDate) {
+        clearTimeout(filterTimeout);
+        filterTimeout = setTimeout(function() {
+            filterGraphByTime(startDate, endDate);
+        }, 300);  // 300ms debounce
+    }
+
+    /**
+     * Filter graph nodes and edges by created_at date range
+     */
+    function filterGraphByTime(startDate, endDate) {
+        // Filter nodes by created_at date
+        var filteredNodes = graphData.nodes.filter(function(node) {
+            if (!startDate || !endDate) return true;  // No filter
+            if (!node.created_at) return true;  // Include if no date
+
+            var nodeDate = new Date(node.created_at);
+            return nodeDate >= startDate && nodeDate <= endDate;
+        });
+
+        // Get IDs of filtered nodes
+        var visibleIds = new Set(filteredNodes.map(function(n) { return n.id; }));
+
+        // Filter edges to only include those between visible nodes
+        var filteredEdges = graphData.edges.filter(function(edge) {
+            var sourceId = typeof edge.source === 'object' ? edge.source.id : edge.source;
+            var targetId = typeof edge.target === 'object' ? edge.target.id : edge.target;
+            return visibleIds.has(sourceId) && visibleIds.has(targetId);
+        });
+
+        // Update simulation with filtered data
+        simulation.nodes(filteredNodes);
+        simulation.force('link').links(filteredEdges);
+        simulation.alpha(0.3).restart();
+
+        // Update node/edge counts in header
+        updateCounts(filteredNodes.length, filteredEdges.length);
+    }
+
+    /**
+     * Update displayed node/edge counts in header
+     */
+    function updateCounts(nodeCount, edgeCount) {
+        var countEl = document.querySelector('.graph-header__count');
+        if (countEl) {
+            countEl.textContent = nodeCount + ' nodes, ' + edgeCount + ' edges';
+        }
+    }
+
     /**
      * Initialize the graph viewer
      */
@@ -813,6 +933,21 @@
             SecureMessenger.on('clear_path', function() {
                 clearPath();
             });
+        }
+
+        // Initialize temporal slider if we have date data
+        var dates = graphData.nodes
+            .filter(function(n) { return n.created_at; })
+            .map(function(n) { return new Date(n.created_at); });
+
+        if (dates.length >= 2) {
+            var minDate = new Date(Math.min.apply(null, dates));
+            var maxDate = new Date(Math.max.apply(null, dates));
+
+            temporalSlider = createTemporalSlider(minDate, maxDate, handleTemporalFilter);
+        } else {
+            // Hide slider if insufficient date data
+            document.getElementById('temporal-slider').style.display = 'none';
         }
     }
 

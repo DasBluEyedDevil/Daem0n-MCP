@@ -1248,3 +1248,50 @@ select.daemon-input {
     margin: 0;
     cursor: pointer;
 }
+
+/* ==========================================================================
+   Temporal Slider (Phase 11 - bi-temporal filtering)
+   ========================================================================== */
+
+/* Temporal slider container */
+.graph-temporal {
+    position: absolute;
+    bottom: var(--daemon-space-md);
+    left: var(--daemon-space-md);
+    right: 80px;  /* Leave room for zoom controls */
+    height: 50px;
+    background: var(--daemon-surface);
+    border: 1px solid var(--daemon-border);
+    border-radius: var(--daemon-radius);
+    padding: var(--daemon-space-xs);
+    z-index: 5;
+}
+
+.graph-temporal__label {
+    font-size: 0.7rem;
+    color: var(--daemon-text-muted);
+    margin-bottom: var(--daemon-space-xs);
+}
+
+.graph-temporal svg {
+    overflow: visible;
+}
+
+.graph-temporal .selection {
+    fill: var(--daemon-accent);
+    fill-opacity: 0.3;
+    stroke: var(--daemon-accent);
+}
+
+.graph-temporal .handle {
+    fill: var(--daemon-accent);
+}
+
+.graph-temporal .tick text {
+    fill: var(--daemon-text-muted);
+    font-size: 0.65rem;
+}
+
+.graph-temporal .domain {
+    stroke: var(--daemon-border);
+}
