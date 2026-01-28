@@ -3965,6 +3965,66 @@ async def get_graph(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
+async def get_graph_visual(
+    memory_ids: Optional[List[int]] = None,
+    topic: Optional[str] = None,
+    include_orphans: bool = False,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get visual memory graph with UI resource hint for MCP Apps rendering.
+
+    Returns interactive force-directed graph visualization showing memory
+    relationships with node coloring by category and edge styling by
+    relationship type. Includes zoom/pan, node details, and community
+    highlighting.
+
+    Args:
+        memory_ids: Specific memory IDs to include (if None, uses topic search)
+        topic: Topic to search for memories (alternative to memory_ids)
+        include_orphans: Include memories with no relationships
+        project_path: Project context path (uses current directory if not specified)
+
+    Returns:
+        Graph data with ui_resource hint for visual rendering and text fallback.
+    """
+    from daem0nmcp.ui.fallback import format_graph_text, format_with_ui_hint
+    import json
+    import urllib.parse
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Get graph data using existing function
+    result = await ctx.memory_manager.get_graph(
+        memory_ids=memory_ids,
+        topic=topic,
+        format="json"
+    )
+
+    # Check for errors
+    if "error" in result:
+        return result
+
+    # Add topic to result for UI title
+    if topic:
+        result["topic"] = topic
+
+    # Generate text fallback
+    text = format_graph_text(result)
+
+    # Build UI resource URI with encoded data
+    data_json = json.dumps(result)
+    encoded_data = urllib.parse.quote(data_json)
+    ui_resource = f"ui://daem0n/graph/{encoded_data}"
+
+    return format_with_ui_hint(result, ui_resource, text)
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
 async def prune_memories(
     older_than_days: int = 90,
     categories: Optional[List[str]] = None,

@@ -364,6 +364,73 @@ def format_communities_text(data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_graph_text(data: Dict[str, Any]) -> str:
+    """
+    Format graph data as readable text for non-MCP-Apps hosts.
+
+    Args:
+        data: get_graph output containing nodes, edges, counts
+
+    Returns:
+        Formatted text string suitable for terminal/text display
+    """
+    lines = []
+
+    nodes = data.get("nodes", [])
+    edges = data.get("edges", [])
+    node_count = data.get("node_count", len(nodes))
+    edge_count = data.get("edge_count", len(edges))
+    topic = data.get("topic", "")
+
+    # Header
+    if topic:
+        lines.append(f"=== Memory Graph: {topic} ===")
+    else:
+        lines.append("=== Memory Graph ===")
+    lines.append("")
+    lines.append(f"Nodes: {node_count}")
+    lines.append(f"Edges: {edge_count}")
+    lines.append("")
+
+    if not nodes:
+        lines.append("No nodes in graph.")
+        return "\n".join(lines)
+
+    # Group nodes by category
+    by_category: Dict[str, List[Dict[str, Any]]] = {}
+    for node in nodes:
+        cat = node.get("category", "unknown")
+        by_category.setdefault(cat, []).append(node)
+
+    for category in ["decision", "warning", "pattern", "learning"]:
+        cat_nodes = by_category.get(category, [])
+        if cat_nodes:
+            lines.append(f"## {category.upper()} ({len(cat_nodes)})")
+            lines.append("-" * 40)
+            for node in cat_nodes[:5]:  # Limit for text output
+                content = node.get("content", "")[:80]
+                node_id = node.get("id", "?")
+                lines.append(f"  [{node_id}] {content}")
+            if len(cat_nodes) > 5:
+                lines.append(f"  ... and {len(cat_nodes) - 5} more")
+            lines.append("")
+
+    # Relationship summary
+    if edges:
+        lines.append("## Relationships")
+        lines.append("-" * 40)
+        rel_counts: Dict[str, int] = {}
+        for edge in edges:
+            rel = edge.get("relationship", "relates_to")
+            rel_counts[rel] = rel_counts.get(rel, 0) + 1
+
+        for rel, count in sorted(rel_counts.items(), key=lambda x: -x[1]):
+            lines.append(f"  {rel}: {count}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def format_briefing_text(data: Dict[str, Any]) -> str:
     """
     Format briefing data as readable text for non-MCP-Apps hosts.
