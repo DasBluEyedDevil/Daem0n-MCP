@@ -144,6 +144,8 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
         content = result.get("content", "")
         highlighted_content = _highlight_keywords(content, topic)
         relevance = result.get("relevance", result.get("score", 0))
+        semantic_match = result.get("semantic_match", relevance)  # Fallback to relevance if not provided
+        recency_weight = result.get("recency_weight", 1.0)  # Default to 1.0 if not provided
         score_width = int(relevance * 100) if relevance <= 1 else int(relevance)
         created_at = _format_date(result.get("created_at", ""))
         tags = result.get("tags", [])
@@ -152,6 +154,11 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
         if tags:
             tag_spans = [f'<span class="result-card__tag">{tag}</span>' for tag in tags]
             tags_html = f'<div class="result-card__tags">{" ".join(tag_spans)}</div>'
+
+        # Format percentages for display
+        semantic_pct = f"{semantic_match:.0%}" if semantic_match <= 1 else f"{semantic_match}%"
+        recency_pct = f"{recency_weight:.0%}" if recency_weight <= 1 else f"{recency_weight}%"
+        relevance_pct = f"{relevance:.0%}" if relevance <= 1 else f"{relevance}%"
 
         return f'''
 <div class="daemon-card result-card" data-category="{category}">
@@ -168,6 +175,23 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
         </div>
     </div>
     <div class="result-card__content">{highlighted_content}</div>
+    <details class="daemon-score-breakdown">
+        <summary>Score breakdown</summary>
+        <div class="daemon-score-components">
+            <div class="daemon-score-component">
+                <span class="daemon-score-component__label">Semantic match:</span>
+                <span class="daemon-score-component__value">{semantic_pct}</span>
+            </div>
+            <div class="daemon-score-component">
+                <span class="daemon-score-component__label">Recency weight:</span>
+                <span class="daemon-score-component__value">{recency_pct}</span>
+            </div>
+            <div class="daemon-score-component">
+                <span class="daemon-score-component__label">Final relevance:</span>
+                <span class="daemon-score-component__value">{relevance_pct}</span>
+            </div>
+        </div>
+    </details>
     <div class="result-card__meta">
         <span class="result-card__date">{created_at}</span>
         {tags_html}

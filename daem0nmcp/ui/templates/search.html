@@ -101,6 +101,42 @@
 .hidden {
     display: none !important;
 }
+
+/* Score Breakdown */
+.daemon-score-breakdown {
+    margin-top: var(--daemon-space-sm);
+}
+
+.daemon-score-breakdown summary {
+    cursor: pointer;
+    color: var(--daemon-text-muted);
+    font-size: 0.875rem;
+}
+
+.daemon-score-breakdown summary:hover {
+    color: var(--daemon-accent);
+}
+
+.daemon-score-components {
+    padding: var(--daemon-space-sm) 0;
+    display: grid;
+    gap: var(--daemon-space-xs);
+}
+
+.daemon-score-component {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+}
+
+.daemon-score-component__label {
+    color: var(--daemon-text-muted);
+}
+
+.daemon-score-component__value {
+    font-family: var(--daemon-font-mono);
+    color: var(--daemon-accent);
+}
     </style>
 </head>
 <body>
