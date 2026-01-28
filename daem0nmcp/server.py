@@ -2156,6 +2156,140 @@ async def get_briefing_visual(
 
 
 # ============================================================================
+# Tool 6.6: GET_COVENANT_STATUS - Current covenant state for dashboard
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_covenant_status(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get current Sacred Covenant status for dashboard visualization.
+
+    Returns the current ritual phase, preflight token status, and data
+    needed to render the Covenant Status Dashboard.
+
+    Args:
+        project_path: Project root (REQUIRED)
+
+    Returns:
+        Dict with phase info, token status, and message
+    """
+    from .covenant import COUNSEL_TTL_SECONDS
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Get ritual phase from tracker
+    phase = _ritual_phase_tracker.get_phase(ctx.project_path)
+
+    # Map RitualPhase to covenant terminology
+    COVENANT_PHASES = {
+        "briefing": "commune",
+        "exploration": "counsel",
+        "action": "inscribe",
+        "reflection": "seal",
+    }
+    covenant_phase = COVENANT_PHASES.get(phase, "commune")
+
+    PHASE_DISPLAY = {
+        "commune": {"label": "COMMUNE", "description": "Receive briefing from the Daem0n"},
+        "counsel": {"label": "SEEK COUNSEL", "description": "Check context before acting"},
+        "inscribe": {"label": "INSCRIBE", "description": "Record memories and decisions"},
+        "seal": {"label": "SEAL", "description": "Evaluate and record outcomes"},
+    }
+    phase_info = PHASE_DISPLAY.get(covenant_phase, PHASE_DISPLAY["commune"])
+
+    # Check preflight token status
+    preflight_status = "none"
+    preflight_expires = None
+    preflight_remaining = None
+
+    if ctx.context_checks:
+        latest = ctx.context_checks[-1]
+        check_time = datetime.fromisoformat(latest["timestamp"].replace("Z", "+00:00"))
+        expires_at = check_time + timedelta(seconds=COUNSEL_TTL_SECONDS)
+
+        if datetime.now(timezone.utc) < expires_at:
+            preflight_status = "valid"
+            preflight_expires = expires_at.isoformat()
+            preflight_remaining = int((expires_at - datetime.now(timezone.utc)).total_seconds())
+        else:
+            preflight_status = "expired"
+
+    # Build status message
+    messages = {
+        "commune": "Begin by receiving your briefing (get_briefing).",
+        "counsel": "Counsel sought. You may now inscribe memories or take action.",
+        "inscribe": "Actions taken. Consider recording outcomes when complete.",
+        "seal": "Outcomes recorded. The covenant cycle may begin anew.",
+    }
+
+    return {
+        "phase": covenant_phase,
+        "phase_label": phase_info["label"],
+        "phase_description": phase_info["description"],
+        "is_briefed": ctx.briefed,
+        "context_check_count": len(ctx.context_checks),
+        "preflight": {
+            "status": preflight_status,
+            "expires_at": preflight_expires,
+            "remaining_seconds": preflight_remaining,
+        },
+        "can_mutate": preflight_status == "valid",
+        "message": messages.get(covenant_phase, messages["commune"]),
+    }
+
+
+# ============================================================================
+# Tool 6.7: GET_COVENANT_STATUS_VISUAL - Covenant status with UI support
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_covenant_status_visual(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get covenant status with visual UI support.
+
+    Same as get_covenant_status() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        project_path: Project root (REQUIRED)
+
+    Returns:
+        Dict with covenant data + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_covenant_status_text
+
+    # Get covenant status using existing function
+    result = await get_covenant_status(project_path=project_path)
+
+    # Check for error
+    if "error" in result:
+        return result
+
+    # Generate text fallback
+    text = format_covenant_status_text(result)
+
+    # Create UI resource URI with encoded data
+    import json
+    import urllib.parse
+    data_json = json.dumps(result)
+    encoded_data = urllib.parse.quote(data_json)
+    ui_resource = f"ui://daem0n/covenant/{encoded_data}"
+
+    return format_with_ui_hint(
+        data=result,
+        ui_resource=ui_resource,
+        text=text
+    )
+
+
+# ============================================================================
 # Tool 7: SEARCH - Full text search across memories
 # ============================================================================
 @mcp.tool(version="3.0.0")
