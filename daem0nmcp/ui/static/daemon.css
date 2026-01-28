@@ -582,6 +582,117 @@ select.daemon-input {
 }
 
 /* ==========================================================================
+   Accordion
+   ========================================================================== */
+
+.daemon-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--daemon-space-sm);
+}
+
+.daemon-accordion__item {
+  background-color: var(--daemon-surface);
+  border: var(--daemon-border);
+  border-radius: var(--daemon-radius);
+  overflow: hidden;
+}
+
+.daemon-accordion__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--daemon-space-md);
+  background-color: transparent;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  color: var(--daemon-text);
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.daemon-accordion__header:hover {
+  background-color: var(--daemon-bg-alt);
+}
+
+.daemon-accordion__header:focus-visible {
+  outline: 2px solid var(--daemon-accent);
+  outline-offset: -2px;
+}
+
+.daemon-accordion__title {
+  display: flex;
+  align-items: center;
+  gap: var(--daemon-space-sm);
+}
+
+.daemon-accordion__count {
+  font-size: 0.75rem;
+  color: var(--daemon-text-muted);
+  font-weight: 400;
+}
+
+.daemon-accordion__icon {
+  font-size: 0.75rem;
+  color: var(--daemon-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.daemon-accordion__item[open] .daemon-accordion__icon {
+  transform: rotate(90deg);
+}
+
+.daemon-accordion__content {
+  padding: 0 var(--daemon-space-md) var(--daemon-space-md);
+}
+
+/* Statistics Panel */
+.daemon-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--daemon-space-md);
+  padding: var(--daemon-space-md);
+  background-color: var(--daemon-surface);
+  border: var(--daemon-border);
+  border-radius: var(--daemon-radius);
+  margin-bottom: var(--daemon-space-lg);
+}
+
+.daemon-stat {
+  text-align: center;
+}
+
+.daemon-stat__value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--daemon-accent);
+  font-family: var(--daemon-font-mono);
+}
+
+.daemon-stat__label {
+  font-size: 0.75rem;
+  color: var(--daemon-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--daemon-space-xs);
+}
+
+.daemon-stat--success .daemon-stat__value {
+  color: var(--daemon-success);
+}
+
+.daemon-stat--warning .daemon-stat__value {
+  color: var(--daemon-warning);
+}
+
+.daemon-stat--error .daemon-stat__value {
+  color: var(--daemon-error);
+}
+
+/* ==========================================================================
    Responsive Breakpoints
    ========================================================================== */
 
