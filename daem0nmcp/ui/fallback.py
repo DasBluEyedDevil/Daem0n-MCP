@@ -306,6 +306,64 @@ def format_graph_path(
     return "\n".join(lines)
 
 
+def format_communities_text(data: Dict[str, Any]) -> str:
+    """
+    Format community list as readable text for non-MCP-Apps hosts.
+
+    Args:
+        data: list_communities output containing:
+            - count: Total community count
+            - communities: List of community dicts
+            - path: Optional navigation path
+
+    Returns:
+        Formatted text string suitable for terminal/text display
+    """
+    lines = []
+
+    count = data.get("count", 0)
+    communities = data.get("communities", [])
+    path = data.get("path", [])
+
+    # Header with path context
+    if path:
+        path_str = " > ".join(p.get("name", "?") for p in path)
+        lines.append(f"=== Community Cluster Map: {path_str} ===")
+    else:
+        lines.append("=== Community Cluster Map ===")
+    lines.append("")
+    lines.append(f"Total communities: {count}")
+    lines.append("")
+
+    if not communities:
+        lines.append("No communities found.")
+        return "\n".join(lines)
+
+    # Group by level for readable output
+    by_level: Dict[int, List[Dict[str, Any]]] = {}
+    for c in communities:
+        level = c.get("level", 0)
+        by_level.setdefault(level, []).append(c)
+
+    for level in sorted(by_level.keys()):
+        level_communities = by_level[level]
+        lines.append(f"## Level {level} ({len(level_communities)} communities)")
+        lines.append("-" * 40)
+
+        for c in level_communities:
+            name = c.get("name", "Unnamed")
+            member_count = c.get("member_count", 0)
+            summary = c.get("summary", "")[:100]  # Truncate
+
+            lines.append(f"  [{c.get('id', '?')}] {name}")
+            lines.append(f"      Members: {member_count}")
+            if summary:
+                lines.append(f"      Summary: {summary}...")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
 def format_briefing_text(data: Dict[str, Any]) -> str:
     """
     Format briefing data as readable text for non-MCP-Apps hosts.
