@@ -64,6 +64,13 @@
     </style>
 </head>
 <body>
+    <!-- Real-time update notification badge -->
+    <div id="update-indicator" class="daemon-update-badge" role="status" aria-live="polite">
+        <span class="daemon-update-badge__dot"></span>
+        <span>New data available</span>
+        <button id="refresh-btn" class="daemon-btn daemon-btn--small">Refresh</button>
+    </div>
+
     <div id="app">
         <div class="daemon-container" style="padding: var(--daemon-space-lg);">
             <!-- Header Section -->
@@ -249,6 +256,37 @@
                     tool: 'context_check',
                     args: { description: 'Refreshing token from Covenant Status dashboard' }
                 });
+            }
+        });
+    }
+})();
+
+// Real-time update notification receiver
+(function() {
+    var updateTimeout = null;
+    var DEBOUNCE_MS = 300;
+    var indicator = document.getElementById('update-indicator');
+    var refreshBtn = document.getElementById('refresh-btn');
+
+    if (window.SecureMessenger) {
+        SecureMessenger.on('data_updated', function(data) {
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(function() {
+                if (indicator) {
+                    indicator.classList.add('daemon-update-badge--visible');
+                    indicator.setAttribute('data-last-update', data.last_update || '');
+                }
+            }, DEBOUNCE_MS);
+        });
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            if (indicator) {
+                indicator.classList.remove('daemon-update-badge--visible');
+            }
+            if (window.SecureMessenger) {
+                SecureMessenger.send('tool_request', { tool: 'refresh_ui' });
             }
         });
     }
