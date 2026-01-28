@@ -57,10 +57,10 @@
         <div class="graph-container" id="graph-container">
             <!-- Canvas will be created by JavaScript -->
 
-            <!-- Loading indicator -->
+            <!-- Loading indicator with progress text -->
             <div class="graph-loading" id="loading">
                 <div class="graph-loading__spinner"></div>
-                <span>Loading graph...</span>
+                <span id="loading-text">Loading graph...</span>
             </div>
 
             <!-- Empty state -->
@@ -235,11 +235,11 @@
     }
 
     /**
-     * Initialize D3 force simulation
+     * Initialize D3 force simulation with provided nodes
      */
-    function initSimulation() {
-        simulation = d3.forceSimulation(graphData.nodes)
-            .force('link', d3.forceLink(graphData.edges)
+    function initSimulation(nodes, edges) {
+        simulation = d3.forceSimulation(nodes)
+            .force('link', d3.forceLink(edges)
                 .id(function(d) { return d.id; })
                 .strength(0.5)
                 .distance(80))
@@ -252,6 +252,95 @@
             .on('end', function() {
                 loadingEl.classList.add('graph-loading--hidden');
             });
+    }
+
+    /**
+     * Update loading progress text
+     */
+    function updateProgress(percent) {
+        var progressText = document.getElementById('loading-text');
+        if (progressText) {
+            progressText.textContent = 'Loading... ' + Math.round(percent * 100) + '%';
+        }
+    }
+
+    /**
+     * Progressive loading for large graphs using requestIdleCallback
+     * Loads nodes in batches during browser idle time to prevent UI freeze
+     */
+    function loadGraphProgressively(nodes, edges, onProgress, onComplete) {
+        var BATCH_SIZE = 50;  // Nodes per idle callback
+        var loadedNodes = [];
+        var loaded = 0;
+        var total = nodes.length;
+
+        // Show loading indicator
+        loadingEl.classList.remove('graph-loading--hidden');
+
+        function loadBatch(deadline) {
+            // Load nodes while we have idle time (at least 5ms remaining)
+            while (loaded < total && deadline.timeRemaining() > 5) {
+                loadedNodes.push(nodes[loaded]);
+                loaded++;
+
+                // Update progress and restart simulation periodically
+                if (loaded % BATCH_SIZE === 0) {
+                    if (simulation) {
+                        simulation.nodes(loadedNodes);
+                        simulation.alpha(0.3).restart();
+                    }
+                    onProgress(loaded / total);
+                }
+            }
+
+            if (loaded < total) {
+                // More nodes to load - schedule next batch
+                requestIdleCallback(loadBatch);
+            } else {
+                // All nodes loaded - add edges and finalize
+                if (simulation) {
+                    simulation.nodes(loadedNodes);
+                    simulation.force('link').links(edges);
+                    simulation.alpha(1).restart();
+                }
+                loadingEl.classList.add('graph-loading--hidden');
+                onComplete();
+            }
+        }
+
+        // Initialize simulation with empty nodes first
+        initSimulation([], []);
+
+        // Start loading
+        if (window.requestIdleCallback) {
+            requestIdleCallback(loadBatch);
+        } else {
+            // Fallback for Safari (no requestIdleCallback support)
+            // Load synchronously but update progress periodically
+            var i = 0;
+            function loadChunk() {
+                var chunkEnd = Math.min(i + BATCH_SIZE, total);
+                while (i < chunkEnd) {
+                    loadedNodes.push(nodes[i]);
+                    i++;
+                }
+                onProgress(i / total);
+
+                if (i < total) {
+                    // Use setTimeout to yield to browser
+                    setTimeout(loadChunk, 0);
+                } else {
+                    // All loaded
+                    simulation.nodes(loadedNodes);
+                    simulation.force('link').links(edges);
+                    simulation.alpha(1).restart();
+                    loadingEl.classList.add('graph-loading--hidden');
+                    onComplete();
+                }
+            }
+            initSimulation([], []);
+            loadChunk();
+        }
     }
 
     /**
@@ -432,6 +521,9 @@
         }
     }
 
+    // Progressive loading threshold (use for graphs larger than this)
+    var PROGRESSIVE_THRESHOLD = 200;
+
     /**
      * Initialize the graph viewer
      */
@@ -443,9 +535,25 @@
             return;
         }
 
-        // Initialize components
+        // Initialize canvas first
         initCanvas();
-        initSimulation();
+
+        // Use progressive loading for large graphs to prevent UI freeze
+        if (graphData.nodes.length > PROGRESSIVE_THRESHOLD) {
+            loadGraphProgressively(
+                graphData.nodes,
+                graphData.edges,
+                updateProgress,
+                function() {
+                    console.log('Graph loaded progressively: ' + graphData.nodes.length + ' nodes');
+                }
+            );
+        } else {
+            // Small graph - load directly
+            initSimulation(graphData.nodes, graphData.edges);
+        }
+
+        // Initialize interaction handlers
         initZoom();
         initClickHandler();
 
