@@ -777,8 +777,27 @@ def register_ui_resources(mcp: "FastMCP") -> None:
         parsed = json.loads(data) if data else {}
         return _build_covenant_ui(parsed)
 
+    @mcp.resource(
+        uri="ui://daem0n/community/{data}",
+        name="Community Cluster Map",
+        description="Interactive treemap visualization of Leiden communities",
+        mime_type=MCP_APPS_MIME
+    )
+    def get_community_ui(data: str) -> str:
+        """
+        Render community data as visual treemap.
+
+        Args:
+            data: JSON string containing list_communities output with
+                  count, communities, and optional path
+
+        Returns:
+            Complete HTML for the community cluster map UI
+        """
+        parsed = json.loads(data) if data else {}
+        return _build_community_ui(parsed)
+
     # Additional resources will be registered in later phases:
-    # - ui://daem0n/community (Phase 10)
     # - ui://daem0n/graph (Phase 11)
 
 
