@@ -4,7 +4,8 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+/build/
+!daem0nmcp/ui/build/
 develop-eggs/
 dist/
 downloads/
@@ -53,3 +54,7 @@ logs/
 .worktrees/
 CLAUDE.md
 .planning/
+
+# Node.js
+node_modules/
+package-lock.json
