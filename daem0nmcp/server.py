@@ -18,6 +18,7 @@ A smarter MCP server that provides:
 12. Memory maintenance (pin, archive, prune, cleanup)
 13. Code understanding via tree-sitter parsing
 14. Active working context (MemGPT-style always-hot memories)
+15. MCP Apps UI resources for visual interfaces (v5.0)
 
 60 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
@@ -101,6 +102,7 @@ try:
     )
     from .agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from .rwlock import RWLock
+    from .ui.resources import register_ui_resources
 except ImportError:
     # For fastmcp run which executes server.py directly
     from daem0nmcp.config import settings
@@ -123,6 +125,7 @@ except ImportError:
     )
     from daem0nmcp.agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from daem0nmcp.rwlock import RWLock
+    from daem0nmcp.ui.resources import register_ui_resources
 from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
 
@@ -143,6 +146,9 @@ if os.getenv('DAEM0NMCP_STRUCTURED_LOGS'):
 
 # Initialize FastMCP server
 mcp = FastMCP("Daem0nMCP")
+
+# Register UI resources for MCP Apps (v5.0)
+register_ui_resources(mcp)
 
 # Global ritual phase tracker for tool visibility
 _ritual_phase_tracker = RitualPhaseTracker()
