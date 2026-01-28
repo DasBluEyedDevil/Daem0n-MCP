@@ -565,7 +565,7 @@ def _build_community_ui(data: Dict[str, Any]) -> str:
     if not path:
         # At root level
         breadcrumb_items.append(
-            '<span class="treemap-breadcrumb__item treemap-breadcrumb__item--current">All Communities</span>'
+            '<span class="treemap-breadcrumb__item treemap-breadcrumb__item--current" aria-current="page">All Communities</span>'
         )
     else:
         # Has navigation path
@@ -577,7 +577,7 @@ def _build_community_ui(data: Dict[str, Any]) -> str:
             if i == len(path) - 1:
                 # Current (last) item
                 breadcrumb_items.append(
-                    f'<span class="treemap-breadcrumb__item treemap-breadcrumb__item--current">{item.get("name", "")}</span>'
+                    f'<span class="treemap-breadcrumb__item treemap-breadcrumb__item--current" aria-current="page">{item.get("name", "")}</span>'
                 )
             else:
                 # Clickable ancestor
