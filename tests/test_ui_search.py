@@ -315,6 +315,137 @@ class TestScoreBreakdown:
         assert "100%" in html
 
 
+class TestRecordOutcomeButton:
+    """Tests for Record Outcome button on decision cards."""
+
+    def test_record_outcome_button_on_pending_decision(self):
+        """Test that Record Outcome button appears on decisions without outcome."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {
+                    "id": 123,
+                    "content": "Use async for all API calls",
+                    "relevance": 0.85,
+                    "worked": None,  # No outcome recorded yet
+                }
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+        }
+
+        html = _build_search_ui(data)
+
+        # Button should be present
+        assert 'data-action="record-outcome"' in html
+        assert 'data-memory-id="123"' in html
+        assert "Record Outcome" in html
+        assert "daemon-card__actions" in html
+
+    def test_record_outcome_button_hidden_for_completed(self):
+        """Test that Record Outcome button is hidden when outcome already recorded."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {
+                    "id": 456,
+                    "content": "Use JWT for authentication",
+                    "relevance": 0.90,
+                    "worked": True,  # Outcome already recorded
+                }
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+        }
+
+        html = _build_search_ui(data)
+
+        # Button element should NOT be present (outcome already recorded)
+        # Check for the actual button with data-memory-id attribute
+        assert 'data-memory-id="456"' not in html
+        assert 'data-memory-id=' not in html  # No button with memory id at all
+        # But the card should still exist
+        assert "Use JWT for authentication" in html
+
+    def test_record_outcome_button_hidden_for_failed(self):
+        """Test that Record Outcome button is hidden when outcome is failure."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {
+                    "id": 789,
+                    "content": "Use global state",
+                    "relevance": 0.70,
+                    "worked": False,  # Outcome recorded as failure
+                }
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+        }
+
+        html = _build_search_ui(data)
+
+        # Button should NOT be present - check for actual button element
+        assert 'data-memory-id="789"' not in html
+        assert 'data-memory-id=' not in html  # No button with memory id
+
+    def test_record_outcome_button_only_on_decisions(self):
+        """Test that Record Outcome button only appears on decision cards."""
+        data = {
+            "topic": "test",
+            "decisions": [],
+            "patterns": [
+                {"id": 100, "content": "A pattern", "relevance": 0.8, "worked": None}
+            ],
+            "warnings": [
+                {"id": 101, "content": "A warning", "relevance": 0.7, "worked": None}
+            ],
+            "learnings": [
+                {"id": 102, "content": "A learning", "relevance": 0.6, "worked": None}
+            ],
+        }
+
+        html = _build_search_ui(data)
+
+        # Button should NOT appear on any of these (they're not decisions)
+        # Check for actual button elements with memory ids
+        assert 'data-memory-id="100"' not in html
+        assert 'data-memory-id="101"' not in html
+        assert 'data-memory-id="102"' not in html
+        assert 'data-memory-id=' not in html  # No buttons at all
+        # But the cards should still render
+        assert "A pattern" in html
+        assert "A warning" in html
+        assert "A learning" in html
+
+    def test_record_outcome_button_requires_memory_id(self):
+        """Test that Record Outcome button requires memory ID."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {
+                    # No id field
+                    "content": "Decision without ID",
+                    "relevance": 0.85,
+                    "worked": None,
+                }
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+        }
+
+        html = _build_search_ui(data)
+
+        # Button should NOT appear (no memory_id)
+        assert 'data-memory-id=' not in html
+        # But the card should still render
+        assert "Decision without ID" in html
+
+
 class TestPagination:
     """Tests for pagination controls."""
 
@@ -445,3 +576,86 @@ class TestPagination:
         assert 'class="daemon-pagination"' not in html
         assert 'data-action="prev"' not in html
         assert 'data-action="next"' not in html
+
+
+class TestRecallVisualFormat:
+    """Tests for recall_visual tool output format."""
+
+    def test_format_with_ui_hint_structure(self):
+        """Test that format_with_ui_hint returns correct structure."""
+        from daem0nmcp.ui.fallback import format_with_ui_hint
+
+        data = {
+            "decisions": [{"id": 1, "content": "test", "relevance": 0.8}],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+            "total_count": 1,
+        }
+
+        result = format_with_ui_hint(
+            data=data,
+            ui_resource="ui://daem0n/search",
+            text="Test text"
+        )
+
+        # Should have original data plus ui_resource and text
+        assert "ui_resource" in result
+        assert result["ui_resource"] == "ui://daem0n/search"
+        assert "text" in result
+        assert result["text"] == "Test text"
+        # Original data should be spread in
+        assert "decisions" in result
+        assert result["total_count"] == 1
+
+    def test_format_search_results_text(self):
+        """Test that format_search_results generates correct text fallback."""
+        from daem0nmcp.ui.fallback import format_search_results
+
+        results = [
+            {"id": 1, "category": "decision", "content": "Use async", "score": 0.85},
+            {"id": 2, "category": "warning", "content": "Watch for deadlocks", "score": 0.72},
+        ]
+
+        text = format_search_results(
+            query="concurrency",
+            results=results,
+            total_count=2
+        )
+
+        assert "Search Results for: concurrency" in text
+        assert "Found 2 result(s)" in text
+        assert "DECISION" in text
+        assert "Use async" in text
+        assert "WARNING" in text
+        assert "Watch for deadlocks" in text
+        assert "(score: 0.85)" in text
+        assert "(score: 0.72)" in text
+
+    def test_format_search_results_empty(self):
+        """Test that format_search_results handles empty results."""
+        from daem0nmcp.ui.fallback import format_search_results
+
+        text = format_search_results(
+            query="nonexistent",
+            results=[],
+            total_count=0
+        )
+
+        assert "No results found for: nonexistent" in text
+
+    def test_format_search_results_truncates_long_content(self):
+        """Test that format_search_results truncates long content."""
+        from daem0nmcp.ui.fallback import format_search_results
+
+        long_content = "x" * 300  # Longer than 200 char limit
+        results = [
+            {"id": 1, "category": "learning", "content": long_content, "score": 0.5}
+        ]
+
+        text = format_search_results(query="test", results=results)
+
+        # Should be truncated with ellipsis
+        assert "..." in text
+        # Should not contain full 300 chars
+        assert long_content not in text
