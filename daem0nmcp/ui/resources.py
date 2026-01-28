@@ -501,6 +501,93 @@ def _build_briefing_ui(data: Dict[str, Any]) -> str:
     return html
 
 
+def _build_covenant_ui(data: Dict[str, Any]) -> str:
+    """
+    Build the covenant status dashboard UI HTML from get_covenant_status data.
+
+    Args:
+        data: get_covenant_status output containing:
+            - phase: Current covenant phase (commune/counsel/inscribe/seal)
+            - phase_label: Display label
+            - phase_description: Description text
+            - preflight: Dict with status, expires_at, remaining_seconds
+            - can_mutate: Whether mutations are allowed
+            - message: Status message
+
+    Returns:
+        Complete HTML string for the covenant status dashboard
+    """
+    template = _load_template("covenant.html")
+
+    phase = data.get("phase", "commune")
+    phase_label = data.get("phase_label", "COMMUNE")
+    phase_description = data.get("phase_description", "")
+    preflight = data.get("preflight", {})
+    message = data.get("message", "")
+
+    # Token status
+    token_status = preflight.get("status", "none")
+    token_status_labels = {
+        "valid": "VALID",
+        "expired": "EXPIRED",
+        "none": "NONE",
+    }
+    token_status_label = token_status_labels.get(token_status, "NONE")
+
+    # Token remaining time
+    remaining = preflight.get("remaining_seconds")
+    if remaining is not None and remaining > 0:
+        minutes = remaining // 60
+        seconds = remaining % 60
+        token_remaining = f"{minutes}:{seconds:02d}"
+        countdown_visibility = ""
+    else:
+        token_remaining = "0:00"
+        countdown_visibility = "display: none;"
+
+    # Token expires_at for JS countdown
+    token_expires_at = preflight.get("expires_at") or ""
+
+    # Determine warning state (under 60 seconds)
+    time_class = ""
+    if remaining is not None and 0 < remaining < 60:
+        time_class = "token-status__time--warning"
+
+    # Token panel HTML (matches 09-02 CSS classes)
+    token_panel_html = f'''
+    <div class="token-status" id="token-status">
+        <div class="token-status__header">
+            <span class="token-status__label">Preflight Token</span>
+            <span class="token-status__badge token-status__badge--{token_status}">{token_status_label}</span>
+        </div>
+        <div class="token-status__countdown" id="countdown-panel" style="{countdown_visibility}">
+            <span class="token-status__icon">&#9201;</span>
+            <span class="token-status__time {time_class}" id="countdown" data-expires="{token_expires_at}">{token_remaining}</span>
+            <span class="token-status__unit">remaining</span>
+        </div>
+    </div>
+    '''
+
+    # Phase info panel
+    phase_info_html = f'''
+    <div class="covenant-phase-info">
+        <div class="covenant-phase-info__label">{phase_label}</div>
+        <div class="covenant-phase-info__description">{phase_description}</div>
+        <p style="margin-top: var(--daemon-space-sm); color: var(--daemon-text-muted);">{message}</p>
+    </div>
+    '''
+
+    # Inject into template
+    html = template.replace("{{TITLE}}", "Covenant Status")
+    html = html.replace("{{STATUS}}", phase_label)
+    html = html.replace("{{CURRENT_PHASE}}", phase)
+    html = html.replace("{{TOKEN_PANEL}}", token_panel_html)
+    html = html.replace("{{PHASE_INFO}}", phase_info_html)
+    html = _inject_assets(html, include_d3=True)  # Include D3 for transitions
+
+    return html
+
+
 def _build_test_ui() -> str:
     """Build a test UI to validate infrastructure works."""
     base = _load_template("base.html")
@@ -585,8 +672,26 @@ def register_ui_resources(mcp: "FastMCP") -> None:
         parsed = json.loads(data) if data else {}
         return _build_briefing_ui(parsed)
 
+    @mcp.resource(
+        uri="ui://daem0n/covenant/{data}",
+        name="Covenant Status",
+        description="Sacred Covenant state machine dashboard with token countdown",
+        mime_type=MCP_APPS_MIME
+    )
+    def get_covenant_ui(data: str) -> str:
+        """
+        Render covenant status as visual dashboard.
+
+        Args:
+            data: JSON string containing get_covenant_status output
+
+        Returns:
+            Complete HTML for the covenant status dashboard
+        """
+        parsed = json.loads(data) if data else {}
+        return _build_covenant_ui(parsed)
+
     # Additional resources will be registered in later phases:
-    # - ui://daem0n/covenant (Phase 9)
     # - ui://daem0n/community (Phase 10)
     # - ui://daem0n/graph (Phase 11)
 
@@ -599,5 +704,6 @@ __all__ = [
     "register_ui_resources",
     "_build_search_ui",
     "_build_briefing_ui",
+    "_build_covenant_ui",
     "_highlight_keywords",
 ]
