@@ -988,3 +988,184 @@ select.daemon-input {
 .treemap-breadcrumb__separator {
   color: var(--daemon-text-muted);
 }
+
+/* ============================================
+   MEMORY GRAPH VIEWER (Phase 11)
+   ============================================ */
+
+/* Graph container - full viewport canvas */
+.graph-container {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 120px);
+    background: var(--daemon-bg);
+    border-radius: var(--daemon-radius);
+    overflow: hidden;
+}
+
+.graph-canvas {
+    display: block;
+    cursor: grab;
+}
+
+.graph-canvas:active {
+    cursor: grabbing;
+}
+
+/* Node category colors (match existing badge colors) */
+.graph-node--decision { fill: var(--daemon-decision, #3b82f6); }
+.graph-node--warning { fill: var(--daemon-warning, #f59e0b); }
+.graph-node--pattern { fill: var(--daemon-pattern, #8b5cf6); }
+.graph-node--learning { fill: var(--daemon-learning, #22c55e); }
+
+/* Details panel (slides in from right) */
+.graph-details {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 320px;
+    height: 100%;
+    background: var(--daemon-surface);
+    border-left: 1px solid var(--daemon-border);
+    padding: var(--daemon-space-md);
+    transform: translateX(100%);
+    transition: transform 0.2s ease-out;
+    overflow-y: auto;
+    z-index: 10;
+}
+
+.graph-details--visible {
+    transform: translateX(0);
+}
+
+.graph-details__close {
+    position: absolute;
+    top: var(--daemon-space-sm);
+    right: var(--daemon-space-sm);
+    background: none;
+    border: none;
+    color: var(--daemon-text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.graph-details__close:hover {
+    color: var(--daemon-text);
+}
+
+/* Graph header with controls */
+.graph-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--daemon-space-md);
+}
+
+.graph-header__title {
+    display: flex;
+    align-items: center;
+    gap: var(--daemon-space-sm);
+}
+
+.graph-header__count {
+    color: var(--daemon-text-muted);
+    font-size: 0.875rem;
+}
+
+/* Legend for node categories */
+.graph-legend {
+    display: flex;
+    gap: var(--daemon-space-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--daemon-space-md);
+}
+
+.graph-legend__item {
+    display: flex;
+    align-items: center;
+    gap: var(--daemon-space-xs);
+    font-size: 0.75rem;
+    color: var(--daemon-text-muted);
+}
+
+.graph-legend__color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.graph-legend__color--decision { background: var(--daemon-decision, #3b82f6); }
+.graph-legend__color--warning { background: var(--daemon-warning, #f59e0b); }
+.graph-legend__color--pattern { background: var(--daemon-pattern, #8b5cf6); }
+.graph-legend__color--learning { background: var(--daemon-learning, #22c55e); }
+
+/* Zoom controls */
+.graph-controls {
+    position: absolute;
+    bottom: var(--daemon-space-md);
+    right: var(--daemon-space-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--daemon-space-xs);
+    z-index: 5;
+}
+
+.graph-controls__btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--daemon-surface);
+    border: 1px solid var(--daemon-border);
+    border-radius: var(--daemon-radius);
+    color: var(--daemon-text);
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.graph-controls__btn:hover {
+    background: var(--daemon-bg-alt);
+}
+
+/* Loading indicator */
+.graph-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--daemon-space-sm);
+    color: var(--daemon-text-muted);
+}
+
+.graph-loading__spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--daemon-border);
+    border-top-color: var(--daemon-accent);
+    border-radius: 50%;
+    animation: graph-spin 0.8s linear infinite;
+}
+
+@keyframes graph-spin {
+    to { transform: rotate(360deg); }
+}
+
+.graph-loading--hidden {
+    display: none;
+}
+
+/* Empty state */
+.graph-empty {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--daemon-text-muted);
+}
