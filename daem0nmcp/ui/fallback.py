@@ -254,3 +254,93 @@ def format_graph_path(
             lines.append(f"  [{node_label}]")
 
     return "\n".join(lines)
+
+
+def format_briefing_text(data: Dict[str, Any]) -> str:
+    """
+    Format briefing data as readable text for non-MCP-Apps hosts.
+
+    Args:
+        data: get_briefing output
+
+    Returns:
+        Formatted text string suitable for terminal/text display
+    """
+    lines = []
+
+    status = data.get("status", "unknown")
+    lines.append(f"=== Session Briefing [{status.upper()}] ===")
+    lines.append("")
+
+    # Statistics
+    stats = data.get("statistics", {})
+    if stats:
+        lines.append("## Statistics")
+        lines.append(f"  Total Memories: {stats.get('total_memories', 0)}")
+        by_cat = stats.get("by_category", {})
+        lines.append(f"  Decisions: {by_cat.get('decision', 0)}")
+        lines.append(f"  Warnings: {by_cat.get('warning', 0)}")
+        lines.append(f"  Patterns: {by_cat.get('pattern', 0)}")
+        lines.append(f"  Learnings: {by_cat.get('learning', 0)}")
+        outcome_rates = stats.get("outcome_rates", {})
+        success_rate = outcome_rates.get("success_rate", 0)
+        lines.append(f"  Success Rate: {success_rate:.0%}")
+        lines.append("")
+
+    # Message
+    message = data.get("message")
+    if message:
+        lines.append("## Briefing Message")
+        lines.append(message)
+        lines.append("")
+
+    # Recent Decisions
+    decisions = data.get("recent_decisions", [])
+    if decisions:
+        lines.append(f"## Recent Decisions ({len(decisions)})")
+        for d in decisions[:5]:  # Limit for text output
+            worked = d.get("worked")
+            status_str = "[SUCCESS]" if worked is True else "[FAILED]" if worked is False else "[PENDING]"
+            content = d.get("content", "")[:100]  # Truncate
+            lines.append(f"  {status_str} {content}")
+        if len(decisions) > 5:
+            lines.append(f"  ... and {len(decisions) - 5} more")
+        lines.append("")
+
+    # Active Warnings
+    warnings = data.get("active_warnings", [])
+    if warnings:
+        lines.append(f"## Active Warnings ({len(warnings)})")
+        for w in warnings[:5]:
+            severity = w.get("severity", "medium").upper()
+            content = w.get("content", "")[:100]
+            lines.append(f"  [{severity}] {content}")
+        if len(warnings) > 5:
+            lines.append(f"  ... and {len(warnings) - 5} more")
+        lines.append("")
+
+    # Git Changes
+    git_changes = data.get("git_changes", {})
+    if git_changes:
+        total = git_changes.get("total", 0)
+        if total > 0:
+            lines.append(f"## Git Changes ({total} files)")
+            files = git_changes.get("files", [])[:10]
+            for f in files:
+                status_char = f.get("status", "M")
+                path = f.get("path", "")
+                lines.append(f"  {status_char} {path}")
+            if total > 10:
+                lines.append(f"  ... and {total - 10} more files")
+            lines.append("")
+
+    # Focus Areas
+    focus = data.get("focus_areas")
+    if focus:
+        lines.append(f"## Focus Areas ({len(focus)})")
+        for area in focus:
+            topic = area.get("topic", "")
+            lines.append(f"  - {topic}")
+        lines.append("")
+
+    return "\n".join(lines)
