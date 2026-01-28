@@ -140,6 +140,12 @@
             cell.dataset.memberCount = node.value;
             cell.dataset.level = node.data.level || 0;
             cell.dataset.hasChildren = (node.children && node.children.length > 0) ? 'true' : 'false';
+            cell.dataset.action = 'drill-down';
+
+            // Apply leaf class for cells without children (no drill-down available)
+            if (cell.dataset.hasChildren === 'false') {
+                cell.classList.add('treemap-cell--leaf');
+            }
 
             // Event handlers
             cell.addEventListener('mouseenter', showTooltip);

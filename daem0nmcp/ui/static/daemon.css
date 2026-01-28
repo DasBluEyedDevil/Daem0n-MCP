@@ -906,6 +906,15 @@ select.daemon-input {
 .treemap-cell--level-4 { background-color: #ec4899; }  /* Pink - level 4 */
 .treemap-cell--level-5 { background-color: #f43f5e; }  /* Rose - level 5+ */
 
+/* Leaf cells (no drill-down available) */
+.treemap-cell--leaf {
+  cursor: default;
+}
+
+.treemap-cell--leaf:hover {
+  filter: brightness(1.1);  /* Reduced hover effect for leaf nodes */
+}
+
 /* Treemap tooltip */
 .treemap-tooltip {
   position: fixed;
