@@ -1169,3 +1169,82 @@ select.daemon-input {
     text-align: center;
     color: var(--daemon-text-muted);
 }
+
+/* ==========================================================================
+   Path Animation Controls (Phase 11 - trace_chain visualization)
+   ========================================================================== */
+
+/* Path animation overlay controls */
+.graph-path-controls {
+    position: absolute;
+    top: var(--daemon-space-md);
+    left: var(--daemon-space-md);
+    display: flex;
+    gap: var(--daemon-space-sm);
+    z-index: 5;
+}
+
+.graph-path-info {
+    background: var(--daemon-surface);
+    border: 1px solid var(--daemon-border);
+    border-radius: var(--daemon-radius);
+    padding: var(--daemon-space-xs) var(--daemon-space-sm);
+    font-size: 0.75rem;
+    color: var(--daemon-text-muted);
+}
+
+.graph-path-info--visible {
+    display: block;
+}
+
+.graph-path-info--hidden {
+    display: none;
+}
+
+/* Path clear button */
+.graph-path-clear {
+    background: var(--daemon-surface);
+    border: 1px solid var(--daemon-border);
+    border-radius: var(--daemon-radius);
+    padding: var(--daemon-space-xs) var(--daemon-space-sm);
+    font-size: 0.75rem;
+    color: var(--daemon-text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.graph-path-clear:hover {
+    background: var(--daemon-bg-alt);
+    color: var(--daemon-text);
+}
+
+/* Top-positioned graph controls for community toggle */
+.graph-controls--top {
+    position: absolute;
+    top: var(--daemon-space-md);
+    right: var(--daemon-space-md);
+    bottom: auto;
+    flex-direction: row;
+}
+
+.graph-controls__toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--daemon-space-xs);
+    background: var(--daemon-surface);
+    border: 1px solid var(--daemon-border);
+    border-radius: var(--daemon-radius);
+    padding: var(--daemon-space-xs) var(--daemon-space-sm);
+    font-size: 0.75rem;
+    color: var(--daemon-text-muted);
+    cursor: pointer;
+}
+
+.graph-controls__toggle:hover {
+    background: var(--daemon-bg-alt);
+}
+
+.graph-controls__toggle input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}

@@ -144,6 +144,11 @@
     // Community visibility state
     var showCommunities = true;
 
+    // Path animation state
+    var pathAnimationId = null;
+    var currentPath = null;
+    var pathProgress = 0;
+
     /**
      * Initialize canvas with retina support
      */
@@ -276,6 +281,155 @@
     }
 
     /**
+     * Draw path highlight for trace_chain visualization
+     * Shows animated path traversal with marker and node rings
+     */
+    function drawPathHighlight(ctx) {
+        if (!currentPath || currentPath.length < 2) return;
+
+        // Calculate total path length and segments
+        var totalLength = 0;
+        var segments = [];
+        for (var i = 0; i < currentPath.length - 1; i++) {
+            var start = currentPath[i];
+            var end = currentPath[i + 1];
+            var dx = end.x - start.x;
+            var dy = end.y - start.y;
+            var length = Math.sqrt(dx * dx + dy * dy);
+            segments.push({ start: start, end: end, length: length });
+            totalLength += length;
+        }
+
+        var traveled = pathProgress * totalLength;
+
+        // Draw highlighted path segments
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#8b5cf6';  // daemon-accent
+        ctx.lineCap = 'round';
+
+        var accumulated = 0;
+        ctx.beginPath();
+        ctx.moveTo(currentPath[0].x, currentPath[0].y);
+
+        var markerX = currentPath[0].x;
+        var markerY = currentPath[0].y;
+
+        for (var j = 0; j < segments.length; j++) {
+            var seg = segments[j];
+            if (accumulated + seg.length <= traveled) {
+                // Full segment traversed
+                ctx.lineTo(seg.end.x, seg.end.y);
+                accumulated += seg.length;
+                markerX = seg.end.x;
+                markerY = seg.end.y;
+            } else {
+                // Partial segment - interpolate position
+                var t = (traveled - accumulated) / seg.length;
+                markerX = seg.start.x + t * (seg.end.x - seg.start.x);
+                markerY = seg.start.y + t * (seg.end.y - seg.start.y);
+                ctx.lineTo(markerX, markerY);
+                break;
+            }
+        }
+        ctx.stroke();
+
+        // Draw marker at current position
+        ctx.beginPath();
+        ctx.arc(markerX, markerY, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = '#8b5cf6';  // daemon-accent
+        ctx.fill();
+
+        // Highlight traversed path nodes with rings
+        accumulated = 0;
+        currentPath.forEach(function(node, index) {
+            if (index === 0) {
+                // First node is always traversed
+                drawNodeRing(ctx, node);
+                return;
+            }
+
+            // Check if we've reached this node
+            var nodeDistance = 0;
+            for (var k = 0; k < index; k++) {
+                nodeDistance += segments[k].length;
+            }
+
+            if (nodeDistance <= traveled) {
+                drawNodeRing(ctx, node);
+            }
+        });
+    }
+
+    /**
+     * Draw a ring highlight around a node
+     */
+    function drawNodeRing(ctx, node) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 12, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#8b5cf6';  // daemon-accent
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+
+    /**
+     * Animate path traversal for trace_chain visualization
+     * @param {Array} pathNodes - Array of path node objects with id property
+     * @param {number} duration - Animation duration in milliseconds (default 2000)
+     */
+    function animatePath(pathNodes, duration) {
+        // Cancel any existing animation
+        if (pathAnimationId) {
+            cancelAnimationFrame(pathAnimationId);
+        }
+
+        // Find node objects from path data
+        var pathNodeObjects = pathNodes.map(function(p) {
+            return graphData.nodes.find(function(n) { return n.id === p.id; });
+        }).filter(Boolean);
+
+        if (pathNodeObjects.length < 2) {
+            console.warn('Path requires at least 2 nodes');
+            return;
+        }
+
+        currentPath = pathNodeObjects;
+        pathProgress = 0;
+
+        var startTime = null;
+        var animDuration = duration || 2000;  // 2 seconds default
+
+        function animate(timestamp) {
+            if (!startTime) startTime = timestamp;
+            var elapsed = timestamp - startTime;
+            pathProgress = Math.min(elapsed / animDuration, 1);
+
+            draw();  // Redraw with path highlight
+
+            if (pathProgress < 1) {
+                pathAnimationId = requestAnimationFrame(animate);
+            } else {
+                // Animation complete - keep path highlighted
+                pathAnimationId = null;
+            }
+        }
+
+        pathAnimationId = requestAnimationFrame(animate);
+    }
+
+    /**
+     * Clear path animation and reset state
+     */
+    function clearPath() {
+        if (pathAnimationId) {
+            cancelAnimationFrame(pathAnimationId);
+            pathAnimationId = null;
+        }
+        currentPath = null;
+        pathProgress = 0;
+        draw();
+    }
+
+    /**
      * Main render function - called on each simulation tick
      */
     function draw() {
@@ -289,14 +443,17 @@
         // 1. Draw community hulls first (underneath everything)
         drawCommunityHulls(ctx);
 
-        // 2. Draw edges
+        // 2. Draw path highlight (if active)
+        drawPathHighlight(ctx);
+
+        // 3. Draw edges
         graphData.edges.forEach(function(edge) {
             if (edge.source && edge.target && edge.source.x !== undefined) {
                 drawEdge(edge.source, edge.target, edge.relationship);
             }
         });
 
-        // 3. Draw nodes (on top)
+        // 4. Draw nodes (on top)
         graphData.nodes.forEach(function(node) {
             if (node.x !== undefined && node.y !== undefined) {
                 drawNode(node);
@@ -644,6 +801,19 @@
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(handleResize, 250);
         });
+
+        // Listen for path data from parent (SecureMessenger)
+        if (window.SecureMessenger) {
+            SecureMessenger.on('show_path', function(data) {
+                if (data.path && data.path.length > 1) {
+                    animatePath(data.path, data.duration || 2000);
+                }
+            });
+
+            SecureMessenger.on('clear_path', function() {
+                clearPath();
+            });
+        }
     }
 
     // Start when DOM is ready
