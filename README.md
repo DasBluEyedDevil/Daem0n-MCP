@@ -13,6 +13,47 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v5.0.0
+
+### Visions of the Void
+The daemon gains sight. v5.0 brings daemon knowledge into the visual realm through **MCP Apps (SEP-1865)** — interactive HTML UIs for exploring memories, graphs, communities, and covenant status.
+
+#### MCP Apps Integration
+Six interactive visual portals accessible from MCP-Apps-enabled hosts:
+
+| Portal | Description |
+|--------|-------------|
+| **Search Results UI** | Card-based recall results with filters, relevance bars, score breakdowns, Record Outcome buttons |
+| **Briefing Dashboard** | Collapsible accordion with stats, recent decisions, warnings, focus areas, git changes |
+| **Covenant Status Dashboard** | Visual state machine showing Sacred Covenant phases with token countdown timer |
+| **Community Cluster Map** | D3 treemap visualization with click-to-drill-down hierarchy and breadcrumb navigation |
+| **Memory Graph Viewer** | Canvas-based force-directed graph supporting 10,000+ nodes at 60fps, community hulls, path animation, temporal slider |
+| **Real-Time Updates** | Notification badges when daemon knowledge changes via host-mediated polling |
+
+#### Self-Contained Infrastructure
+- **D3.js Bundle**: 105KB self-contained bundle via esbuild (no CDN dependencies)
+- **CSP Security**: Restrictive Content Security Policy (`default-src 'none'`)
+- **SecureMessenger**: Origin-validated iframe communication (O(1) exact matching)
+- **Text Fallback**: All tools work on non-MCP-Apps hosts with formatted text output
+
+#### New Visual Tools (v5.0)
+| Tool | Purpose |
+|------|---------|
+| `recall_visual` | Search results with UI resource hint |
+| `get_briefing_visual` | Briefing dashboard with UI resource hint |
+| `get_covenant_status_visual` | Covenant status with UI resource hint |
+| `list_communities_visual` | Community map with UI resource hint |
+| `get_graph_visual` | Memory graph with UI resource hint |
+| `check_for_updates` | Host-mediated polling for real-time notifications |
+
+### Stats
+- **66 MCP tools** (up from 60)
+- **500+ tests** passing
+- **51,929 lines** of Python
+- **48 requirements** satisfied for v5.0
+
+---
+
 ## What's New in v4.0.0
 
 ### Cognitive Architecture
@@ -447,7 +488,7 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Core Tools (60 Total)
+## Core Tools (66 Total)
 
 ### Memory Tools
 
@@ -530,6 +571,17 @@ Or use `start_daem0nmcp_server.bat`
 | `prune_memories` | Remove old, low-value memories (with protection) |
 | `cleanup_memories` | Find and merge duplicate memories |
 | `health` | Get server health, version, and statistics |
+
+### Visual Tools (MCP Apps)
+
+| Tool | Purpose |
+|------|---------|
+| `recall_visual` | Search results with UI resource hint for card-based display |
+| `get_briefing_visual` | Briefing dashboard with collapsible accordion UI |
+| `get_covenant_status_visual` | Covenant status with visual state machine diagram |
+| `list_communities_visual` | Community clusters with treemap visualization |
+| `get_graph_visual` | Memory relationships with force-directed graph viewer |
+| `check_for_updates` | Polling for real-time update notifications |
 
 ## Usage Examples
 
@@ -951,4 +1003,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v4.0.0: Cognitive Architecture—GraphRAG knowledge graphs with Leiden communities, bi-temporal memory model, metacognitive Reflexion loop, LLMLingua-2 context compression, dynamic agency with sandboxed execution. 60 MCP tools, 500+ tests, full cognitive architecture.*
+*Daem0nMCP v5.0.0: Visions of the Void—MCP Apps visual interfaces (Memory Graph Viewer, Search Results UI, Briefing Dashboard, Covenant Status, Community Cluster Map, Real-Time Updates). D3.js force-directed graphs at 10,000+ nodes, treemap drill-down, canvas rendering. Plus v4.0 Cognitive Architecture: GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2, dynamic agency. 66 MCP tools, 500+ tests. The daemon has gained sight.*
