@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none';
+                   script-src 'unsafe-inline';
+                   style-src 'unsafe-inline';
+                   img-src data: blob:;">
+    <title>{{TITLE}}</title>
+    <style>
+{{CSS}}
+
+/* Covenant-specific styles */
+.covenant-header {
+    margin-bottom: var(--daemon-space-lg);
+}
+
+.covenant-header__title {
+    display: flex;
+    align-items: center;
+    gap: var(--daemon-space-md);
+    margin-bottom: var(--daemon-space-sm);
+}
+
+.covenant-header__status {
+    display: flex;
+    align-items: center;
+    gap: var(--daemon-space-sm);
+    color: var(--daemon-text-muted);
+    font-size: 0.875rem;
+}
+
+.covenant-diagram-container {
+    background-color: var(--daemon-surface);
+    border: var(--daemon-border);
+    border-radius: var(--daemon-radius);
+    padding: var(--daemon-space-lg);
+    margin-bottom: var(--daemon-space-lg);
+}
+
+.covenant-phase-info {
+    background-color: var(--daemon-bg-alt);
+    border-left: 3px solid var(--daemon-accent);
+    padding: var(--daemon-space-md);
+    margin-top: var(--daemon-space-lg);
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.covenant-phase-info__label {
+    font-weight: 600;
+    color: var(--daemon-accent);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--daemon-space-xs);
+}
+
+.covenant-phase-info__description {
+    color: var(--daemon-text);
+}
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="daemon-container" style="padding: var(--daemon-space-lg);">
+            <!-- Header Section -->
+            <header class="covenant-header">
+                <div class="covenant-header__title">
+                    <h1>Covenant Status</h1>
+                    <span class="covenant-header__status">
+                        {{STATUS}}
+                    </span>
+                </div>
+            </header>
+
+            <!-- State Machine Diagram -->
+            <div class="covenant-diagram-container">
+                <svg viewBox="0 0 720 160" class="covenant-diagram" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Arrow marker definition -->
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="var(--daemon-text-muted)" />
+                        </marker>
+                    </defs>
+
+                    <!-- States -->
+                    <g class="covenant-state" data-phase="commune" transform="translate(80,80)">
+                        <circle r="45" />
+                        <text y="5">COMMUNE</text>
+                    </g>
+
+                    <g class="covenant-state" data-phase="counsel" transform="translate(260,80)">
+                        <circle r="45" />
+                        <text y="5">COUNSEL</text>
+                    </g>
+
+                    <g class="covenant-state" data-phase="inscribe" transform="translate(440,80)">
+                        <circle r="45" />
+                        <text y="5">INSCRIBE</text>
+                    </g>
+
+                    <g class="covenant-state" data-phase="seal" transform="translate(620,80)">
+                        <circle r="45" />
+                        <text y="5">SEAL</text>
+                    </g>
+
+                    <!-- Transition arrows -->
+                    <path class="covenant-transition" d="M125,80 L215,80" marker-end="url(#arrowhead)" />
+                    <path class="covenant-transition" d="M305,80 L395,80" marker-end="url(#arrowhead)" />
+                    <path class="covenant-transition" d="M485,80 L575,80" marker-end="url(#arrowhead)" />
+                </svg>
+            </div>
+
+            <!-- Token Status Panel (Plan 2) -->
+            {{TOKEN_PANEL}}
+
+            <!-- Current Phase Info -->
+            {{PHASE_INFO}}
+        </div>
+    </div>
+    <script>
+{{SCRIPT}}
+
+// Covenant phase management
+(function() {
+    /**
+     * Set the current active phase in the state machine diagram.
+     * @param {string} phase - The phase identifier (commune, counsel, inscribe, seal)
+     */
+    function setCurrentPhase(phase) {
+        // Remove active class from all states
+        var states = document.querySelectorAll('.covenant-state');
+        states.forEach(function(state) {
+            state.classList.remove('covenant-state--active');
+        });
+
+        // Add active class to the matching phase
+        var targetState = document.querySelector('[data-phase="' + phase + '"]');
+        if (targetState) {
+            // Check if D3 is available for smooth transition
+            if (window.d3) {
+                d3.select(targetState)
+                    .classed('covenant-state--active', true)
+                    .select('circle')
+                    .transition()
+                    .duration(500)
+                    .ease(d3.easeCubicOut)
+                    .attr('r', 48)
+                    .transition()
+                    .duration(300)
+                    .attr('r', 45);
+            } else {
+                // Fallback: just add the class
+                targetState.classList.add('covenant-state--active');
+            }
+        }
+    }
+
+    // Make setCurrentPhase available globally
+    window.setCurrentPhase = setCurrentPhase;
+
+    // Set initial phase on load
+    document.addEventListener('DOMContentLoaded', function() {
+        setCurrentPhase('{{CURRENT_PHASE}}');
+    });
+})();
+    </script>
+</body>
+</html>
