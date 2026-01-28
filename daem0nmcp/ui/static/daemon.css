@@ -843,3 +843,139 @@ select.daemon-input {
   font-size: 0.875rem;
   color: var(--daemon-text-muted);
 }
+
+/* ==========================================================================
+   Treemap - Community Cluster Map (Phase 10)
+   ========================================================================== */
+
+.treemap-container {
+  width: 100%;
+  height: 500px;
+  background-color: var(--daemon-surface);
+  border: var(--daemon-border);
+  border-radius: var(--daemon-radius);
+  position: relative;
+  overflow: hidden;
+}
+
+.treemap-cell {
+  position: absolute;
+  border: 1px solid var(--daemon-bg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+
+.treemap-cell:hover {
+  filter: brightness(1.15);
+}
+
+.treemap-cell__label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--daemon-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  text-align: center;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treemap-cell__count {
+  position: absolute;
+  bottom: var(--daemon-space-xs);
+  right: var(--daemon-space-xs);
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--daemon-font-mono);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+/* Treemap hierarchy colors (6 levels) */
+.treemap-cell--level-0 { background-color: #6366f1; }  /* Indigo - root */
+.treemap-cell--level-1 { background-color: #8b5cf6; }  /* Purple - level 1 */
+.treemap-cell--level-2 { background-color: #a855f7; }  /* Violet - level 2 */
+.treemap-cell--level-3 { background-color: #d946ef; }  /* Fuchsia - level 3 */
+.treemap-cell--level-4 { background-color: #ec4899; }  /* Pink - level 4 */
+.treemap-cell--level-5 { background-color: #f43f5e; }  /* Rose - level 5+ */
+
+/* Treemap tooltip */
+.treemap-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 300px;
+  padding: var(--daemon-space-sm) var(--daemon-space-md);
+  background-color: var(--daemon-surface);
+  border: var(--daemon-border);
+  border-radius: var(--daemon-radius);
+  box-shadow: var(--daemon-shadow);
+  font-size: 0.875rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.treemap-tooltip--visible {
+  opacity: 1;
+}
+
+.treemap-tooltip__title {
+  font-weight: 600;
+  color: var(--daemon-text);
+  margin-bottom: var(--daemon-space-xs);
+}
+
+.treemap-tooltip__summary {
+  color: var(--daemon-text-muted);
+  line-height: 1.4;
+}
+
+.treemap-tooltip__meta {
+  display: flex;
+  gap: var(--daemon-space-md);
+  margin-top: var(--daemon-space-sm);
+  padding-top: var(--daemon-space-sm);
+  border-top: var(--daemon-border);
+  font-size: 0.75rem;
+  color: var(--daemon-text-muted);
+}
+
+/* Treemap breadcrumb navigation */
+.treemap-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--daemon-space-xs);
+  padding: var(--daemon-space-sm) 0;
+  font-size: 0.875rem;
+  flex-wrap: wrap;
+}
+
+.treemap-breadcrumb__item {
+  color: var(--daemon-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.treemap-breadcrumb__item:hover {
+  color: var(--daemon-accent);
+}
+
+.treemap-breadcrumb__item--current {
+  color: var(--daemon-text);
+  cursor: default;
+}
+
+.treemap-breadcrumb__item--current:hover {
+  color: var(--daemon-text);
+}
+
+.treemap-breadcrumb__separator {
+  color: var(--daemon-text-muted);
+}
