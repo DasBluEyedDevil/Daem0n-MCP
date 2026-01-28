@@ -187,3 +187,9 @@ class SecureMessenger {
 }
 
 export { SecureMessenger };
+
+// Auto-initialize SecureMessenger as global instance for template compatibility
+if (typeof window !== 'undefined') {
+    window.SecureMessenger = new SecureMessenger();
+    window.SecureMessenger.init();
+}
