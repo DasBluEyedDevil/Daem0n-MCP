@@ -1,22 +1,32 @@
 """
-UI module for Daem0n MCP Apps.
+Daem0n MCP Apps UI Module
 
-This module provides the infrastructure for visual interfaces that display
-daemon knowledge through MCP Apps (SEP-1865). All UIs share a consistent
-daemon aesthetic defined in static/daemon.css.
+Provides visual UI resources for MCP Apps hosts (SEP-1865).
 
-Components:
-- templates/: HTML template sources for each UI view
-- static/: Bundled assets (CSS, JS) for browser rendering
-- build/: Build scripts for asset bundling
-- resources.py: FastMCP resource registration
-
-The MCP Apps architecture renders HTML in sandboxed iframes within MCP hosts,
-enabling rich visual exploration of memories, patterns, and knowledge graphs.
+Exports:
+    MCP_APPS_MIME: MIME type for MCP Apps HTML resources
+    register_ui_resources: Register UI resources with FastMCP
+    format_with_ui_hint: Wrap results with UI hint and text fallback
+    format_search_results: Format search results as text
+    format_briefing: Format briefing as text
 """
-
-from .resources import MCP_APPS_MIME
+from .resources import MCP_APPS_MIME, register_ui_resources
+from .fallback import (
+    format_with_ui_hint,
+    format_search_results,
+    format_briefing,
+    format_covenant_status,
+    format_community_cluster,
+    format_graph_path,
+)
 
 __all__ = [
     "MCP_APPS_MIME",
+    "register_ui_resources",
+    "format_with_ui_hint",
+    "format_search_results",
+    "format_briefing",
+    "format_covenant_status",
+    "format_community_cluster",
+    "format_graph_path",
 ]
