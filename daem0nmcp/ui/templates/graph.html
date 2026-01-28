@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none';
+                   script-src 'unsafe-inline';
+                   style-src 'unsafe-inline';
+                   img-src data: blob:;">
+    <title>{{TITLE}}</title>
+    <style>
+{{CSS}}
+
+/* Graph-specific styles */
+.graph-page {
+    padding: var(--daemon-space-lg);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+    </style>
+</head>
+<body>
+    <div id="app" class="graph-page">
+        <!-- Header Section -->
+        <header class="graph-header">
+            <div class="graph-header__title">
+                <h1>{{TITLE}}</h1>
+                <span class="graph-header__count">
+                    {{NODE_COUNT}} nodes, {{EDGE_COUNT}} edges
+                </span>
+            </div>
+        </header>
+
+        <!-- Legend -->
+        <div class="graph-legend">
+            <div class="graph-legend__item">
+                <span class="graph-legend__color graph-legend__color--decision"></span>
+                <span>Decision</span>
+            </div>
+            <div class="graph-legend__item">
+                <span class="graph-legend__color graph-legend__color--warning"></span>
+                <span>Warning</span>
+            </div>
+            <div class="graph-legend__item">
+                <span class="graph-legend__color graph-legend__color--pattern"></span>
+                <span>Pattern</span>
+            </div>
+            <div class="graph-legend__item">
+                <span class="graph-legend__color graph-legend__color--learning"></span>
+                <span>Learning</span>
+            </div>
+        </div>
+
+        <!-- Graph Container -->
+        <div class="graph-container" id="graph-container">
+            <!-- Canvas will be created by JavaScript -->
+
+            <!-- Loading indicator -->
+            <div class="graph-loading" id="loading">
+                <div class="graph-loading__spinner"></div>
+                <span>Loading graph...</span>
+            </div>
+
+            <!-- Empty state -->
+            <div class="graph-empty" id="empty" style="display: none;">
+                <p>No memories to display</p>
+            </div>
+
+            <!-- Zoom controls -->
+            <div class="graph-controls">
+                <button class="graph-controls__btn" id="zoom-in" title="Zoom in">+</button>
+                <button class="graph-controls__btn" id="zoom-out" title="Zoom out">-</button>
+                <button class="graph-controls__btn" id="zoom-reset" title="Reset zoom">R</button>
+            </div>
+
+            <!-- Details panel -->
+            <div class="graph-details" id="details-panel">
+                <button class="graph-details__close" id="details-close">&times;</button>
+                <div id="details-content"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+{{SCRIPT}}
+
+// Memory Graph Viewer - Canvas-based Force-Directed Graph
+(function() {
+    // Parse graph data from template
+    var graphData = {{GRAPH_DATA}};
+
+    // Category colors (match daemon.css custom properties)
+    var categoryColors = {
+        'decision': '#3b82f6',
+        'warning': '#f59e0b',
+        'pattern': '#8b5cf6',
+        'learning': '#22c55e',
+        'default': '#888888'
+    };
+
+    // Relationship styles for edges
+    var relationshipStyles = {
+        'led_to': { color: '#3b82f6', dash: [] },
+        'supersedes': { color: '#f59e0b', dash: [5, 5] },
+        'conflicts_with': { color: '#ef4444', dash: [2, 2] },
+        'relates_to': { color: '#888888', dash: [] },
+        'depends_on': { color: '#22c55e', dash: [] }
+    };
+
+    // DOM elements
+    var container = document.getElementById('graph-container');
+    var loadingEl = document.getElementById('loading');
+    var emptyEl = document.getElementById('empty');
+    var detailsPanel = document.getElementById('details-panel');
+    var detailsContent = document.getElementById('details-content');
+    var detailsClose = document.getElementById('details-close');
+    var zoomInBtn = document.getElementById('zoom-in');
+    var zoomOutBtn = document.getElementById('zoom-out');
+    var zoomResetBtn = document.getElementById('zoom-reset');
+
+    // Canvas setup
+    var canvas, ctx;
+    var width, height;
+    var dpr = window.devicePixelRatio || 1;
+
+    // Simulation and transform state
+    var simulation;
+    var transform = d3.zoomIdentity;
+    var zoomBehavior;
+
+    // Node radius
+    var nodeRadius = 8;
+
+    /**
+     * Initialize canvas with retina support
+     */
+    function initCanvas() {
+        width = container.clientWidth;
+        height = container.clientHeight;
+
+        canvas = document.createElement('canvas');
+        canvas.className = 'graph-canvas';
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+
+        ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        // Insert canvas before loading indicator
+        container.insertBefore(canvas, loadingEl);
+    }
+
+    /**
+     * Draw an edge between two nodes
+     */
+    function drawEdge(source, target, relationship) {
+        var style = relationshipStyles[relationship] || relationshipStyles['relates_to'];
+
+        ctx.beginPath();
+        ctx.strokeStyle = style.color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash(style.dash);
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    /**
+     * Draw a node with category coloring
+     */
+    function drawNode(node) {
+        var color = categoryColors[node.category] || categoryColors['default'];
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // Add subtle border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    /**
+     * Main render function - called on each simulation tick
+     */
+    function draw() {
+        ctx.save();
+        ctx.clearRect(0, 0, width, height);
+
+        // Apply zoom transform
+        ctx.translate(transform.x, transform.y);
+        ctx.scale(transform.k, transform.k);
+
+        // Draw edges first (underneath nodes)
+        graphData.edges.forEach(function(edge) {
+            if (edge.source && edge.target && edge.source.x !== undefined) {
+                drawEdge(edge.source, edge.target, edge.relationship);
+            }
+        });
+
+        // Draw nodes
+        graphData.nodes.forEach(function(node) {
+            if (node.x !== undefined && node.y !== undefined) {
+                drawNode(node);
+            }
+        });
+
+        ctx.restore();
+    }
+
+    /**
+     * Initialize D3 force simulation
+     */
+    function initSimulation() {
+        simulation = d3.forceSimulation(graphData.nodes)
+            .force('link', d3.forceLink(graphData.edges)
+                .id(function(d) { return d.id; })
+                .strength(0.5)
+                .distance(80))
+            .force('charge', d3.forceManyBody()
+                .strength(-100))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide(nodeRadius + 5))
+            .alphaDecay(0.05)
+            .on('tick', draw)
+            .on('end', function() {
+                loadingEl.classList.add('graph-loading--hidden');
+            });
+    }
+
+    /**
+     * Initialize zoom behavior
+     */
+    function initZoom() {
+        zoomBehavior = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', function(event) {
+                transform = event.transform;
+                draw();
+            });
+
+        d3.select(canvas).call(zoomBehavior);
+
+        // Zoom control buttons
+        zoomInBtn.addEventListener('click', function() {
+            d3.select(canvas).transition().duration(300)
+                .call(zoomBehavior.scaleBy, 1.3);
+        });
+
+        zoomOutBtn.addEventListener('click', function() {
+            d3.select(canvas).transition().duration(300)
+                .call(zoomBehavior.scaleBy, 0.7);
+        });
+
+        zoomResetBtn.addEventListener('click', function() {
+            d3.select(canvas).transition().duration(300)
+                .call(zoomBehavior.transform, d3.zoomIdentity);
+        });
+    }
+
+    /**
+     * Find node at given position (with transform applied)
+     */
+    function findNodeAtPosition(x, y) {
+        // Inverse transform the coordinates
+        var tx = (x - transform.x) / transform.k;
+        var ty = (y - transform.y) / transform.k;
+
+        // Use simulation.find for efficient quadtree lookup
+        return simulation.find(tx, ty, nodeRadius * 2);
+    }
+
+    /**
+     * Handle canvas click for node selection
+     */
+    function initClickHandler() {
+        canvas.addEventListener('click', function(event) {
+            var rect = canvas.getBoundingClientRect();
+            var x = event.clientX - rect.left;
+            var y = event.clientY - rect.top;
+
+            var node = findNodeAtPosition(x, y);
+            if (node) {
+                showNodeDetails(node);
+            }
+        });
+
+        // Close details panel
+        detailsClose.addEventListener('click', function() {
+            detailsPanel.classList.remove('graph-details--visible');
+        });
+    }
+
+    /**
+     * Escape HTML for safe rendering
+     */
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Show node details in side panel
+     */
+    function showNodeDetails(node) {
+        var tagsHtml = '';
+        if (node.tags && node.tags.length > 0) {
+            tagsHtml = '<div class="result-card__tags" style="margin-top: var(--daemon-space-sm);">' +
+                node.tags.map(function(t) {
+                    return '<span class="result-card__tag">' + escapeHtml(t) + '</span>';
+                }).join('') +
+            '</div>';
+        }
+
+        detailsContent.innerHTML = [
+            '<div class="daemon-badge daemon-badge--' + (node.category || 'default') + '">' + escapeHtml(node.category || 'memory') + '</div>',
+            '<h3 style="margin-top: var(--daemon-space-md);">' + escapeHtml((node.content || '').substring(0, 60)) + (node.content && node.content.length > 60 ? '...' : '') + '</h3>',
+            '<p class="daemon-muted" style="font-size: 0.875rem; line-height: 1.5;">' + escapeHtml(node.content || 'No content available') + '</p>',
+            tagsHtml,
+            '<div style="margin-top: var(--daemon-space-md); font-size: 0.75rem; color: var(--daemon-text-muted);">',
+            '  <strong>ID:</strong> ' + escapeHtml(String(node.id)),
+            '</div>'
+        ].join('\n');
+
+        detailsPanel.classList.add('graph-details--visible');
+    }
+
+    /**
+     * Handle window resize
+     */
+    function handleResize() {
+        width = container.clientWidth;
+        height = container.clientHeight;
+
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+
+        ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        // Update force center
+        if (simulation) {
+            simulation.force('center', d3.forceCenter(width / 2, height / 2));
+            simulation.alpha(0.3).restart();
+        }
+    }
+
+    /**
+     * Initialize the graph viewer
+     */
+    function init() {
+        // Check for empty data
+        if (!graphData.nodes || graphData.nodes.length === 0) {
+            loadingEl.style.display = 'none';
+            emptyEl.style.display = 'block';
+            return;
+        }
+
+        // Initialize components
+        initCanvas();
+        initSimulation();
+        initZoom();
+        initClickHandler();
+
+        // Debounced resize handler
+        var resizeTimeout;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(handleResize, 250);
+        });
+    }
+
+    // Start when DOM is ready
+    document.addEventListener('DOMContentLoaded', init);
+})();
+    </script>
+</body>
+</html>
