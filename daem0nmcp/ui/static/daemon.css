@@ -767,3 +767,79 @@ select.daemon-input {
     filter: drop-shadow(0 0 12px var(--daemon-accent));
   }
 }
+
+/* ==========================================================================
+   Token Status Panel
+   ========================================================================== */
+
+.token-status {
+  padding: var(--daemon-space-md);
+  background: var(--daemon-surface);
+  border: var(--daemon-border);
+  border-radius: var(--daemon-radius);
+  margin-bottom: var(--daemon-space-lg);
+}
+
+.token-status__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--daemon-space-md);
+}
+
+.token-status__label {
+  font-weight: 500;
+  color: var(--daemon-text);
+}
+
+.token-status__badge {
+  padding: 2px var(--daemon-space-sm);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.token-status__badge--valid {
+  background-color: var(--daemon-success);
+  color: white;
+}
+
+.token-status__badge--expired {
+  background-color: var(--daemon-error);
+  color: white;
+}
+
+.token-status__badge--none {
+  background-color: var(--daemon-text-muted);
+  color: var(--daemon-surface);
+}
+
+.token-status__countdown {
+  display: flex;
+  align-items: center;
+  gap: var(--daemon-space-sm);
+  margin-bottom: var(--daemon-space-md);
+}
+
+.token-status__icon {
+  font-size: 1.25rem;
+  color: var(--daemon-text-muted);
+}
+
+.token-status__time {
+  font-family: var(--daemon-font-mono);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--daemon-accent);
+}
+
+.token-status__time--warning {
+  color: var(--daemon-warning);
+}
+
+.token-status__unit {
+  font-size: 0.875rem;
+  color: var(--daemon-text-muted);
+}
