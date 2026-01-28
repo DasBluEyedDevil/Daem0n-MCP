@@ -602,6 +602,77 @@ def _build_community_ui(data: Dict[str, Any]) -> str:
     return html
 
 
+def _build_graph_ui(data: Dict[str, Any]) -> str:
+    """
+    Build the memory graph viewer UI HTML from get_graph data.
+
+    Args:
+        data: get_graph output containing:
+            - nodes: List of node dicts with id, content, category, tags, created_at
+            - edges: List of edge dicts with source_id, target_id, relationship, confidence
+            - node_count: Number of nodes
+            - edge_count: Number of edges
+            - topic: Optional search topic
+            - path: Optional trace_chain path to animate
+
+    Returns:
+        Complete HTML string for the memory graph viewer UI
+    """
+    template = _load_template("graph.html")
+
+    nodes = data.get("nodes", [])
+    edges = data.get("edges", [])
+    node_count = data.get("node_count", len(nodes))
+    edge_count = data.get("edge_count", len(edges))
+    topic = data.get("topic", "")
+    path = data.get("path")  # Optional path for animation
+
+    # Transform edge format for D3 (source/target instead of source_id/target_id)
+    d3_edges = []
+    for edge in edges:
+        d3_edges.append({
+            "source": edge.get("source_id") or edge.get("source"),
+            "target": edge.get("target_id") or edge.get("target"),
+            "relationship": edge.get("relationship", "relates_to"),
+            "confidence": edge.get("confidence", 1.0),
+            "description": edge.get("description", ""),
+        })
+
+    # Add full_content to nodes for details panel
+    for node in nodes:
+        if "full_content" not in node:
+            node["full_content"] = node.get("content", "")
+
+    graph_data = {
+        "nodes": nodes,
+        "edges": d3_edges,
+    }
+
+    # Calculate date range for temporal slider
+    dates = [n.get("created_at") for n in nodes if n.get("created_at")]
+    min_date = min(dates) if dates else ""
+    max_date = max(dates) if dates else ""
+
+    # JSON encode graph data for template
+    graph_data_json = json.dumps(graph_data)
+    path_json = json.dumps(path) if path else "null"
+
+    # Build title
+    title = f"Memory Graph: {topic}" if topic else "Memory Graph"
+
+    # Inject into template
+    html = template.replace("{{TITLE}}", title)
+    html = html.replace("{{NODE_COUNT}}", str(node_count))
+    html = html.replace("{{EDGE_COUNT}}", str(edge_count))
+    html = html.replace("{{GRAPH_DATA}}", graph_data_json)
+    html = html.replace("{{PATH_DATA}}", path_json)
+    html = html.replace("{{MIN_DATE}}", min_date)
+    html = html.replace("{{MAX_DATE}}", max_date)
+    html = _inject_assets(html, include_d3=True)
+
+    return html
+
+
 def _build_covenant_ui(data: Dict[str, Any]) -> str:
     """
     Build the covenant status dashboard UI HTML from get_covenant_status data.
@@ -797,8 +868,25 @@ def register_ui_resources(mcp: "FastMCP") -> None:
         parsed = json.loads(data) if data else {}
         return _build_community_ui(parsed)
 
-    # Additional resources will be registered in later phases:
-    # - ui://daem0n/graph (Phase 11)
+    @mcp.resource(
+        uri="ui://daem0n/graph/{data}",
+        name="Memory Graph",
+        description="Interactive force-directed graph visualization of memory relationships",
+        mime_type=MCP_APPS_MIME
+    )
+    def get_graph_ui(data: str) -> str:
+        """
+        Render memory graph as interactive visualization.
+
+        Args:
+            data: JSON string containing get_graph output with
+                  nodes, edges, and optional path data
+
+        Returns:
+            Complete HTML for the memory graph viewer UI
+        """
+        parsed = json.loads(data) if data else {}
+        return _build_graph_ui(parsed)
 
 
 __all__ = [
@@ -811,5 +899,6 @@ __all__ = [
     "_build_briefing_ui",
     "_build_covenant_ui",
     "_build_community_ui",
+    "_build_graph_ui",
     "_highlight_keywords",
 ]
