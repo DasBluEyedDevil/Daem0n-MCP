@@ -21,7 +21,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -103,6 +103,16 @@ def _format_date(date_str: str) -> str:
         return dt.strftime("%Y-%m-%d %H:%M")
     except (ValueError, AttributeError):
         return str(date_str) if date_str else ""
+
+
+def _outcome_indicator(worked: Optional[bool]) -> str:
+    """Return badge HTML for decision outcome status."""
+    if worked is True:
+        return '<span class="daemon-badge daemon-badge--success">Success</span>'
+    elif worked is False:
+        return '<span class="daemon-badge daemon-badge--error">Failed</span>'
+    else:
+        return '<span class="daemon-badge">Pending</span>'
 
 
 def _build_search_ui(data: Dict[str, Any]) -> str:
@@ -278,6 +288,219 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
     return html
 
 
+def _build_briefing_ui(data: Dict[str, Any]) -> str:
+    """
+    Build the briefing dashboard UI HTML from get_briefing data.
+
+    Args:
+        data: get_briefing output containing:
+            - status: "ready" or error
+            - statistics: dict with memory counts, outcome rates
+            - recent_decisions: list of recent decisions
+            - active_warnings: list of active warnings
+            - failed_approaches: list of failed approaches
+            - git_changes: dict with added/modified/deleted counts and files
+            - focus_areas: optional list of pre-fetched focus memories
+            - message: actionable briefing message
+
+    Returns:
+        Complete HTML string for the briefing dashboard UI
+    """
+    template = _load_template("briefing.html")
+
+    status = data.get("status", "unknown")
+    statistics = data.get("statistics", {})
+    recent_decisions = data.get("recent_decisions", [])
+    active_warnings = data.get("active_warnings", [])
+    failed_approaches = data.get("failed_approaches", [])
+    git_changes = data.get("git_changes", {})
+    focus_areas = data.get("focus_areas")
+    message = data.get("message", "")
+
+    # Build statistics panel
+    total_memories = statistics.get("total_memories", 0)
+    decisions_count = statistics.get("by_category", {}).get("decision", 0)
+    warnings_count = statistics.get("by_category", {}).get("warning", 0)
+    patterns_count = statistics.get("by_category", {}).get("pattern", 0)
+    success_rate = statistics.get("outcome_rates", {}).get("success_rate", 0)
+
+    stats_html = f'''
+<div class="daemon-stats">
+    <div class="daemon-stat">
+        <div class="daemon-stat__value">{total_memories}</div>
+        <div class="daemon-stat__label">Total Memories</div>
+    </div>
+    <div class="daemon-stat">
+        <div class="daemon-stat__value">{decisions_count}</div>
+        <div class="daemon-stat__label">Decisions</div>
+    </div>
+    <div class="daemon-stat">
+        <div class="daemon-stat__value">{warnings_count}</div>
+        <div class="daemon-stat__label">Warnings</div>
+    </div>
+    <div class="daemon-stat">
+        <div class="daemon-stat__value">{patterns_count}</div>
+        <div class="daemon-stat__label">Patterns</div>
+    </div>
+    <div class="daemon-stat daemon-stat--success">
+        <div class="daemon-stat__value">{success_rate:.0%}</div>
+        <div class="daemon-stat__label">Success Rate</div>
+    </div>
+</div>'''
+
+    # Build message block (if present)
+    message_html = ""
+    if message:
+        message_html = f'<div class="briefing-message">{message}</div>'
+
+    # Build accordion sections
+    sections = []
+
+    # Recent Decisions section
+    if recent_decisions:
+        decisions_html = []
+        for d in recent_decisions:
+            outcome = _outcome_indicator(d.get("worked"))
+            content = d.get("content", "")[:200]  # Truncate for display
+            date = _format_date(d.get("created_at", ""))
+            decisions_html.append(f'''
+<div class="decision-item">
+    <div class="decision-item__header">
+        {outcome}
+        <span class="decision-item__meta">{date}</span>
+    </div>
+    <div class="decision-item__content">{content}</div>
+</div>''')
+
+        sections.append(f'''
+<details class="daemon-accordion__item" open>
+    <summary class="daemon-accordion__header">
+        <span class="daemon-accordion__title">
+            Recent Decisions
+            <span class="daemon-accordion__count">({len(recent_decisions)})</span>
+        </span>
+        <span class="daemon-accordion__icon">&#9654;</span>
+    </summary>
+    <div class="daemon-accordion__content">
+        {"".join(decisions_html)}
+    </div>
+</details>''')
+
+    # Active Warnings section
+    if active_warnings:
+        warnings_html = []
+        for w in active_warnings:
+            severity = w.get("severity", "medium").lower()
+            content = w.get("content", "")
+            warnings_html.append(f'''
+<div class="warning-item warning-item--{severity}">
+    <div class="warning-item__content">{content}</div>
+</div>''')
+
+        sections.append(f'''
+<details class="daemon-accordion__item" open>
+    <summary class="daemon-accordion__header">
+        <span class="daemon-accordion__title">
+            Active Warnings
+            <span class="daemon-accordion__count">({len(active_warnings)})</span>
+        </span>
+        <span class="daemon-accordion__icon">&#9654;</span>
+    </summary>
+    <div class="daemon-accordion__content">
+        {"".join(warnings_html)}
+    </div>
+</details>''')
+
+    # Failed Approaches section
+    if failed_approaches:
+        failed_html = []
+        for f in failed_approaches:
+            content = f.get("content", "")
+            failed_html.append(f'''
+<div class="warning-item warning-item--high">
+    <div class="warning-item__content">{content}</div>
+</div>''')
+
+        sections.append(f'''
+<details class="daemon-accordion__item">
+    <summary class="daemon-accordion__header">
+        <span class="daemon-accordion__title">
+            Failed Approaches
+            <span class="daemon-accordion__count">({len(failed_approaches)})</span>
+        </span>
+        <span class="daemon-accordion__icon">&#9654;</span>
+    </summary>
+    <div class="daemon-accordion__content">
+        {"".join(failed_html)}
+    </div>
+</details>''')
+
+    # Git Changes section
+    git_files = git_changes.get("files", [])
+    if git_files:
+        changes_html = []
+        for file_info in git_files[:20]:  # Limit to 20 files
+            status_char = file_info.get("status", "M")
+            path = file_info.get("path", "")
+            css_class = {
+                "A": "git-change--added",
+                "M": "git-change--modified",
+                "D": "git-change--deleted"
+            }.get(status_char, "")
+            changes_html.append(f'<div class="git-change {css_class}">{status_char} {path}</div>')
+
+        total_changes = git_changes.get("total", len(git_files))
+        sections.append(f'''
+<details class="daemon-accordion__item">
+    <summary class="daemon-accordion__header">
+        <span class="daemon-accordion__title">
+            Git Changes
+            <span class="daemon-accordion__count">({total_changes} files)</span>
+        </span>
+        <span class="daemon-accordion__icon">&#9654;</span>
+    </summary>
+    <div class="daemon-accordion__content">
+        {"".join(changes_html)}
+    </div>
+</details>''')
+
+    # Focus Areas section (quick-access buttons)
+    if focus_areas:
+        buttons_html = []
+        for area in focus_areas:
+            topic = area.get("topic", "")
+            buttons_html.append(f'''
+<button class="daemon-btn daemon-btn--small daemon-btn--secondary focus-area-btn"
+        data-action="focus-area"
+        data-topic="{topic}">
+    {topic}
+</button>''')
+
+        sections.append(f'''
+<details class="daemon-accordion__item" open>
+    <summary class="daemon-accordion__header">
+        <span class="daemon-accordion__title">
+            Focus Areas
+            <span class="daemon-accordion__count">({len(focus_areas)})</span>
+        </span>
+        <span class="daemon-accordion__icon">&#9654;</span>
+    </summary>
+    <div class="daemon-accordion__content">
+        {"".join(buttons_html)}
+    </div>
+</details>''')
+
+    # Inject into template
+    html = template.replace("{{TITLE}}", "Session Briefing")
+    html = html.replace("{{STATUS}}", status.upper())
+    html = html.replace("{{STATS}}", stats_html)
+    html = html.replace("{{MESSAGE}}", message_html)
+    html = html.replace("{{CONTENT}}", "\n".join(sections) if sections else '<p class="daemon-muted">No active context.</p>')
+    html = _inject_assets(html, include_d3=False)
+
+    return html
+
+
 def _build_test_ui() -> str:
     """Build a test UI to validate infrastructure works."""
     base = _load_template("base.html")
@@ -343,8 +566,26 @@ def register_ui_resources(mcp: "FastMCP") -> None:
         parsed = json.loads(data) if data else {}
         return _build_search_ui(parsed)
 
+    @mcp.resource(
+        uri="ui://daem0n/briefing/{data}",
+        name="Session Briefing",
+        description="Briefing dashboard with accordion sections for session context",
+        mime_type=MCP_APPS_MIME
+    )
+    def get_briefing_ui(data: str) -> str:
+        """
+        Render briefing data as visual dashboard.
+
+        Args:
+            data: JSON string containing get_briefing output
+
+        Returns:
+            Complete HTML for the briefing dashboard UI
+        """
+        parsed = json.loads(data) if data else {}
+        return _build_briefing_ui(parsed)
+
     # Additional resources will be registered in later phases:
-    # - ui://daem0n/briefing (Phase 8)
     # - ui://daem0n/covenant (Phase 9)
     # - ui://daem0n/community (Phase 10)
     # - ui://daem0n/graph (Phase 11)
@@ -357,5 +598,6 @@ __all__ = [
     "BUILD_DIR",
     "register_ui_resources",
     "_build_search_ui",
+    "_build_briefing_ui",
     "_highlight_keywords",
 ]
