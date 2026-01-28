@@ -501,6 +501,107 @@ def _build_briefing_ui(data: Dict[str, Any]) -> str:
     return html
 
 
+def _build_community_ui(data: Dict[str, Any]) -> str:
+    """
+    Build the community cluster map UI HTML from list_communities data.
+
+    Args:
+        data: list_communities output containing:
+            - count: Total community count
+            - communities: List of community dicts with id, name, summary, member_count, level
+            - path: Optional current navigation path (for drill-down)
+
+    Returns:
+        Complete HTML string for the community cluster map UI
+    """
+    template = _load_template("community.html")
+
+    communities = data.get("communities", [])
+    count = data.get("count", len(communities))
+    path = data.get("path", [])
+
+    # Transform flat communities list into hierarchical structure for D3
+    # Root node contains all top-level communities as children
+    def build_hierarchy(community_list: list) -> Dict[str, Any]:
+        """Build hierarchy from flat list, grouping by parent_community_id."""
+        # Index by id for quick lookup
+        by_id: Dict[int, Dict[str, Any]] = {}
+        for c in community_list:
+            by_id[c.get("id")] = {
+                "id": c.get("id"),
+                "name": c.get("name", f"Community {c.get('id')}"),
+                "summary": c.get("summary", ""),
+                "member_count": c.get("member_count", 0),
+                "level": c.get("level", 0),
+                "children": [],
+            }
+
+        # Build parent-child relationships
+        roots = []
+        for c in community_list:
+            cid = c.get("id")
+            parent_id = c.get("parent_community_id")
+            node = by_id.get(cid)
+            if node:
+                if parent_id and parent_id in by_id:
+                    by_id[parent_id]["children"].append(node)
+                else:
+                    roots.append(node)
+
+        # Clean up empty children arrays for leaf nodes
+        for node in by_id.values():
+            if not node["children"]:
+                del node["children"]
+
+        return {
+            "name": "All Communities",
+            "children": roots,
+        }
+
+    hierarchy = build_hierarchy(communities)
+
+    # Build breadcrumb HTML
+    breadcrumb_items = []
+    if not path:
+        # At root level
+        breadcrumb_items.append(
+            '<span class="treemap-breadcrumb__item treemap-breadcrumb__item--current">All Communities</span>'
+        )
+    else:
+        # Has navigation path
+        breadcrumb_items.append(
+            '<span class="treemap-breadcrumb__item" data-id="root">All Communities</span>'
+        )
+        for i, item in enumerate(path):
+            breadcrumb_items.append('<span class="treemap-breadcrumb__separator">/</span>')
+            if i == len(path) - 1:
+                # Current (last) item
+                breadcrumb_items.append(
+                    f'<span class="treemap-breadcrumb__item treemap-breadcrumb__item--current">{item.get("name", "")}</span>'
+                )
+            else:
+                # Clickable ancestor
+                breadcrumb_items.append(
+                    f'<span class="treemap-breadcrumb__item" data-id="{item.get("id", "")}">{item.get("name", "")}</span>'
+                )
+
+    breadcrumb_html = "\n                ".join(breadcrumb_items)
+
+    # JSON-encode hierarchical data for D3
+    treemap_data_json = json.dumps(hierarchy)
+    current_path_json = json.dumps(path)
+
+    # Inject into template
+    html = template.replace("{{TITLE}}", "Community Cluster Map")
+    html = html.replace("{{COMMUNITY_COUNT}}", str(count))
+    html = html.replace("{{BREADCRUMB}}", breadcrumb_html)
+    html = html.replace("{{TREEMAP_DATA}}", treemap_data_json)
+    html = html.replace("{{CURRENT_PATH}}", current_path_json)
+    html = _inject_assets(html, include_d3=True)
+
+    return html
+
+
 def _build_covenant_ui(data: Dict[str, Any]) -> str:
     """
     Build the covenant status dashboard UI HTML from get_covenant_status data.
@@ -690,5 +791,6 @@ __all__ = [
     "_build_search_ui",
     "_build_briefing_ui",
     "_build_covenant_ui",
+    "_build_community_ui",
     "_highlight_keywords",
 ]
