@@ -543,6 +543,45 @@ select.daemon-input {
 }
 
 /* ==========================================================================
+   Pagination
+   ========================================================================== */
+
+.daemon-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--daemon-space-md);
+  padding: var(--daemon-space-md) 0;
+  margin-top: var(--daemon-space-lg);
+  border-top: var(--daemon-border);
+}
+
+.daemon-pagination__info {
+  color: var(--daemon-text-muted);
+  font-size: 0.875rem;
+}
+
+.daemon-pagination__btn {
+  padding: var(--daemon-space-xs) var(--daemon-space-md);
+  background-color: var(--daemon-surface);
+  color: var(--daemon-text);
+  border: var(--daemon-border);
+  border-radius: var(--daemon-radius);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.daemon-pagination__btn:hover:not(:disabled) {
+  background-color: var(--daemon-bg-alt);
+  border-color: var(--daemon-accent);
+}
+
+.daemon-pagination__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
    Responsive Breakpoints
    ========================================================================== */
 
