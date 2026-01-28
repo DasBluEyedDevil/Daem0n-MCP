@@ -4851,6 +4851,72 @@ async def list_communities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
+async def list_communities_visual(
+    level: Optional[int] = None,
+    parent_community_id: Optional[int] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    List communities with visual UI support.
+
+    Same as list_communities() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        level: Filter by hierarchy level
+        parent_community_id: Filter to children of this community (for drill-down)
+        project_path: Project root
+
+    Returns:
+        Dict with community data + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_communities_text
+
+    # Get communities using existing function
+    result = await list_communities(level=level, project_path=project_path)
+
+    # Check for error
+    if "error" in result:
+        return result
+
+    # If parent_community_id specified, filter to children only
+    # and add path context for breadcrumb
+    if parent_community_id is not None:
+        communities = result.get("communities", [])
+        # Filter to direct children of parent
+        filtered = [c for c in communities if c.get("parent_community_id") == parent_community_id]
+
+        # Build path for breadcrumb (simplified - would need DB query for full path)
+        parent = next((c for c in communities if c.get("id") == parent_community_id), None)
+        path = []
+        if parent:
+            path.append({"id": parent.get("id"), "name": parent.get("name", "Community")})
+
+        result = {
+            "count": len(filtered),
+            "communities": filtered,
+            "path": path
+        }
+
+    # Generate text fallback
+    text = format_communities_text(result)
+
+    # Create UI resource URI with encoded data
+    import json
+    import urllib.parse
+    data_json = json.dumps(result)
+    encoded_data = urllib.parse.quote(data_json)
+    ui_resource = f"ui://daem0n/community/{encoded_data}"
+
+    return format_with_ui_hint(
+        data=result,
+        ui_resource=ui_resource,
+        text=text
+    )
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
 async def get_community_details(
     community_id: int,
     project_path: Optional[str] = None
