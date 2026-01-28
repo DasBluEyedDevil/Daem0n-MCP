@@ -75,6 +75,14 @@
                 <button class="graph-controls__btn" id="zoom-reset" title="Reset zoom">R</button>
             </div>
 
+            <!-- Community visibility toggle -->
+            <div class="graph-controls graph-controls--top">
+                <label class="graph-controls__toggle">
+                    <input type="checkbox" id="show-communities" checked>
+                    <span>Communities</span>
+                </label>
+            </div>
+
             <!-- Details panel -->
             <div class="graph-details" id="details-panel">
                 <button class="graph-details__close" id="details-close">&times;</button>
@@ -129,8 +137,12 @@
     var transform = d3.zoomIdentity;
     var zoomBehavior;
 
-    // Node radius
+    // Node radius and selection state
     var nodeRadius = 8;
+    var selectedNodeId = null;
+
+    // Community visibility state
+    var showCommunities = true;
 
     /**
      * Initialize canvas with retina support
@@ -170,20 +182,28 @@
     }
 
     /**
-     * Draw a node with category coloring
+     * Draw a node with category coloring and selection highlight
      */
     function drawNode(node) {
         var color = categoryColors[node.category] || categoryColors['default'];
+        var isSelected = selectedNodeId !== null && node.id === selectedNodeId;
 
         ctx.beginPath();
         ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
         ctx.fillStyle = color;
         ctx.fill();
 
-        // Add subtle border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        // Selected node gets accent highlight stroke
+        if (isSelected) {
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        } else {
+            // Add subtle border for non-selected
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
     }
 
     /**
@@ -291,9 +311,23 @@
             }
         });
 
-        // Close details panel
+        // Close details panel and clear selection
         detailsClose.addEventListener('click', function() {
             detailsPanel.classList.remove('graph-details--visible');
+            selectedNodeId = null;
+            draw();
+        });
+
+        // Handle Focus button clicks via event delegation
+        detailsContent.addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-action="focus"]');
+            if (btn && window.SecureMessenger) {
+                var memoryId = parseInt(btn.dataset.id, 10);
+                SecureMessenger.send('tool_request', {
+                    tool: 'get_graph',
+                    args: { memory_ids: [memoryId], include_orphans: true }
+                });
+            }
         });
     }
 
@@ -307,9 +341,27 @@
     }
 
     /**
+     * Format date for display
+     */
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        try {
+            var date = new Date(dateStr);
+            return date.toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        } catch (e) {
+            return dateStr;
+        }
+    }
+
+    /**
      * Show node details in side panel
      */
     function showNodeDetails(node) {
+        // Build tags HTML
         var tagsHtml = '';
         if (node.tags && node.tags.length > 0) {
             tagsHtml = '<div class="result-card__tags" style="margin-top: var(--daemon-space-sm);">' +
@@ -319,17 +371,43 @@
             '</div>';
         }
 
+        // Build date HTML
+        var dateHtml = '';
+        if (node.created_at) {
+            dateHtml = '<div style="margin-top: var(--daemon-space-sm); font-size: 0.75rem; color: var(--daemon-text-muted);">' +
+                '<strong>Created:</strong> ' + escapeHtml(formatDate(node.created_at)) +
+            '</div>';
+        }
+
+        // Get full content (not truncated)
+        var fullContent = node.full_content || node.content || 'No content available';
+        var titleContent = (node.content || '').substring(0, 80);
+        if (titleContent.length < (node.content || '').length) {
+            titleContent += '...';
+        }
+
         detailsContent.innerHTML = [
-            '<div class="daemon-badge daemon-badge--' + (node.category || 'default') + '">' + escapeHtml(node.category || 'memory') + '</div>',
-            '<h3 style="margin-top: var(--daemon-space-md);">' + escapeHtml((node.content || '').substring(0, 60)) + (node.content && node.content.length > 60 ? '...' : '') + '</h3>',
-            '<p class="daemon-muted" style="font-size: 0.875rem; line-height: 1.5;">' + escapeHtml(node.content || 'No content available') + '</p>',
+            '<div class="daemon-card" style="padding: var(--daemon-space-md);">',
+            '  <div class="daemon-badge daemon-badge--' + escapeHtml(node.category || 'default') + '">' + escapeHtml(node.category || 'memory') + '</div>',
+            '  <h3 style="margin: var(--daemon-space-sm) 0;">' + escapeHtml(titleContent) + '</h3>',
+            '  <p class="daemon-muted" style="font-size: 0.875rem; line-height: 1.6; margin-bottom: var(--daemon-space-md);">' + escapeHtml(fullContent) + '</p>',
             tagsHtml,
-            '<div style="margin-top: var(--daemon-space-md); font-size: 0.75rem; color: var(--daemon-text-muted);">',
-            '  <strong>ID:</strong> ' + escapeHtml(String(node.id)),
+            dateHtml,
+            '  <div style="margin-top: var(--daemon-space-sm); font-size: 0.75rem; color: var(--daemon-text-muted);">',
+            '    <strong>ID:</strong> ' + escapeHtml(String(node.id)),
+            '  </div>',
+            '  <div style="margin-top: var(--daemon-space-md);">',
+            '    <button class="daemon-btn daemon-btn--small" data-action="focus" data-id="' + escapeHtml(String(node.id)) + '">',
+            '      Focus on this memory',
+            '    </button>',
+            '  </div>',
             '</div>'
         ].join('\n');
 
+        // Update selection state and redraw to highlight
+        selectedNodeId = node.id;
         detailsPanel.classList.add('graph-details--visible');
+        draw();
     }
 
     /**
