@@ -207,6 +207,75 @@
     }
 
     /**
+     * Draw community cluster hulls using d3.polygonHull
+     * Renders semi-transparent convex hulls around nodes with the same community_id
+     */
+    function drawCommunityHulls(ctx) {
+        // Skip if communities are hidden
+        if (!showCommunities) return;
+
+        // Skip if no community data
+        if (!graphData.nodes.some(function(n) { return n.community_id !== undefined; })) {
+            return;
+        }
+
+        // Group nodes by community
+        var communities = {};
+        graphData.nodes.forEach(function(node) {
+            if (node.community_id !== undefined && node.x !== undefined && node.y !== undefined) {
+                if (!communities[node.community_id]) {
+                    communities[node.community_id] = [];
+                }
+                communities[node.community_id].push(node);
+            }
+        });
+
+        // Draw hull for each community with 3+ members
+        var communityIds = Object.keys(communities);
+        communityIds.forEach(function(commId, index) {
+            var communityNodes = communities[commId];
+            if (communityNodes.length < 3) return;
+
+            // Compute convex hull points
+            var points = communityNodes.map(function(n) {
+                return [n.x, n.y];
+            });
+
+            var hull = d3.polygonHull(points);
+            if (!hull || hull.length < 3) return;
+
+            // Expand hull slightly for visual padding
+            var centroid = d3.polygonCentroid(hull);
+            var expandedHull = hull.map(function(point) {
+                var dx = point[0] - centroid[0];
+                var dy = point[1] - centroid[1];
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                var factor = (dist + 20) / dist;  // 20px padding
+                return [
+                    centroid[0] + dx * factor,
+                    centroid[1] + dy * factor
+                ];
+            });
+
+            // Draw filled hull with low opacity
+            ctx.beginPath();
+            ctx.moveTo(expandedHull[0][0], expandedHull[0][1]);
+            expandedHull.forEach(function(point) {
+                ctx.lineTo(point[0], point[1]);
+            });
+            ctx.closePath();
+
+            // Color based on community index (rotating hue)
+            var hue = (index * 60) % 360;
+            ctx.fillStyle = 'hsla(' + hue + ', 50%, 50%, 0.08)';
+            ctx.fill();
+            ctx.strokeStyle = 'hsla(' + hue + ', 50%, 50%, 0.25)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        });
+    }
+
+    /**
      * Main render function - called on each simulation tick
      */
     function draw() {
@@ -217,14 +286,17 @@
         ctx.translate(transform.x, transform.y);
         ctx.scale(transform.k, transform.k);
 
-        // Draw edges first (underneath nodes)
+        // 1. Draw community hulls first (underneath everything)
+        drawCommunityHulls(ctx);
+
+        // 2. Draw edges
         graphData.edges.forEach(function(edge) {
             if (edge.source && edge.target && edge.source.x !== undefined) {
                 drawEdge(edge.source, edge.target, edge.relationship);
             }
         });
 
-        // Draw nodes
+        // 3. Draw nodes (on top)
         graphData.nodes.forEach(function(node) {
             if (node.x !== undefined && node.y !== undefined) {
                 drawNode(node);
@@ -556,6 +628,15 @@
         // Initialize interaction handlers
         initZoom();
         initClickHandler();
+
+        // Community visibility toggle
+        var showCommunitiesCheckbox = document.getElementById('show-communities');
+        if (showCommunitiesCheckbox) {
+            showCommunitiesCheckbox.addEventListener('change', function(e) {
+                showCommunities = e.target.checked;
+                draw();
+            });
+        }
 
         // Debounced resize handler
         var resizeTimeout;
