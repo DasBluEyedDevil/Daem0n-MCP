@@ -710,3 +710,60 @@ select.daemon-input {
     padding: var(--daemon-space-md);
   }
 }
+
+/* ==========================================================================
+   Covenant State Machine Visualization
+   ========================================================================== */
+
+.covenant-diagram {
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.covenant-state circle {
+  fill: var(--daemon-surface);
+  stroke: var(--daemon-text-muted);
+  stroke-width: 2;
+  transition: fill 0.3s ease, stroke 0.3s ease;
+  transform-origin: center;
+}
+
+.covenant-state text {
+  fill: var(--daemon-text);
+  font-size: 12px;
+  font-weight: 500;
+  text-anchor: middle;
+}
+
+.covenant-state--active circle {
+  fill: var(--daemon-accent);
+  stroke: var(--daemon-accent-hover);
+  animation: covenant-pulse 2s ease-in-out infinite;
+}
+
+.covenant-state--active text {
+  fill: white;
+}
+
+.covenant-state--completed circle {
+  fill: var(--daemon-success);
+  stroke: var(--daemon-success);
+}
+
+.covenant-transition {
+  stroke: var(--daemon-text-muted);
+  stroke-width: 2;
+  fill: none;
+}
+
+@keyframes covenant-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px var(--daemon-accent));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px var(--daemon-accent));
+  }
+}
