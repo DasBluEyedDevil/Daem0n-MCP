@@ -5030,6 +5030,54 @@ async def recall_hierarchical(
 
 
 # ============================================================================
+# Real-Time Update Tools - Polling for UI notifications
+# ============================================================================
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def check_for_updates(
+    since: Optional[str] = None,
+    interval_seconds: int = 10,
+    project_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Check if daemon knowledge has changed since the given timestamp.
+
+    Used for real-time update polling. MCP hosts call this tool periodically
+    and send 'data_updated' postMessage to UIs when has_changes is True.
+
+    Args:
+        since: ISO 8601 timestamp to check from (e.g., '2026-01-28T12:00:00Z').
+               If None, returns current state (always has_changes=True).
+        interval_seconds: Recommended polling interval (5-60, default 10).
+                         Returned to help hosts configure polling.
+        project_path: Project context path (uses current directory if not specified)
+
+    Returns:
+        Dict with:
+            - has_changes: bool - True if data changed since timestamp
+            - last_update: str - ISO timestamp of most recent change
+            - recommended_interval: int - Suggested polling interval
+            - checked_at: str - ISO timestamp of this check
+
+    Example flow:
+        1. First call: check_for_updates() -> {'has_changes': True, 'last_update': '...', ...}
+        2. Store last_update, start polling
+        3. Poll: check_for_updates(since=last_update) -> {'has_changes': False, ...}
+        4. When has_changes=True, send postMessage to UI iframe
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    project_path = project_path or _default_project_path
+
+    from .ui.ui_tools import check_for_updates as _check
+
+    ctx = await get_project_context(project_path)
+    return await _check(ctx.db_manager, since, interval_seconds)
+
+
+# ============================================================================
 # Entity Query Tools - Query memories by extracted entities
 # ============================================================================
 @mcp.tool(version="3.0.0")
