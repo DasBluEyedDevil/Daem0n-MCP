@@ -324,7 +324,7 @@ def register_ui_resources(mcp: "FastMCP") -> None:
         return _build_test_ui()
 
     @mcp.resource(
-        uri="ui://daem0n/search",
+        uri="ui://daem0n/search/{data}",
         name="Search Results",
         description="Visual search results with filtering and score insights",
         mime_type=MCP_APPS_MIME

@@ -899,6 +899,96 @@ async def recall(
 
 
 # ============================================================================
+# Tool 2.5: RECALL_VISUAL - Semantic recall with UI resource hint
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def recall_visual(
+    topic: str,
+    categories: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    file_path: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 10,
+    include_linked: bool = False,
+    project_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Search memories with visual UI support.
+
+    Same as recall() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        topic: What to search for
+        categories: Filter by category (decision, warning, pattern, learning)
+        tags: Filter by tags
+        file_path: Filter by associated file
+        offset: Pagination offset
+        limit: Results per page
+        include_linked: Include results from linked projects
+        project_path: Project root
+
+    Returns:
+        Dict with recall results + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_search_results
+
+    # Require project_path for multi-project support
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    effective_path = project_path or _default_project_path
+
+    # Covenant enforcement: recall requires communion (briefing)
+    violation = _check_covenant_communion(effective_path)
+    if violation:
+        return violation
+
+    ctx = await get_project_context(project_path)
+
+    # Get recall results using existing memory manager
+    result = await ctx.memory_manager.recall(
+        topic=topic,
+        categories=categories,
+        tags=tags,
+        file_path=file_path,
+        offset=offset,
+        limit=limit,
+        project_path=ctx.project_path,
+        include_linked=include_linked,
+    )
+
+    # Add topic to result for UI rendering
+    result["topic"] = topic
+
+    # Flatten results for text formatting
+    all_results = []
+    for cat in ['decisions', 'patterns', 'warnings', 'learnings']:
+        for r in result.get(cat, []):
+            all_results.append({
+                'id': r.get('id'),
+                'category': cat.rstrip('s'),  # decisions -> decision
+                'content': r.get('content', ''),
+                'score': r.get('relevance', 0),
+            })
+
+    # Generate text fallback
+    text = format_search_results(
+        query=topic,
+        results=all_results,
+        total_count=result.get('total_count', len(all_results))
+    )
+
+    # Return with UI hint
+    return format_with_ui_hint(
+        data=result,
+        ui_resource="ui://daem0n/search",
+        text=text
+    )
+
+
+# ============================================================================
 # Tool 3: ADD_RULE - Create a decision tree node
 # ============================================================================
 @mcp.tool(version="3.0.0")
