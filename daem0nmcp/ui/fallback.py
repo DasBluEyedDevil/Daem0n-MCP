@@ -174,6 +174,56 @@ def format_covenant_status(
     return "\n".join(lines)
 
 
+def format_covenant_status_text(data: Dict[str, Any]) -> str:
+    """
+    Format covenant status as readable text for non-MCP-Apps hosts.
+
+    Args:
+        data: get_covenant_status output
+
+    Returns:
+        Formatted text string suitable for terminal/text display
+    """
+    lines = []
+
+    phase_label = data.get("phase_label", "UNKNOWN")
+    phase_desc = data.get("phase_description", "")
+    is_briefed = data.get("is_briefed", False)
+    context_checks = data.get("context_check_count", 0)
+    preflight = data.get("preflight", {})
+    message = data.get("message", "")
+
+    lines.append("=== COVENANT STATUS ===")
+    lines.append("")
+    lines.append(f"Phase: {phase_label}")
+    lines.append(f"  {phase_desc}")
+    lines.append("")
+    lines.append(f"Briefed: {'Yes' if is_briefed else 'No'}")
+    lines.append(f"Context Checks: {context_checks}")
+    lines.append("")
+
+    # Token status
+    token_status = preflight.get("status", "none").upper()
+    lines.append(f"Preflight Token: {token_status}")
+
+    if token_status == "VALID":
+        remaining = preflight.get("remaining_seconds", 0)
+        if remaining:
+            minutes = remaining // 60
+            seconds = remaining % 60
+            lines.append(f"  Expires in: {minutes}:{seconds:02d}")
+        expires_at = preflight.get("expires_at")
+        if expires_at:
+            lines.append(f"  Expires at: {expires_at}")
+
+    lines.append("")
+    lines.append(f"Message: {message}")
+    lines.append("")
+    lines.append("=" * 24)
+
+    return "\n".join(lines)
+
+
 def format_community_cluster(
     community_id: int,
     members: List[str],
