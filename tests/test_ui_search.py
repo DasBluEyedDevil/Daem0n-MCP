@@ -251,3 +251,197 @@ class TestSearchUIIntegration:
 
         assert "Just content" in html
         assert "daemon-card" in html
+
+
+class TestScoreBreakdown:
+    """Tests for score breakdown display in result cards."""
+
+    def test_score_breakdown_rendered(self):
+        """Test that score breakdown section is rendered with components."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {
+                    "content": "Test decision",
+                    "relevance": 0.77,
+                    "semantic_match": 0.85,
+                    "recency_weight": 0.9,
+                }
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+        }
+
+        html = _build_search_ui(data)
+
+        # Check score breakdown section exists
+        assert "daemon-score-breakdown" in html
+        assert "Score breakdown" in html  # Summary text
+
+        # Check component labels
+        assert "Semantic match:" in html
+        assert "Recency weight:" in html
+        assert "Final relevance:" in html
+
+        # Check values are displayed as percentages
+        assert "85%" in html  # semantic_match
+        assert "90%" in html  # recency_weight
+        assert "77%" in html  # relevance
+
+    def test_score_breakdown_fallback_values(self):
+        """Test that score breakdown uses fallback when semantic_match not provided."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {
+                    "content": "No explicit semantic_match",
+                    "relevance": 0.65,
+                    # semantic_match and recency_weight not provided
+                }
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+        }
+
+        html = _build_search_ui(data)
+
+        # Should still have breakdown section
+        assert "daemon-score-breakdown" in html
+        # Semantic match falls back to relevance (65%)
+        assert "65%" in html
+        # Recency weight defaults to 100%
+        assert "100%" in html
+
+
+class TestPagination:
+    """Tests for pagination controls."""
+
+    def test_pagination_controls_rendered(self):
+        """Test that pagination controls are rendered when has_more or offset > 0."""
+        data = {
+            "topic": "test",
+            "decisions": [{"content": "item", "relevance": 0.5}],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+            "offset": 10,
+            "limit": 10,
+            "total_count": 50,
+            "has_more": True,
+        }
+
+        html = _build_search_ui(data)
+
+        # Check pagination container
+        assert "daemon-pagination" in html
+        assert 'data-offset="10"' in html
+        assert 'data-limit="10"' in html
+
+        # Check info text shows correct range
+        assert "Showing 11-" in html  # offset+1
+        assert "of 50" in html  # total_count
+
+        # Check buttons exist
+        assert 'data-action="prev"' in html
+        assert 'data-action="next"' in html
+
+    def test_pagination_first_page(self):
+        """Test that Previous is disabled on first page."""
+        data = {
+            "topic": "test",
+            "decisions": [{"content": "item", "relevance": 0.5}],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+            "offset": 0,
+            "limit": 10,
+            "total_count": 20,
+            "has_more": True,
+        }
+
+        html = _build_search_ui(data)
+
+        # Pagination should be rendered (has_more is True)
+        assert "daemon-pagination" in html
+
+        # Find the Previous button - it should have disabled attribute
+        # The pattern is: data-action="prev" ... disabled (or disabled before data-action)
+        prev_button_start = html.find('data-action="prev"')
+        assert prev_button_start > 0
+        # Look backward for the button start and forward for the >
+        button_start = html.rfind('<button', 0, prev_button_start)
+        button_end = html.find('>', prev_button_start)
+        prev_button = html[button_start:button_end + 1]
+        assert "disabled" in prev_button
+
+        # Next button should NOT be disabled
+        next_button_start = html.find('data-action="next"')
+        button_start = html.rfind('<button', 0, next_button_start)
+        button_end = html.find('>', next_button_start)
+        next_button = html[button_start:button_end + 1]
+        # Check that disabled is not in the Next button specifically
+        # (Need to be careful since "disabled" might appear elsewhere)
+        assert next_button.count("disabled") == 0
+
+    def test_pagination_last_page(self):
+        """Test that Next is disabled on last page."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {"content": "item1", "relevance": 0.5},
+                {"content": "item2", "relevance": 0.5},
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+            "offset": 40,
+            "limit": 10,
+            "total_count": 42,
+            "has_more": False,
+        }
+
+        html = _build_search_ui(data)
+
+        # Pagination should be rendered (offset > 0)
+        assert "daemon-pagination" in html
+
+        # Previous button should NOT be disabled
+        prev_button_start = html.find('data-action="prev"')
+        button_start = html.rfind('<button', 0, prev_button_start)
+        button_end = html.find('>', prev_button_start)
+        prev_button = html[button_start:button_end + 1]
+        assert prev_button.count("disabled") == 0
+
+        # Next button should be disabled
+        next_button_start = html.find('data-action="next"')
+        button_start = html.rfind('<button', 0, next_button_start)
+        button_end = html.find('>', next_button_start)
+        next_button = html[button_start:button_end + 1]
+        assert "disabled" in next_button
+
+    def test_pagination_hidden_single_page(self):
+        """Test that pagination is hidden when all results fit on single page."""
+        data = {
+            "topic": "test",
+            "decisions": [
+                {"content": "item1", "relevance": 0.5},
+                {"content": "item2", "relevance": 0.5},
+            ],
+            "patterns": [],
+            "warnings": [],
+            "learnings": [],
+            "offset": 0,
+            "limit": 10,
+            "total_count": 2,
+            "has_more": False,
+        }
+
+        html = _build_search_ui(data)
+
+        # Pagination container element should NOT be rendered (offset=0 and has_more=False)
+        # Note: "daemon-pagination" class is in CSS, so check for actual element
+        assert 'class="daemon-pagination"' not in html
+        assert 'data-action="prev"' not in html
+        assert 'data-action="next"' not in html
