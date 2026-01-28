@@ -114,8 +114,21 @@
                 </svg>
             </div>
 
-            <!-- Token Status Panel (Plan 2) -->
-            {{TOKEN_PANEL}}
+            <!-- Token Status Panel -->
+            <div class="token-status" id="token-status">
+                <div class="token-status__header">
+                    <span class="token-status__label">Preflight Token</span>
+                    <span class="token-status__badge token-status__badge--{{TOKEN_STATUS}}" id="token-badge">{{TOKEN_STATUS_LABEL}}</span>
+                </div>
+                <div class="token-status__countdown" id="countdown-panel" style="{{COUNTDOWN_VISIBILITY}}">
+                    <span class="token-status__icon">&#9201;</span>
+                    <span class="token-status__time" id="countdown">{{TOKEN_REMAINING}}</span>
+                    <span class="token-status__unit">remaining</span>
+                </div>
+                <button class="daemon-btn daemon-btn--small" data-action="context-check" id="refresh-token-btn">
+                    Refresh Token
+                </button>
+            </div>
 
             <!-- Current Phase Info -->
             {{PHASE_INFO}}
@@ -166,6 +179,79 @@
     document.addEventListener('DOMContentLoaded', function() {
         setCurrentPhase('{{CURRENT_PHASE}}');
     });
+})();
+
+// Token countdown timer using Date.now() for accuracy
+(function() {
+    var countdownInterval = null;
+    var targetTime = null;
+    var WARNING_THRESHOLD = 60; // seconds
+
+    function startCountdown(expiresAtIso) {
+        if (!expiresAtIso) return;
+        targetTime = new Date(expiresAtIso).getTime();
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(updateCountdown, 1000);
+        updateCountdown(); // Initial update
+    }
+
+    function updateCountdown() {
+        var remaining = Math.max(0, Math.floor((targetTime - Date.now()) / 1000));
+        var countdownEl = document.getElementById('countdown');
+        var timeEl = document.querySelector('.token-status__time');
+        var badgeEl = document.getElementById('token-badge');
+
+        if (countdownEl) {
+            countdownEl.textContent = formatTime(remaining);
+        }
+
+        // Warning state when < 60s
+        if (timeEl && remaining <= WARNING_THRESHOLD && remaining > 0) {
+            timeEl.classList.add('token-status__time--warning');
+        }
+
+        // Expired state
+        if (remaining === 0) {
+            clearInterval(countdownInterval);
+            if (badgeEl) {
+                badgeEl.className = 'token-status__badge token-status__badge--expired';
+                badgeEl.textContent = 'EXPIRED';
+            }
+            if (timeEl) {
+                timeEl.classList.add('token-status__time--warning');
+            }
+        }
+    }
+
+    function formatTime(seconds) {
+        var m = Math.floor(seconds / 60);
+        var s = seconds % 60;
+        return m + ':' + s.toString().padStart(2, '0');
+    }
+
+    // Initialize countdown if token is valid
+    var expiresAt = '{{TOKEN_EXPIRES_AT}}';
+    if (expiresAt && expiresAt !== 'null' && expiresAt !== '' && expiresAt !== 'None') {
+        startCountdown(expiresAt);
+    }
+
+    // Make startCountdown available globally for dynamic updates
+    window.startCountdown = startCountdown;
+})();
+
+// Context check button handler for token refresh
+(function() {
+    var btn = document.querySelector('[data-action="context-check"]');
+    if (btn) {
+        btn.addEventListener('click', function() {
+            if (window.SecureMessenger) {
+                SecureMessenger.send('tool_request', {
+                    tool: 'context_check',
+                    args: { description: 'Refreshing token from Covenant Status dashboard' }
+                });
+            }
+        });
+    }
 })();
     </script>
 </body>
