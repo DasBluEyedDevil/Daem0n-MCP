@@ -548,26 +548,6 @@ def _build_covenant_ui(data: Dict[str, Any]) -> str:
     # Token expires_at for JS countdown
     token_expires_at = preflight.get("expires_at") or ""
 
-    # Determine warning state (under 60 seconds)
-    time_class = ""
-    if remaining is not None and 0 < remaining < 60:
-        time_class = "token-status__time--warning"
-
-    # Token panel HTML (matches 09-02 CSS classes)
-    token_panel_html = f'''
-    <div class="token-status" id="token-status">
-        <div class="token-status__header">
-            <span class="token-status__label">Preflight Token</span>
-            <span class="token-status__badge token-status__badge--{token_status}">{token_status_label}</span>
-        </div>
-        <div class="token-status__countdown" id="countdown-panel" style="{countdown_visibility}">
-            <span class="token-status__icon">&#9201;</span>
-            <span class="token-status__time {time_class}" id="countdown" data-expires="{token_expires_at}">{token_remaining}</span>
-            <span class="token-status__unit">remaining</span>
-        </div>
-    </div>
-    '''
-
     # Phase info panel
     phase_info_html = f'''
     <div class="covenant-phase-info">
@@ -581,7 +561,12 @@ def _build_covenant_ui(data: Dict[str, Any]) -> str:
     html = template.replace("{{TITLE}}", "Covenant Status")
     html = html.replace("{{STATUS}}", phase_label)
     html = html.replace("{{CURRENT_PHASE}}", phase)
-    html = html.replace("{{TOKEN_PANEL}}", token_panel_html)
+    # Token panel individual slots (template has inline HTML, not {{TOKEN_PANEL}} slot)
+    html = html.replace("{{TOKEN_STATUS}}", token_status)
+    html = html.replace("{{TOKEN_STATUS_LABEL}}", token_status_label)
+    html = html.replace("{{TOKEN_REMAINING}}", token_remaining)
+    html = html.replace("{{TOKEN_EXPIRES_AT}}", token_expires_at)
+    html = html.replace("{{COUNTDOWN_VISIBILITY}}", countdown_visibility)
     html = html.replace("{{PHASE_INFO}}", phase_info_html)
     html = _inject_assets(html, include_d3=True)  # Include D3 for transitions
 
