@@ -102,6 +102,12 @@
     display: none !important;
 }
 
+.daemon-card__actions {
+    margin-top: var(--daemon-space-md);
+    padding-top: var(--daemon-space-sm);
+    border-top: var(--daemon-border);
+}
+
 /* Score Breakdown */
 .daemon-score-breakdown {
     margin-top: var(--daemon-space-sm);
@@ -167,6 +173,9 @@
             <div class="daemon-grid daemon-grid--auto" id="results-grid">
 {{CONTENT}}
             </div>
+
+            <!-- Pagination Controls -->
+{{PAGINATION}}
         </div>
     </div>
     <script>
@@ -202,6 +211,22 @@
     });
 })();
 
+// Record Outcome button handler
+(function() {
+    document.querySelectorAll('[data-action="record-outcome"]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            var memoryId = e.target.dataset.memoryId;
+            // Send message to host to initiate record_outcome flow
+            if (window.SecureMessenger) {
+                SecureMessenger.send('tool_request', {
+                    tool: 'record_outcome',
+                    args: { memory_id: parseInt(memoryId, 10) }
+                });
+            }
+        });
+    });
+})();
+
 // Keyword highlighting function (available for dynamic use)
 function highlightKeywords(content, query) {
     if (!query || !content) return content;
@@ -219,6 +244,34 @@ function highlightKeywords(content, query) {
 
     return result;
 }
+
+// Pagination button handler
+(function() {
+    var paginationContainer = document.querySelector('.daemon-pagination');
+    if (!paginationContainer) return;
+
+    var offset = parseInt(paginationContainer.dataset.offset || '0', 10);
+    var limit = parseInt(paginationContainer.dataset.limit || '10', 10);
+
+    document.querySelectorAll('.daemon-pagination__btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            if (btn.disabled) return;
+
+            var action = btn.dataset.action;
+            var newOffset = action === 'next'
+                ? offset + limit
+                : Math.max(0, offset - limit);
+
+            // Send message to host to request new page
+            if (window.SecureMessenger) {
+                SecureMessenger.send('pagination', {
+                    offset: newOffset,
+                    limit: limit
+                });
+            }
+        });
+    });
+})();
     </script>
 </body>
 </html>

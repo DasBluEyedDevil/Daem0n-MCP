@@ -149,6 +149,8 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
         score_width = int(relevance * 100) if relevance <= 1 else int(relevance)
         created_at = _format_date(result.get("created_at", ""))
         tags = result.get("tags", [])
+        memory_id = result.get("id")
+        worked = result.get("worked")
 
         tags_html = ""
         if tags:
@@ -159,6 +161,18 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
         semantic_pct = f"{semantic_match:.0%}" if semantic_match <= 1 else f"{semantic_match}%"
         recency_pct = f"{recency_weight:.0%}" if recency_weight <= 1 else f"{recency_weight}%"
         relevance_pct = f"{relevance:.0%}" if relevance <= 1 else f"{relevance}%"
+
+        # Record Outcome button for decisions without outcome yet
+        actions_html = ""
+        if category == "decision" and worked is None and memory_id is not None:
+            actions_html = f'''
+    <div class="daemon-card__actions">
+        <button class="daemon-btn daemon-btn--small daemon-btn--secondary"
+                data-action="record-outcome"
+                data-memory-id="{memory_id}">
+            Record Outcome
+        </button>
+    </div>'''
 
         return f'''
 <div class="daemon-card result-card" data-category="{category}">
@@ -195,7 +209,7 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
     <div class="result-card__meta">
         <span class="result-card__date">{created_at}</span>
         {tags_html}
-    </div>
+    </div>{actions_html}
 </div>'''
 
     # Render all categories
@@ -219,17 +233,46 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
     </p>
 </div>''')
 
+    # Pagination data
+    offset = data.get("offset", 0)
+    limit = data.get("limit", 10)
+    has_more = data.get("has_more", False)
+
     # Build result count text
     if total_count == total_results:
         result_count_text = f"Showing {total_results} result{'s' if total_results != 1 else ''}"
     else:
         result_count_text = f"Showing {total_results} of {total_count} results"
 
+    # Build pagination HTML (only if needed)
+    pagination_html = ""
+    if has_more or offset > 0:
+        # Calculate display range
+        range_start = offset + 1
+        range_end = offset + total_results
+
+        prev_disabled = "disabled" if offset == 0 else ""
+        next_disabled = "disabled" if not has_more else ""
+
+        pagination_html = f'''
+            <div class="daemon-pagination" data-offset="{offset}" data-limit="{limit}">
+                <button class="daemon-pagination__btn" data-action="prev" {prev_disabled}>
+                    Previous
+                </button>
+                <span class="daemon-pagination__info">
+                    Showing {range_start}-{range_end} of {total_count}
+                </span>
+                <button class="daemon-pagination__btn" data-action="next" {next_disabled}>
+                    Next
+                </button>
+            </div>'''
+
     # Inject into template
     html = template.replace("{{TITLE}}", f"Search: {topic}" if topic else "Search Results")
     html = html.replace("{{TOPIC}}", topic if topic else "All")
     html = html.replace("{{RESULT_COUNT}}", result_count_text)
     html = html.replace("{{CONTENT}}", "\n".join(cards_html))
+    html = html.replace("{{PAGINATION}}", pagination_html)
     html = _inject_assets(html, include_d3=False)
 
     return html
