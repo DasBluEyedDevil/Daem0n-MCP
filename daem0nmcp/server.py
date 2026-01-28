@@ -2111,6 +2111,51 @@ async def get_briefing(
 
 
 # ============================================================================
+# Tool 6.5: GET_BRIEFING_VISUAL - Briefing with UI resource hint
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_briefing_visual(
+    project_path: Optional[str] = None,
+    focus_areas: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Session start with visual UI support.
+
+    Same as get_briefing() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        project_path: Project root (REQUIRED)
+        focus_areas: Topics to pre-fetch
+
+    Returns:
+        Dict with briefing data + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_briefing_text
+
+    # Get briefing data using existing get_briefing function
+    result = await get_briefing(
+        project_path=project_path,
+        focus_areas=focus_areas
+    )
+
+    # Check for error
+    if "error" in result:
+        return result
+
+    # Generate text fallback
+    text = format_briefing_text(result)
+
+    # Return with UI hint
+    return format_with_ui_hint(
+        data=result,
+        ui_resource="ui://daem0n/briefing",
+        text=text
+    )
+
+
+# ============================================================================
 # Tool 7: SEARCH - Full text search across memories
 # ============================================================================
 @mcp.tool(version="3.0.0")
