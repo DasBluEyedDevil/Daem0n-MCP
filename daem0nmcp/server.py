@@ -663,7 +663,7 @@ logger.info(f"Daem0nMCP Server initialized (default storage: {storage_path})")
 # ============================================================================
 # Tool 1: REMEMBER - Store a memory with conflict detection
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remember(
     category: str,
@@ -729,7 +729,7 @@ async def remember(
 # ============================================================================
 # Tool 1b: REMEMBER_BATCH - Store multiple memories efficiently
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remember_batch(
     memories: List[Dict[str, Any]],
@@ -774,7 +774,7 @@ async def remember_batch(
 # ============================================================================
 # Tool 2: RECALL - Semantic memory retrieval with decay
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall(
     topic: str,
@@ -862,7 +862,7 @@ async def recall(
 # ============================================================================
 # Tool 2.5: RECALL_VISUAL - Semantic recall with UI resource hint
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_visual(
     topic: str,
@@ -954,7 +954,7 @@ async def recall_visual(
 # ============================================================================
 # Tool 3: ADD_RULE - Create a decision tree node
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def add_rule(
     trigger: str,
@@ -999,7 +999,7 @@ async def add_rule(
 # ============================================================================
 # Tool 4: CHECK_RULES - Validate an action against rules
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def check_rules(
     action: str,
@@ -1027,7 +1027,7 @@ async def check_rules(
 # ============================================================================
 # Tool 5: RECORD_OUTCOME - Track if a decision worked
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def record_outcome(
     memory_id: int,
@@ -1974,7 +1974,7 @@ def _build_briefing_message(
 # ============================================================================
 # Tool 6: GET_BRIEFING - Smart session start summary
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_briefing(
     project_path: Optional[str] = None,
@@ -2075,7 +2075,7 @@ async def get_briefing(
 # ============================================================================
 # Tool 6.5: GET_BRIEFING_VISUAL - Briefing with UI resource hint
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_briefing_visual(
     project_path: Optional[str] = None,
@@ -2122,7 +2122,7 @@ async def get_briefing_visual(
 # ============================================================================
 # Tool 6.6: GET_COVENANT_STATUS - Current covenant state for dashboard
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_covenant_status(
     project_path: Optional[str] = None
@@ -2209,7 +2209,7 @@ async def get_covenant_status(
 # ============================================================================
 # Tool 6.7: GET_COVENANT_STATUS_VISUAL - Covenant status with UI support
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_covenant_status_visual(
     project_path: Optional[str] = None
@@ -2255,7 +2255,7 @@ async def get_covenant_status_visual(
 # ============================================================================
 # Tool 7: SEARCH - Full text search across memories
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def search_memories(
     query: str,
@@ -2321,7 +2321,7 @@ async def search_memories(
 # ============================================================================
 # Tool 8: LIST_RULES - See all configured rules
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_rules(
     enabled_only: bool = True,
@@ -2347,7 +2347,7 @@ async def list_rules(
 # ============================================================================
 # Tool 9: UPDATE_RULE - Modify existing rules
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def update_rule(
     rule_id: int,
@@ -2388,7 +2388,7 @@ async def update_rule(
 # ============================================================================
 # Tool 10: FIND_RELATED - Discover connected memories
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def find_related(
     memory_id: int,
@@ -2414,7 +2414,7 @@ async def find_related(
 # ============================================================================
 # Tool 11: VERIFY_FACTS - Verify factual claims against stored knowledge
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def verify_facts(
     text: str,
@@ -2565,7 +2565,7 @@ def _build_verification_message(summary: Dict[str, Any]) -> str:
 # ============================================================================
 # Tool: COMPRESS_CONTEXT - Intelligent context compression
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def compress_context(
     context: str,
@@ -2639,7 +2639,7 @@ async def compress_context(
 # ============================================================================
 # Tool 45: EXECUTE_PYTHON - Sandboxed code execution
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def execute_python(
     code: str,
@@ -2730,7 +2730,7 @@ async def execute_python(
 # ============================================================================
 # Tool 12: CONTEXT_CHECK - Quick relevance check for current work
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def context_check(
     description: str,
@@ -2826,7 +2826,7 @@ async def context_check(
 # ============================================================================
 # Tool 12: RECALL_FOR_FILE - Get memories for a specific file
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_for_file(
     file_path: str,
@@ -2981,7 +2981,7 @@ def _scan_for_todos(
 # ============================================================================
 # Tool 13: SCAN_TODOS - Find tech debt in codebase
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def scan_todos(
     path: Optional[str] = None,
@@ -3327,7 +3327,7 @@ def _chunk_markdown_content(content: str, chunk_size: int, max_chunks: int) -> L
 # ============================================================================
 # Tool 14: INGEST_DOC - Import external documentation
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def ingest_doc(
     url: str,
@@ -3419,7 +3419,7 @@ async def ingest_doc(
 # ============================================================================
 # Tool 15: PROPOSE_REFACTOR - Generate refactor suggestions
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def propose_refactor(
     file_path: str,
@@ -3554,7 +3554,7 @@ async def propose_refactor(
 # ============================================================================
 # Tool 16: REBUILD_INDEX - Force rebuild of search indexes
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def rebuild_index(
     project_path: Optional[str] = None
@@ -3581,7 +3581,7 @@ async def rebuild_index(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def export_data(
     project_path: Optional[str] = None,
@@ -3658,7 +3658,7 @@ async def export_data(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def import_data(
     data: Dict[str, Any],
@@ -3767,7 +3767,7 @@ async def import_data(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def pin_memory(
     memory_id: int,
@@ -3811,7 +3811,7 @@ async def pin_memory(
 # Graph Memory Tools - Explicit relationship edges between memories
 # ============================================================================
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def link_memories(
     source_id: int,
@@ -3842,7 +3842,7 @@ async def link_memories(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def unlink_memories(
     source_id: int,
@@ -3870,7 +3870,7 @@ async def unlink_memories(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def trace_chain(
     memory_id: int,
@@ -3901,7 +3901,7 @@ async def trace_chain(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_graph(
     memory_ids: Optional[List[int]] = None,
@@ -3929,7 +3929,7 @@ async def get_graph(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_graph_visual(
     memory_ids: Optional[List[int]] = None,
@@ -3989,7 +3989,7 @@ async def get_graph_visual(
     return format_with_ui_hint(result, ui_resource, text)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def prune_memories(
     older_than_days: int = 90,
@@ -4076,7 +4076,7 @@ async def prune_memories(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def archive_memory(
     memory_id: int,
@@ -4115,7 +4115,7 @@ async def archive_memory(
         }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def cleanup_memories(
     dry_run: bool = True,
@@ -4235,7 +4235,7 @@ async def cleanup_memories(
 # ============================================================================
 # Tool: COMPACT_MEMORIES - Consolidate episodic memories into summaries
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def compact_memories(
     summary: str,
@@ -4267,7 +4267,7 @@ async def compact_memories(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def health(
     project_path: Optional[str] = None
@@ -4339,7 +4339,7 @@ async def health(
 # Code Understanding Tools (Phase 2)
 # ============================================================================
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def index_project(
     path: Optional[str] = None,
@@ -4392,7 +4392,7 @@ async def index_project(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def find_code(
     query: str,
@@ -4445,7 +4445,7 @@ async def find_code(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def analyze_impact(
     entity_name: str,
@@ -4487,7 +4487,7 @@ async def analyze_impact(
 # ============================================================================
 # LINKED PROJECTS - Cross-project memory awareness
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def link_projects(
     linked_path: str,
@@ -4523,7 +4523,7 @@ async def link_projects(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def unlink_projects(
     linked_path: str,
@@ -4553,7 +4553,7 @@ async def unlink_projects(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_linked_projects(
     project_path: Optional[str] = None
@@ -4579,7 +4579,7 @@ async def list_linked_projects(
     return {"links": links}
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def consolidate_linked_databases(
     archive_sources: bool = False,
@@ -4613,7 +4613,7 @@ async def consolidate_linked_databases(
 # Active Working Context Tools (MemGPT-style always-hot memories)
 # ============================================================================
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def set_active_context(
     memory_id: int,
@@ -4656,7 +4656,7 @@ async def set_active_context(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_active_context(
     project_path: Optional[str] = None
@@ -4681,7 +4681,7 @@ async def get_active_context(
     return await acm.get_active_context(ctx.project_path)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remove_from_active_context(
     memory_id: int,
@@ -4708,7 +4708,7 @@ async def remove_from_active_context(
     return await acm.remove_from_context(ctx.project_path, memory_id)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def clear_active_context(
     project_path: Optional[str] = None
@@ -4738,7 +4738,7 @@ async def clear_active_context(
 # ============================================================================
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_memory_versions(
     memory_id: int,
@@ -4766,7 +4766,7 @@ async def get_memory_versions(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_memory_at_time(
     memory_id: int,
@@ -4806,7 +4806,7 @@ async def get_memory_at_time(
 # ============================================================================
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def rebuild_communities(
     min_community_size: int = 2,
@@ -4853,7 +4853,7 @@ async def rebuild_communities(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_communities(
     level: Optional[int] = None,
@@ -4885,7 +4885,7 @@ async def list_communities(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_communities_visual(
     level: Optional[int] = None,
@@ -4951,7 +4951,7 @@ async def list_communities_visual(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_community_details(
     community_id: int,
@@ -4975,7 +4975,7 @@ async def get_community_details(
     return await cm.get_community_members(community_id)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_hierarchical(
     topic: str,
@@ -5009,7 +5009,7 @@ async def recall_hierarchical(
 # Real-Time Update Tools - Polling for UI notifications
 # ============================================================================
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def check_for_updates(
     since: Optional[str] = None,
@@ -5056,7 +5056,7 @@ async def check_for_updates(
 # ============================================================================
 # Entity Query Tools - Query memories by extracted entities
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_by_entity(
     entity_name: str,
@@ -5090,7 +5090,7 @@ async def recall_by_entity(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_entities(
     entity_type: Optional[str] = None,
@@ -5129,7 +5129,7 @@ async def list_entities(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def backfill_entities(
     project_path: Optional[str] = None
@@ -5187,7 +5187,7 @@ async def backfill_entities(
 # GRAPHRAG TOOLS - Multi-hop traversal and knowledge evolution queries
 # ============================================================================
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def trace_causal_path(
     start_memory_id: int,
@@ -5217,7 +5217,7 @@ async def trace_causal_path(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def trace_evolution(
     entity_name: Optional[str] = None,
@@ -5262,7 +5262,7 @@ async def trace_evolution(
     return await knowledge_graph.trace_evolution(entity_id=entity_id)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_related_memories(
     memory_id: int,
@@ -5295,7 +5295,7 @@ async def get_related_memories(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_graph_stats(
     project_path: Optional[str] = None
@@ -5319,7 +5319,7 @@ async def get_graph_stats(
 # CONTEXT TRIGGER TOOLS - Auto-recall based on patterns
 # ============================================================================
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def add_context_trigger(
     trigger_type: str,
@@ -5363,7 +5363,7 @@ async def add_context_trigger(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_context_triggers(
     active_only: bool = True,
@@ -5401,7 +5401,7 @@ async def list_context_triggers(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remove_context_trigger(
     trigger_id: int,
@@ -5433,7 +5433,7 @@ async def remove_context_trigger(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def check_context_triggers(
     file_path: Optional[str] = None,
@@ -5847,7 +5847,7 @@ except ImportError:
 # Workflow 1: COMMUNE - Session start & status
 # Actions: briefing, active_context, triggers, health, covenant, updates
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def commune(
     action: str,
@@ -5898,7 +5898,7 @@ async def commune(
 # Actions: preflight, recall, recall_file, recall_entity,
 #          recall_hierarchical, search, check_rules, compress
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def consult(
     action: str,
@@ -5991,7 +5991,7 @@ async def consult(
 # Actions: remember, remember_batch, link, unlink, pin,
 #          activate, deactivate, clear_active, ingest
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def inscribe(
     action: str,
@@ -6070,7 +6070,7 @@ async def inscribe(
 # Workflow 4: REFLECT - Outcomes & verification
 # Actions: outcome, verify, execute
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def reflect(
     action: str,
@@ -6121,7 +6121,7 @@ async def reflect(
 # Workflow 5: UNDERSTAND - Code comprehension
 # Actions: index, find, impact, todos, refactor
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def understand(
     action: str,
@@ -6175,7 +6175,7 @@ async def understand(
 # Actions: add_rule, update_rule, list_rules,
 #          add_trigger, list_triggers, remove_trigger
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def govern(
     action: str,
@@ -6248,7 +6248,7 @@ async def govern(
 #          rebuild_communities, entities, backfill_entities, evolution,
 #          versions, at_time
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def explore(
     action: str,
@@ -6337,7 +6337,7 @@ async def explore(
 #          export, import_data, link_project, unlink_project,
 #          list_projects, consolidate
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def maintain(
     action: str,
