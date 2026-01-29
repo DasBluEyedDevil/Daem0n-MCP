@@ -12,7 +12,7 @@ This skill guides Claude through setting up Daem0n-MCP for various project struc
 For a single repository:
 
 ```bash
-# Daem0n auto-initializes on first get_briefing()
+# Daem0n auto-initializes on first commune(action="briefing")
 # Just ensure you're in the project root
 ```
 
@@ -39,22 +39,22 @@ Best when repos are siblings under a common parent:
 
 2. **Initialize Daem0n in parent**
    ```
-   Call get_briefing(project_path="/repos")
+   Call commune(action="briefing", project_path="/repos")
    ```
 
 3. **If child repos already have .daem0nmcp data, consolidate:**
    ```
    # Link the children first
-   Call link_projects(linked_path="/repos/backend", relationship="same-project")
-   Call link_projects(linked_path="/repos/client", relationship="same-project")
+   Call maintain(action="link_project", linked_path="/repos/backend", relationship="same-project")
+   Call maintain(action="link_project", linked_path="/repos/client", relationship="same-project")
 
    # Merge their databases into parent
-   Call consolidate_linked_databases(archive_sources=True)
+   Call maintain(action="consolidate", archive_sources=True)
    ```
 
 4. **Verify consolidation**
    ```
-   Call get_briefing(project_path="/repos")
+   Call commune(action="briefing", project_path="/repos")
    # Should show combined memory count
    ```
 
@@ -65,13 +65,13 @@ Best when repos need their own isolated histories but cross-awareness:
 ```
 # In each repo, link to siblings
 cd /repos/backend
-Call link_projects(linked_path="/repos/client", relationship="same-project")
+Call maintain(action="link_project", linked_path="/repos/client", relationship="same-project")
 
 cd /repos/client
-Call link_projects(linked_path="/repos/backend", relationship="same-project")
+Call maintain(action="link_project", linked_path="/repos/backend", relationship="same-project")
 ```
 
-Then use `include_linked=True` on recall to span both.
+Then use `include_linked=True` on `consult(action="recall")` to span both.
 
 ## Migrating Existing Setup
 
@@ -98,15 +98,15 @@ If you've been launching Claude from parent directory and have a "messy" .daem0n
    # Re-initialize with get_briefing()
    ```
 
-## Key Commands Reference
+## Key Commands Reference (Workflow Tools v5.1.0+)
 
-| Command | Purpose |
-|---------|---------|
-| `get_briefing()` | Initialize session, creates .daem0nmcp if needed |
-| `link_projects()` | Create cross-repo awareness link |
-| `list_linked_projects()` | See all linked repos |
-| `consolidate_linked_databases()` | Merge child DBs into parent |
-| `recall(include_linked=True)` | Search across linked repos |
+| Workflow Call | Purpose |
+|--------------|---------|
+| `commune(action="briefing")` | Initialize session, creates .daem0nmcp if needed |
+| `maintain(action="link_project", linked_path=...)` | Create cross-repo awareness link |
+| `maintain(action="list_projects")` | See all linked repos |
+| `maintain(action="consolidate")` | Merge child DBs into parent |
+| `consult(action="recall", topic=..., include_linked=True)` | Search across linked repos |
 
 ## The Endless Mode (v2.12.0)
 
@@ -114,7 +114,7 @@ If you've been launching Claude from parent directory and have a "messy" .daem0n
 
 ```python
 # Condensed visions - the essence without elaboration
-recall(query="authentication", condensed=True)
+consult(action="recall", topic="authentication", condensed=True)
 
 # Returns memories stripped of rationale, truncated to 150 runes
 # The Daem0n speaks briefly but broadly
@@ -229,7 +229,7 @@ The Daem0n now reads between the lines:
 Entities now bear their true names:
 ```python
 # Qualified names: module.Class.method
-find_code("UserService.authenticate")
+understand(action="find", query="UserService.authenticate")
 
 # Stable IDs survive line changes
 # Add comments, imports - entities retain identity
@@ -260,7 +260,7 @@ health()  # Returns cache_stats
 ### Enhanced Health Insights
 
 ```python
-health()
+commune(action="health")
 # Now returns:
 #   code_entities_count: Total indexed entities
 #   entities_by_type: Breakdown by class/function/etc
