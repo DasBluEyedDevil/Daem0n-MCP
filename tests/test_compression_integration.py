@@ -8,7 +8,6 @@ Verifies all CONTEXT-* requirements:
 - CONTEXT-04: Hierarchical compression leverages Phase 1 community structure
 - CONTEXT-05: Adaptive compression ratios based on query complexity
 """
-import pytest
 
 
 class TestContextEngineeringRequirements:
@@ -92,7 +91,6 @@ class DiscountCalculator:
     def test_context_04_hierarchical_summaries(self):
         """CONTEXT-04: Hierarchical compression leverages community structure."""
         from daem0nmcp.compression import HierarchicalContextManager
-        from daem0nmcp.recall_planner import QueryComplexity
 
         manager = HierarchicalContextManager()
 

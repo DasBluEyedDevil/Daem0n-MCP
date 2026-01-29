@@ -43,4 +43,5 @@ __all__ = [
     "invalidate_contradicted_facts",
     "check_and_invalidate_contradictions",
     "has_negation_mismatch",
+    "trace_knowledge_evolution_graph",
 ]

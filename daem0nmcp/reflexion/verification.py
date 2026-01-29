@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ..vectors import cosine_similarity, decode, encode
@@ -124,7 +124,14 @@ async def verify_claim(
             as_of_time=query_time,
         )
 
-        memories = recall_result.get("memories", [])
+        # recall() returns categorized lists: decisions, patterns, warnings, learnings
+        # Collect all memories across categories for verification
+        memories = []
+        for category in ("decisions", "patterns", "warnings", "learnings"):
+            memories.extend(recall_result.get(category, []))
+        # Fallback for empty-result shape which uses "memories" key
+        if not memories:
+            memories = recall_result.get("memories", [])
         for memory in memories:
             content = memory.get("content", "")
 

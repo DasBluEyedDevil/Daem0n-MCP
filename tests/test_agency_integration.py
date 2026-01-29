@@ -14,7 +14,7 @@ import logging
 import os
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from daem0nmcp.agency import (
     CapabilityManager,

@@ -6,22 +6,13 @@ work together: claim extraction -> verification -> persistence -> consolidation.
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
 
 from daem0nmcp.reflexion import (
     # State
-    ReflexionState,
-    # Claims
     extract_claims,
-    Claim,
-    # Verification
-    verify_claim,
     verify_claims,
     summarize_verification,
     # Nodes
-    create_actor_node,
-    create_evaluator_node,
-    create_reflector_node,
     QUALITY_THRESHOLD_EXIT,
     MAX_ITERATIONS,
     # Graph
@@ -34,7 +25,6 @@ from daem0nmcp.reflexion import (
     Reflection,
     # Consolidation
     consolidate_reflections,
-    DEFAULT_CONSOLIDATION_THRESHOLD,
 )
 
 
@@ -594,7 +584,7 @@ class TestGraphRAGIntegration:
             "name": "PostgreSQL"
         }
 
-        results = await verify_claims(
+        await verify_claims(
             claims=claims,
             memory_manager=mock_memory_manager,
             knowledge_graph=mock_knowledge_graph,

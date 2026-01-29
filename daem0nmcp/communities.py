@@ -18,7 +18,7 @@ from sqlalchemy import select, delete
 from .database import DatabaseManager
 from .graph import KnowledgeGraph
 from .graph.leiden import LeidenConfig, get_community_stats, run_leiden_on_networkx
-from .graph.summarizer import CommunitySummarizer, SummaryConfig
+from .graph.summarizer import CommunitySummarizer
 from .models import Memory, MemoryCommunity
 
 logger = logging.getLogger(__name__)

@@ -1,0 +1,6 @@
+# Build scripts for UI asset bundling
+# Will contain scripts for:
+# - CSS minification
+# - JavaScript bundling
+# - Template compilation
+# - Asset fingerprinting for cache busting

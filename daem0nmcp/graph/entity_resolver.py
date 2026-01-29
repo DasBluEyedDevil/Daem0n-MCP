@@ -22,8 +22,8 @@ class EntityResolver:
 
     def __init__(self, db: DatabaseManager):
         self.db = db
-        self._canonical_cache: Dict[str, int] = {}  # "type:normalized_name" -> entity_id
-        self._cache_loaded = False
+        self._canonical_cache: Dict[str, int] = {}  # "project:type:normalized_name" -> entity_id
+        self._loaded_projects: set = set()  # Track which projects have been loaded
 
     def normalize(self, name: str, entity_type: str) -> str:
         """
@@ -70,13 +70,13 @@ class EntityResolver:
 
         return normalized
 
-    def _cache_key(self, entity_type: str, normalized_name: str) -> str:
-        """Generate cache key from type and normalized name."""
-        return f"{entity_type}:{normalized_name}"
+    def _cache_key(self, project_path: str, entity_type: str, normalized_name: str) -> str:
+        """Generate cache key from project, type, and normalized name."""
+        return f"{project_path}:{entity_type}:{normalized_name}"
 
     async def ensure_cache_loaded(self, project_path: str):
         """Load existing entities into cache for fast lookup."""
-        if self._cache_loaded:
+        if project_path in self._loaded_projects:
             return
 
         async with self.db.get_session() as session:
@@ -87,14 +87,16 @@ class EntityResolver:
             )
             entities = result.scalars().all()
 
+            count = 0
             for entity in entities:
                 # Use qualified_name if set, otherwise normalize the name
                 normalized = entity.qualified_name or self.normalize(entity.name, entity.entity_type)
-                key = self._cache_key(entity.entity_type, normalized)
+                key = self._cache_key(project_path, entity.entity_type, normalized)
                 self._canonical_cache[key] = entity.id
+                count += 1
 
-        self._cache_loaded = True
-        logger.debug(f"Loaded {len(self._canonical_cache)} entities into resolver cache")
+        self._loaded_projects.add(project_path)
+        logger.debug(f"Loaded {count} entities for {project_path} into resolver cache")
 
     async def resolve(
         self,
@@ -116,7 +118,7 @@ class EntityResolver:
             (entity_id, is_new) tuple
         """
         normalized = self.normalize(name, entity_type)
-        cache_key = self._cache_key(entity_type, normalized)
+        cache_key = self._cache_key(project_path, entity_type, normalized)
 
         # Check cache first
         if cache_key in self._canonical_cache:
@@ -173,7 +175,19 @@ class EntityResolver:
             async with self.db.get_session() as sess:
                 return await do_resolve(sess)
 
-    def clear_cache(self):
-        """Clear the resolver cache (call after major changes)."""
-        self._canonical_cache.clear()
-        self._cache_loaded = False
+    def clear_cache(self, project_path: str = None):
+        """Clear the resolver cache (call after major changes).
+
+        Args:
+            project_path: If provided, only clear cache for this project.
+                         If None, clear entire cache.
+        """
+        if project_path is not None:
+            prefix = f"{project_path}:"
+            keys_to_remove = [k for k in self._canonical_cache if k.startswith(prefix)]
+            for k in keys_to_remove:
+                del self._canonical_cache[k]
+            self._loaded_projects.discard(project_path)
+        else:
+            self._canonical_cache.clear()
+            self._loaded_projects.clear()

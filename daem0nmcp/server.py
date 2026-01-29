@@ -18,6 +18,7 @@ A smarter MCP server that provides:
 12. Memory maintenance (pin, archive, prune, cleanup)
 13. Code understanding via tree-sitter parsing
 14. Active working context (MemGPT-style always-hot memories)
+15. MCP Apps UI resources for visual interfaces (v5.0)
 
 60 Tools:
 - remember: Store a decision, pattern, warning, or learning (with file association)
@@ -98,6 +99,7 @@ try:
         check_capability,
     )
     from .rwlock import RWLock
+    from .ui.resources import register_ui_resources
 except ImportError:
     # For fastmcp run which executes server.py directly
     from daem0nmcp.config import settings
@@ -117,6 +119,7 @@ except ImportError:
         check_capability,
     )
     from daem0nmcp.rwlock import RWLock
+    from daem0nmcp.ui.resources import register_ui_resources
 from sqlalchemy import select, delete, or_, func
 from dataclasses import dataclass, field
 
@@ -138,6 +141,8 @@ if os.getenv('DAEM0NMCP_STRUCTURED_LOGS'):
 # Initialize FastMCP server
 mcp = FastMCP("Daem0nMCP")
 
+# Register UI resources for MCP Apps (v5.0)
+register_ui_resources(mcp)
 
 # ============================================================================
 # PROJECT CONTEXT MANAGEMENT - Support multiple projects via HTTP transport
@@ -671,6 +676,8 @@ async def remember(
     happened_at: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use inscribe(action='remember') instead.
+
     Store a memory (decision/pattern/warning/learning).
     Auto-detects conflicts with past failures. Patterns and warnings are permanent.
 
@@ -729,6 +736,8 @@ async def remember_batch(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use inscribe(action='remember_batch') instead.
+
     Store multiple memories atomically. Efficient for bulk imports.
 
     Args:
@@ -782,6 +791,8 @@ async def recall(
     as_of_time: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use consult(action='recall') instead.
+
     Semantic search for memories using TF-IDF. Results weighted by relevance, recency, importance.
 
     Args:
@@ -849,6 +860,98 @@ async def recall(
 
 
 # ============================================================================
+# Tool 2.5: RECALL_VISUAL - Semantic recall with UI resource hint
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def recall_visual(
+    topic: str,
+    categories: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    file_path: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 10,
+    include_linked: bool = False,
+    project_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    [DEPRECATED] Use consult(action='recall', visual=True) instead.
+
+    Search memories with visual UI support.
+
+    Same as recall() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        topic: What to search for
+        categories: Filter by category (decision, warning, pattern, learning)
+        tags: Filter by tags
+        file_path: Filter by associated file
+        offset: Pagination offset
+        limit: Results per page
+        include_linked: Include results from linked projects
+        project_path: Project root
+
+    Returns:
+        Dict with recall results + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_search_results
+
+    # Require project_path for multi-project support
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    effective_path = project_path or _default_project_path
+
+    # Covenant enforcement: recall requires communion (briefing)
+    violation = _check_covenant_communion(effective_path)
+    if violation:
+        return violation
+
+    ctx = await get_project_context(project_path)
+
+    # Get recall results using existing memory manager
+    result = await ctx.memory_manager.recall(
+        topic=topic,
+        categories=categories,
+        tags=tags,
+        file_path=file_path,
+        offset=offset,
+        limit=limit,
+        project_path=ctx.project_path,
+        include_linked=include_linked,
+    )
+
+    # Add topic to result for UI rendering
+    result["topic"] = topic
+
+    # Flatten results for text formatting
+    all_results = []
+    for cat in ['decisions', 'patterns', 'warnings', 'learnings']:
+        for r in result.get(cat, []):
+            all_results.append({
+                'id': r.get('id'),
+                'category': cat.rstrip('s'),  # decisions -> decision
+                'content': r.get('content', ''),
+                'score': r.get('relevance', 0),
+            })
+
+    # Generate text fallback
+    text = format_search_results(
+        query=topic,
+        results=all_results,
+        total_count=result.get('total_count', len(all_results))
+    )
+
+    # Return with UI hint
+    return format_with_ui_hint(
+        data=result,
+        ui_resource="ui://daem0n/search",
+        text=text
+    )
+
+
+# ============================================================================
 # Tool 3: ADD_RULE - Create a decision tree node
 # ============================================================================
 @mcp.tool(version="3.0.0")
@@ -863,6 +966,8 @@ async def add_rule(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use govern(action='add_rule') instead.
+
     Add a decision tree rule. Rules are matched semantically.
 
     Args:
@@ -902,6 +1007,8 @@ async def check_rules(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use consult(action='check_rules') instead.
+
     Check if an action matches any rules. Call before significant changes.
 
     Args:
@@ -929,6 +1036,8 @@ async def record_outcome(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use reflect(action='outcome') instead.
+
     Record whether a decision worked. Failed outcomes get boosted in future searches.
 
     Args:
@@ -1872,6 +1981,8 @@ async def get_briefing(
     focus_areas: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use commune(action='briefing') instead.
+
     Session start - call FIRST. Returns stats, recent decisions, warnings, failed approaches, git changes.
 
     Args:
@@ -1962,6 +2073,186 @@ async def get_briefing(
 
 
 # ============================================================================
+# Tool 6.5: GET_BRIEFING_VISUAL - Briefing with UI resource hint
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_briefing_visual(
+    project_path: Optional[str] = None,
+    focus_areas: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    [DEPRECATED] Use commune(action='briefing', visual=True) instead.
+
+    Session start with visual UI support.
+
+    Same as get_briefing() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        project_path: Project root (REQUIRED)
+        focus_areas: Topics to pre-fetch
+
+    Returns:
+        Dict with briefing data + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_briefing_text
+
+    # Get briefing data using existing get_briefing function
+    result = await get_briefing(
+        project_path=project_path,
+        focus_areas=focus_areas
+    )
+
+    # Check for error
+    if "error" in result:
+        return result
+
+    # Generate text fallback
+    text = format_briefing_text(result)
+
+    # Return with UI hint
+    return format_with_ui_hint(
+        data=result,
+        ui_resource="ui://daem0n/briefing",
+        text=text
+    )
+
+
+# ============================================================================
+# Tool 6.6: GET_COVENANT_STATUS - Current covenant state for dashboard
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_covenant_status(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    [DEPRECATED] Use commune(action='covenant') instead.
+
+    Get current Sacred Covenant status for dashboard visualization.
+
+    Returns the current ritual phase, preflight token status, and data
+    needed to render the Covenant Status Dashboard.
+
+    Args:
+        project_path: Project root (REQUIRED)
+
+    Returns:
+        Dict with phase info, token status, and message
+    """
+    from .covenant import COUNSEL_TTL_SECONDS
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Determine covenant phase from session state
+    # Without phase tracker, infer from session state
+    if not ctx.briefed:
+        covenant_phase = "commune"
+    elif not ctx.context_checks:
+        covenant_phase = "counsel"
+    else:
+        covenant_phase = "inscribe"
+
+    PHASE_DISPLAY = {
+        "commune": {"label": "COMMUNE", "description": "Receive briefing from the Daem0n"},
+        "counsel": {"label": "SEEK COUNSEL", "description": "Check context before acting"},
+        "inscribe": {"label": "INSCRIBE", "description": "Record memories and decisions"},
+        "seal": {"label": "SEAL", "description": "Evaluate and record outcomes"},
+    }
+    phase_info = PHASE_DISPLAY.get(covenant_phase, PHASE_DISPLAY["commune"])
+
+    # Check preflight token status
+    preflight_status = "none"
+    preflight_expires = None
+    preflight_remaining = None
+
+    if ctx.context_checks:
+        latest = ctx.context_checks[-1]
+        check_time = datetime.fromisoformat(latest["timestamp"].replace("Z", "+00:00"))
+        expires_at = check_time + timedelta(seconds=COUNSEL_TTL_SECONDS)
+
+        if datetime.now(timezone.utc) < expires_at:
+            preflight_status = "valid"
+            preflight_expires = expires_at.isoformat()
+            preflight_remaining = int((expires_at - datetime.now(timezone.utc)).total_seconds())
+        else:
+            preflight_status = "expired"
+
+    # Build status message
+    messages = {
+        "commune": "Begin by receiving your briefing (get_briefing).",
+        "counsel": "Counsel sought. You may now inscribe memories or take action.",
+        "inscribe": "Actions taken. Consider recording outcomes when complete.",
+        "seal": "Outcomes recorded. The covenant cycle may begin anew.",
+    }
+
+    return {
+        "phase": covenant_phase,
+        "phase_label": phase_info["label"],
+        "phase_description": phase_info["description"],
+        "is_briefed": ctx.briefed,
+        "context_check_count": len(ctx.context_checks),
+        "preflight": {
+            "status": preflight_status,
+            "expires_at": preflight_expires,
+            "remaining_seconds": preflight_remaining,
+        },
+        "can_mutate": preflight_status == "valid",
+        "message": messages.get(covenant_phase, messages["commune"]),
+    }
+
+
+# ============================================================================
+# Tool 6.7: GET_COVENANT_STATUS_VISUAL - Covenant status with UI support
+# ============================================================================
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def get_covenant_status_visual(
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get covenant status with visual UI support.
+
+    Same as get_covenant_status() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        project_path: Project root (REQUIRED)
+
+    Returns:
+        Dict with covenant data + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_covenant_status_text
+
+    # Get covenant status using existing function
+    result = await get_covenant_status(project_path=project_path)
+
+    # Check for error
+    if "error" in result:
+        return result
+
+    # Generate text fallback
+    text = format_covenant_status_text(result)
+
+    # Create UI resource URI with encoded data
+    import json
+    import urllib.parse
+    data_json = json.dumps(result)
+    encoded_data = urllib.parse.quote(data_json)
+    ui_resource = f"ui://daem0n/covenant/{encoded_data}"
+
+    return format_with_ui_hint(
+        data=result,
+        ui_resource=ui_resource,
+        text=text
+    )
+
+
+# ============================================================================
 # Tool 7: SEARCH - Full text search across memories
 # ============================================================================
 @mcp.tool(version="3.0.0")
@@ -1977,6 +2268,8 @@ async def search_memories(
     project_path: Optional[str] = None
 ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
     """
+    [DEPRECATED] Use consult(action='search') instead.
+
     Full-text search across all memories with TF-IDF ranking.
 
     Args:
@@ -2130,6 +2423,8 @@ async def verify_facts(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use reflect(action='verify') instead.
+
     Verify factual claims in text against stored knowledge.
 
     Extracts claims from the provided text and verifies them against:
@@ -2442,6 +2737,8 @@ async def context_check(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use consult(action='preflight') instead.
+
     Pre-flight check combining recall + check_rules. Issues preflight token valid for 5 min.
 
     Args:
@@ -2693,6 +2990,8 @@ async def scan_todos(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='todos') instead.
+
     Scan codebase for TODO/FIXME/HACK/XXX/BUG comments.
 
     Args:
@@ -3289,6 +3588,8 @@ async def export_data(
     include_vectors: bool = False
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use maintain(action='export') instead.
+
     Export all memories and rules as JSON for backup/migration.
 
     Args:
@@ -3365,6 +3666,8 @@ async def import_data(
     merge: bool = True
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use maintain(action='import_data') instead.
+
     Import memories/rules from exported JSON.
 
     Args:
@@ -3628,6 +3931,66 @@ async def get_graph(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
+async def get_graph_visual(
+    memory_ids: Optional[List[int]] = None,
+    topic: Optional[str] = None,
+    include_orphans: bool = False,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get visual memory graph with UI resource hint for MCP Apps rendering.
+
+    Returns interactive force-directed graph visualization showing memory
+    relationships with node coloring by category and edge styling by
+    relationship type. Includes zoom/pan, node details, and community
+    highlighting.
+
+    Args:
+        memory_ids: Specific memory IDs to include (if None, uses topic search)
+        topic: Topic to search for memories (alternative to memory_ids)
+        include_orphans: Include memories with no relationships
+        project_path: Project context path (uses current directory if not specified)
+
+    Returns:
+        Graph data with ui_resource hint for visual rendering and text fallback.
+    """
+    from daem0nmcp.ui.fallback import format_graph_text, format_with_ui_hint
+    import json
+    import urllib.parse
+
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    ctx = await get_project_context(project_path)
+
+    # Get graph data using existing function
+    result = await ctx.memory_manager.get_graph(
+        memory_ids=memory_ids,
+        topic=topic,
+        format="json"
+    )
+
+    # Check for errors
+    if "error" in result:
+        return result
+
+    # Add topic to result for UI title
+    if topic:
+        result["topic"] = topic
+
+    # Generate text fallback
+    text = format_graph_text(result)
+
+    # Build UI resource URI with encoded data
+    data_json = json.dumps(result)
+    encoded_data = urllib.parse.quote(data_json)
+    ui_resource = f"ui://daem0n/graph/{encoded_data}"
+
+    return format_with_ui_hint(result, ui_resource, text)
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
 async def prune_memories(
     older_than_days: int = 90,
     categories: Optional[List[str]] = None,
@@ -3637,6 +4000,8 @@ async def prune_memories(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use maintain(action='prune') instead.
+
     Prune old low-value memories. Protected: permanent, pinned, with outcomes, frequently accessed.
 
     Args:
@@ -3908,6 +4273,8 @@ async def health(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use commune(action='health') instead.
+
     Get server health, version, and statistics.
 
     Args:
@@ -3980,6 +4347,8 @@ async def index_project(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='index') instead.
+
     Index code structure using tree-sitter. Extracts classes, functions, methods with signatures.
 
     Args:
@@ -4031,6 +4400,8 @@ async def find_code(
     limit: int = 20
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='find') instead.
+
     Semantic search across indexed code entities using vector similarity.
 
     Args:
@@ -4081,6 +4452,8 @@ async def analyze_impact(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='impact') instead.
+
     Analyze blast radius of changing a code entity. Finds affected files and dependents.
 
     Args:
@@ -4514,6 +4887,72 @@ async def list_communities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
+async def list_communities_visual(
+    level: Optional[int] = None,
+    parent_community_id: Optional[int] = None,
+    project_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    List communities with visual UI support.
+
+    Same as list_communities() but returns results with UI resource hint for
+    MCP Apps hosts. Non-MCP-Apps hosts receive text fallback.
+
+    Args:
+        level: Filter by hierarchy level
+        parent_community_id: Filter to children of this community (for drill-down)
+        project_path: Project root
+
+    Returns:
+        Dict with community data + ui_resource hint + text fallback
+    """
+    from daem0nmcp.ui.fallback import format_with_ui_hint, format_communities_text
+
+    # Get communities using existing function
+    result = await list_communities(level=level, project_path=project_path)
+
+    # Check for error
+    if "error" in result:
+        return result
+
+    # If parent_community_id specified, filter to children only
+    # and add path context for breadcrumb
+    if parent_community_id is not None:
+        communities = result.get("communities", [])
+        # Filter to direct children of parent
+        filtered = [c for c in communities if c.get("parent_community_id") == parent_community_id]
+
+        # Build path for breadcrumb (simplified - would need DB query for full path)
+        parent = next((c for c in communities if c.get("id") == parent_community_id), None)
+        path = []
+        if parent:
+            path.append({"id": parent.get("id"), "name": parent.get("name", "Community")})
+
+        result = {
+            "count": len(filtered),
+            "communities": filtered,
+            "path": path
+        }
+
+    # Generate text fallback
+    text = format_communities_text(result)
+
+    # Create UI resource URI with encoded data
+    import json
+    import urllib.parse
+    data_json = json.dumps(result)
+    encoded_data = urllib.parse.quote(data_json)
+    ui_resource = f"ui://daem0n/community/{encoded_data}"
+
+    return format_with_ui_hint(
+        data=result,
+        ui_resource=ui_resource,
+        text=text
+    )
+
+
+@mcp.tool(version="3.0.0")
+@with_request_id
 async def get_community_details(
     community_id: int,
     project_path: Optional[str] = None
@@ -4564,6 +5003,54 @@ async def recall_hierarchical(
         include_members=include_members,
         limit=limit
     )
+
+
+# ============================================================================
+# Real-Time Update Tools - Polling for UI notifications
+# ============================================================================
+
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def check_for_updates(
+    since: Optional[str] = None,
+    interval_seconds: int = 10,
+    project_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Check if daemon knowledge has changed since the given timestamp.
+
+    Used for real-time update polling. MCP hosts call this tool periodically
+    and send 'data_updated' postMessage to UIs when has_changes is True.
+
+    Args:
+        since: ISO 8601 timestamp to check from (e.g., '2026-01-28T12:00:00Z').
+               If None, returns current state (always has_changes=True).
+        interval_seconds: Recommended polling interval (5-60, default 10).
+                         Returned to help hosts configure polling.
+        project_path: Project context path (uses current directory if not specified)
+
+    Returns:
+        Dict with:
+            - has_changes: bool - True if data changed since timestamp
+            - last_update: str - ISO timestamp of most recent change
+            - recommended_interval: int - Suggested polling interval
+            - checked_at: str - ISO timestamp of this check
+
+    Example flow:
+        1. First call: check_for_updates() -> {'has_changes': True, 'last_update': '...', ...}
+        2. Store last_update, start polling
+        3. Poll: check_for_updates(since=last_update) -> {'has_changes': False, ...}
+        4. When has_changes=True, send postMessage to UI iframe
+    """
+    if not project_path and not _default_project_path:
+        return _missing_project_path_error()
+
+    project_path = project_path or _default_project_path
+
+    from .ui.ui_tools import check_for_updates as _check
+
+    ctx = await get_project_context(project_path)
+    return await _check(ctx.db_manager, since, interval_seconds)
 
 
 # ============================================================================
@@ -4702,7 +5189,7 @@ async def backfill_entities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-async def trace_chain(
+async def trace_causal_path(
     start_memory_id: int,
     end_memory_id: int,
     max_depth: int = 5,
@@ -5344,6 +5831,584 @@ def cleanup():
 
 
 atexit.register(cleanup)
+
+
+# ============================================================================
+# CONSOLIDATED WORKFLOW TOOLS (8 tools replacing 67 individual tools)
+# ============================================================================
+# Import workflow error types
+try:
+    from .workflows.errors import WorkflowError
+except ImportError:
+    from daem0nmcp.workflows.errors import WorkflowError
+
+
+# ----------------------------------------------------------------------------
+# Workflow 1: COMMUNE - Session start & status
+# Actions: briefing, active_context, triggers, health, covenant, updates
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def commune(
+    action: str,
+    project_path: Optional[str] = None,
+    focus_areas: Optional[List[str]] = None,
+    visual: bool = False,
+    file_path: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    entities: Optional[List[str]] = None,
+    limit: int = 5,
+    since: Optional[str] = None,
+    interval_seconds: int = 10,
+    parent_community_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Session start & status operations.
+
+    Actions: briefing, active_context, triggers, health, covenant, updates
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import commune as commune_mod
+        except ImportError:
+            from daem0nmcp.workflows import commune as commune_mod
+        return await commune_mod.dispatch(
+            action=action,
+            project_path=pp,
+            focus_areas=focus_areas,
+            visual=visual,
+            file_path=file_path,
+            tags=tags,
+            entities=entities,
+            limit=limit,
+            since=since,
+            interval_seconds=interval_seconds,
+            parent_community_id=parent_community_id,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
+
+
+# ----------------------------------------------------------------------------
+# Workflow 2: CONSULT - Pre-action intelligence
+# Actions: preflight, recall, recall_file, recall_entity,
+#          recall_hierarchical, search, check_rules, compress
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def consult(
+    action: str,
+    project_path: Optional[str] = None,
+    # preflight params
+    description: Optional[str] = None,
+    # recall params
+    topic: Optional[str] = None,
+    categories: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    file_path: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 10,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    include_linked: bool = False,
+    visual: bool = False,
+    condensed: bool = False,
+    # recall_entity params
+    entity_name: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    # recall_hierarchical params
+    include_members: bool = False,
+    # search params
+    query: Optional[str] = None,
+    include_meta: bool = False,
+    highlight: bool = False,
+    highlight_start: str = "<b>",
+    highlight_end: str = "</b>",
+    # check_rules params
+    action_desc: Optional[str] = None,
+    context: Optional[Dict[str, Any]] = None,
+    # compress params
+    compress_text: Optional[str] = None,
+    rate: Optional[float] = None,
+    content_type: Optional[str] = None,
+    preserve_code: bool = True,
+) -> Dict[str, Any]:
+    """
+    Pre-action intelligence gathering.
+
+    Actions: preflight, recall, recall_file, recall_entity,
+             recall_hierarchical, search, check_rules, compress
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import consult as consult_mod
+        except ImportError:
+            from daem0nmcp.workflows import consult as consult_mod
+        return await consult_mod.dispatch(
+            action=action,
+            project_path=pp,
+            description=description,
+            topic=topic,
+            categories=categories,
+            tags=tags,
+            file_path=file_path,
+            offset=offset,
+            limit=limit,
+            since=since,
+            until=until,
+            include_linked=include_linked,
+            visual=visual,
+            condensed=condensed,
+            entity_name=entity_name,
+            entity_type=entity_type,
+            include_members=include_members,
+            query=query,
+            include_meta=include_meta,
+            highlight=highlight,
+            highlight_start=highlight_start,
+            highlight_end=highlight_end,
+            action_desc=action_desc,
+            context=context,
+            compress_text=compress_text,
+            rate=rate,
+            content_type=content_type,
+            preserve_code=preserve_code,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
+
+
+# ----------------------------------------------------------------------------
+# Workflow 3: INSCRIBE - Memory writing & linking
+# Actions: remember, remember_batch, link, unlink, pin,
+#          activate, deactivate, clear_active, ingest
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def inscribe(
+    action: str,
+    project_path: Optional[str] = None,
+    # remember params
+    category: Optional[str] = None,
+    content: Optional[str] = None,
+    rationale: Optional[str] = None,
+    context: Optional[Dict[str, Any]] = None,
+    tags: Optional[List[str]] = None,
+    file_path: Optional[str] = None,
+    happened_at: Optional[str] = None,
+    # remember_batch params
+    memories: Optional[List[Dict[str, Any]]] = None,
+    # link/unlink params
+    source_id: Optional[int] = None,
+    target_id: Optional[int] = None,
+    relationship: Optional[str] = None,
+    description: Optional[str] = None,
+    # pin/activate/deactivate params
+    memory_id: Optional[int] = None,
+    pinned: bool = True,
+    # activate params
+    reason: Optional[str] = None,
+    priority: int = 0,
+    expires_in_hours: Optional[int] = None,
+    # ingest params
+    url: Optional[str] = None,
+    topic: Optional[str] = None,
+    chunk_size: int = 2000,
+) -> Dict[str, Any]:
+    """
+    Memory writing & linking operations.
+
+    Actions: remember, remember_batch, link, unlink, pin,
+             activate, deactivate, clear_active, ingest
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import inscribe as inscribe_mod
+        except ImportError:
+            from daem0nmcp.workflows import inscribe as inscribe_mod
+        return await inscribe_mod.dispatch(
+            action=action,
+            project_path=pp,
+            category=category,
+            content=content,
+            rationale=rationale,
+            context=context,
+            tags=tags,
+            file_path=file_path,
+            happened_at=happened_at,
+            memories=memories,
+            source_id=source_id,
+            target_id=target_id,
+            relationship=relationship,
+            description=description,
+            memory_id=memory_id,
+            pinned=pinned,
+            reason=reason,
+            priority=priority,
+            expires_in_hours=expires_in_hours,
+            url=url,
+            topic=topic,
+            chunk_size=chunk_size,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
+
+
+# ----------------------------------------------------------------------------
+# Workflow 4: REFLECT - Outcomes & verification
+# Actions: outcome, verify, execute
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def reflect(
+    action: str,
+    project_path: Optional[str] = None,
+    # outcome params
+    memory_id: Optional[int] = None,
+    outcome_text: Optional[str] = None,
+    worked: Optional[bool] = None,
+    # verify params
+    text: Optional[str] = None,
+    categories: Optional[List[str]] = None,
+    as_of_time: Optional[str] = None,
+    # execute params
+    code: Optional[str] = None,
+    timeout_seconds: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Outcomes & verification operations.
+
+    Actions: outcome, verify, execute
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import reflect as reflect_mod
+        except ImportError:
+            from daem0nmcp.workflows import reflect as reflect_mod
+        return await reflect_mod.dispatch(
+            action=action,
+            project_path=pp,
+            memory_id=memory_id,
+            outcome_text=outcome_text,
+            worked=worked,
+            text=text,
+            categories=categories,
+            as_of_time=as_of_time,
+            code=code,
+            timeout_seconds=timeout_seconds,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
+
+
+# ----------------------------------------------------------------------------
+# Workflow 5: UNDERSTAND - Code comprehension
+# Actions: index, find, impact, todos, refactor
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def understand(
+    action: str,
+    project_path: Optional[str] = None,
+    # index params
+    path: Optional[str] = None,
+    patterns: Optional[List[str]] = None,
+    # find params
+    query: Optional[str] = None,
+    limit: int = 20,
+    # impact params
+    entity_name: Optional[str] = None,
+    # todos params
+    auto_remember: bool = False,
+    types: Optional[List[str]] = None,
+    # refactor params
+    file_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Code comprehension operations.
+
+    Actions: index, find, impact, todos, refactor
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import understand as understand_mod
+        except ImportError:
+            from daem0nmcp.workflows import understand as understand_mod
+        return await understand_mod.dispatch(
+            action=action,
+            project_path=pp,
+            path=path,
+            patterns=patterns,
+            query=query,
+            limit=limit,
+            entity_name=entity_name,
+            auto_remember=auto_remember,
+            types=types,
+            file_path=file_path,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
+
+
+# ----------------------------------------------------------------------------
+# Workflow 6: GOVERN - Rules & triggers
+# Actions: add_rule, update_rule, list_rules,
+#          add_trigger, list_triggers, remove_trigger
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def govern(
+    action: str,
+    project_path: Optional[str] = None,
+    # add_rule params
+    trigger: Optional[str] = None,
+    must_do: Optional[List[str]] = None,
+    must_not: Optional[List[str]] = None,
+    ask_first: Optional[List[str]] = None,
+    warnings: Optional[List[str]] = None,
+    priority: int = 0,
+    # update_rule params
+    rule_id: Optional[int] = None,
+    enabled: Optional[bool] = None,
+    # list_rules params
+    enabled_only: bool = True,
+    limit: int = 50,
+    # add_trigger params
+    trigger_type: Optional[str] = None,
+    pattern: Optional[str] = None,
+    recall_topic: Optional[str] = None,
+    recall_categories: Optional[List[str]] = None,
+    # list_triggers params
+    active_only: bool = True,
+    # remove_trigger params
+    trigger_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Rules & triggers management.
+
+    Actions: add_rule, update_rule, list_rules,
+             add_trigger, list_triggers, remove_trigger
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import govern as govern_mod
+        except ImportError:
+            from daem0nmcp.workflows import govern as govern_mod
+        return await govern_mod.dispatch(
+            action=action,
+            project_path=pp,
+            trigger=trigger,
+            must_do=must_do,
+            must_not=must_not,
+            ask_first=ask_first,
+            warnings=warnings,
+            priority=priority,
+            rule_id=rule_id,
+            enabled=enabled,
+            enabled_only=enabled_only,
+            limit=limit,
+            trigger_type=trigger_type,
+            pattern=pattern,
+            recall_topic=recall_topic,
+            recall_categories=recall_categories,
+            active_only=active_only,
+            trigger_id=trigger_id,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
+
+
+# ----------------------------------------------------------------------------
+# Workflow 7: EXPLORE - Graph & discovery
+# Actions: related, chain, graph, stats, communities, community_detail,
+#          rebuild_communities, entities, backfill_entities, evolution,
+#          versions, at_time
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def explore(
+    action: str,
+    project_path: Optional[str] = None,
+    # related params
+    memory_id: Optional[int] = None,
+    relationship_types: Optional[List[str]] = None,
+    direction: str = "both",
+    max_depth: int = 2,
+    # chain params
+    start_memory_id: Optional[int] = None,
+    end_memory_id: Optional[int] = None,
+    # graph params
+    memory_ids: Optional[List[int]] = None,
+    topic: Optional[str] = None,
+    format: str = "json",
+    visual: bool = False,
+    include_orphans: bool = False,
+    # communities params
+    level: Optional[int] = None,
+    parent_community_id: Optional[int] = None,
+    # community_detail params
+    community_id: Optional[int] = None,
+    # rebuild_communities params
+    min_community_size: int = 2,
+    resolution: float = 1.0,
+    # entities params
+    entity_type: Optional[str] = None,
+    limit: int = 20,
+    # evolution params
+    entity_name: Optional[str] = None,
+    include_invalidated: bool = True,
+    entity_id: Optional[int] = None,
+    # at_time params
+    timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Graph & discovery operations.
+
+    Actions: related, chain, graph, stats, communities, community_detail,
+             rebuild_communities, entities, backfill_entities, evolution,
+             versions, at_time
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import explore as explore_mod
+        except ImportError:
+            from daem0nmcp.workflows import explore as explore_mod
+        return await explore_mod.dispatch(
+            action=action,
+            project_path=pp,
+            memory_id=memory_id,
+            relationship_types=relationship_types,
+            direction=direction,
+            max_depth=max_depth,
+            start_memory_id=start_memory_id,
+            end_memory_id=end_memory_id,
+            memory_ids=memory_ids,
+            topic=topic,
+            format=format,
+            visual=visual,
+            include_orphans=include_orphans,
+            level=level,
+            parent_community_id=parent_community_id,
+            community_id=community_id,
+            min_community_size=min_community_size,
+            resolution=resolution,
+            entity_type=entity_type,
+            limit=limit,
+            entity_name=entity_name,
+            include_invalidated=include_invalidated,
+            entity_id=entity_id,
+            timestamp=timestamp,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
+
+
+# ----------------------------------------------------------------------------
+# Workflow 8: MAINTAIN - Housekeeping & federation
+# Actions: prune, archive, cleanup, compact, rebuild_index,
+#          export, import_data, link_project, unlink_project,
+#          list_projects, consolidate
+# ----------------------------------------------------------------------------
+@mcp.tool(version="3.0.0")
+@with_request_id
+async def maintain(
+    action: str,
+    project_path: Optional[str] = None,
+    # prune params
+    older_than_days: int = 90,
+    categories: Optional[List[str]] = None,
+    min_recall_count: int = 5,
+    protect_successful: bool = True,
+    dry_run: bool = True,
+    # archive params
+    memory_id: Optional[int] = None,
+    archived: bool = True,
+    # cleanup params
+    merge_duplicates: bool = True,
+    # compact params
+    summary: Optional[str] = None,
+    limit: int = 10,
+    topic: Optional[str] = None,
+    # export params
+    include_vectors: bool = False,
+    # import_data params
+    data: Optional[Dict[str, Any]] = None,
+    merge: bool = True,
+    # link_project params
+    linked_path: Optional[str] = None,
+    relationship: str = "related",
+    label: Optional[str] = None,
+    # consolidate params
+    archive_sources: bool = False,
+) -> Dict[str, Any]:
+    """
+    Housekeeping & federation operations.
+
+    Actions: prune, archive, cleanup, compact, rebuild_index,
+             export, import_data, link_project, unlink_project,
+             list_projects, consolidate
+    """
+    pp = project_path or _default_project_path
+    if not pp:
+        return _missing_project_path_error()
+
+    try:
+        try:
+            from .workflows import maintain as maintain_mod
+        except ImportError:
+            from daem0nmcp.workflows import maintain as maintain_mod
+        return await maintain_mod.dispatch(
+            action=action,
+            project_path=pp,
+            older_than_days=older_than_days,
+            categories=categories,
+            min_recall_count=min_recall_count,
+            protect_successful=protect_successful,
+            dry_run=dry_run,
+            memory_id=memory_id,
+            archived=archived,
+            merge_duplicates=merge_duplicates,
+            summary=summary,
+            limit=limit,
+            topic=topic,
+            include_vectors=include_vectors,
+            data=data,
+            merge=merge,
+            linked_path=linked_path,
+            relationship=relationship,
+            label=label,
+            archive_sources=archive_sources,
+        )
+    except WorkflowError as e:
+        return {"error": str(e), "recovery_hint": e.recovery_hint}
 
 
 # ============================================================================

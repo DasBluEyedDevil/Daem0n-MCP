@@ -3,7 +3,6 @@
 Tests pattern-based extraction of verifiable claims from text.
 """
 
-import pytest
 
 from daem0nmcp.reflexion.claims import (
     Claim,

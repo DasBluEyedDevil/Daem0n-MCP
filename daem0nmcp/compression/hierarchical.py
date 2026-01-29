@@ -9,8 +9,7 @@ For complex queries, retrieves raw memories and applies adaptive compression.
 import logging
 from typing import Dict, Any, Optional, List
 
-from .adaptive import AdaptiveCompressor, ContentType
-from .compressor import ContextCompressor
+from .adaptive import AdaptiveCompressor
 from ..recall_planner import RecallPlanner, RecallPlan, QueryComplexity
 
 logger = logging.getLogger(__name__)

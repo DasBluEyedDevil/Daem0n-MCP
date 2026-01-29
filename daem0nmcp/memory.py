@@ -14,8 +14,11 @@ import logging
 import os
 import re
 import sys
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 from datetime import datetime, timezone
+
+if TYPE_CHECKING:
+    from .compression import AdaptiveCompressor, HierarchicalContextManager
 from pathlib import Path
 from sqlalchemy import select, or_, func, desc
 

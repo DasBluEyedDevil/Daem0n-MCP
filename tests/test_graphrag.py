@@ -102,7 +102,7 @@ class TestEntityExtractionDuringRemember:
         """Remember should invalidate the knowledge graph cache."""
         # First, ensure graph is loaded
         graph = await memory_manager.get_knowledge_graph()
-        initial_node_count = graph.get_node_count()
+        graph.get_node_count()
 
         # Remember a new memory
         await memory_manager.remember(
@@ -112,7 +112,7 @@ class TestEntityExtractionDuringRemember:
         )
 
         # Graph should be invalidated (not automatically reloaded)
-        assert memory_manager._knowledge_graph._loaded == False, \
+        assert not memory_manager._knowledge_graph._loaded, \
             "Knowledge graph should be invalidated after remember()"
 
 
@@ -128,7 +128,7 @@ class TestNetworkXGraphConstruction:
         """KnowledgeGraph should load entities and relationships from SQLite."""
         # Create some entities and memories first
         memory_manager = MemoryManager(db_manager)
-        entity_manager = EntityManager(db_manager)
+        EntityManager(db_manager)
 
         mem1 = await memory_manager.remember(
             category="decision",
@@ -174,7 +174,7 @@ class TestNetworkXGraphConstruction:
 
         # Check for both node types
         memory_nodes = graph.get_memory_nodes()
-        entity_nodes = graph.get_entity_nodes()
+        graph.get_entity_nodes()
 
         assert len(memory_nodes) >= 1, "Should have at least one memory node"
         # Entity extraction may or may not find entities
@@ -188,7 +188,7 @@ class TestNetworkXGraphConstruction:
 
         # First access loads it
         graph = await memory_manager.get_knowledge_graph()
-        assert graph._loaded == True, "Graph should be loaded after first access"
+        assert graph._loaded, "Graph should be loaded after first access"
 
         # Subsequent access returns same instance
         graph2 = await memory_manager.get_knowledge_graph()
@@ -326,7 +326,7 @@ class TestMultiHopQueries:
             end_memory_id=c_id
         )
 
-        assert result["found"] == True, "Should find path between A and C"
+        assert result["found"], "Should find path between A and C"
         assert len(result["paths"]) >= 1, "Should have at least one path"
 
     @pytest.mark.asyncio
@@ -340,7 +340,7 @@ class TestMultiHopQueries:
             direction="both"
         )
 
-        assert result["found"] == True, "Should find related memories"
+        assert result["found"], "Should find related memories"
         assert result["total_related"] >= 1, "Should have at least one related memory"
 
     @pytest.mark.asyncio
@@ -507,7 +507,7 @@ class TestCommunitySummarization:
         )
 
         if communities:
-            result = await community_manager.save_communities(temp_storage, communities)
+            await community_manager.save_communities(temp_storage, communities)
 
             # Get saved communities
             saved = await community_manager.get_communities(temp_storage)
@@ -559,8 +559,8 @@ class TestMCPGraphRAGTools:
     """Test MCP tools expose GraphRAG functionality."""
 
     @pytest.mark.asyncio
-    async def test_mcp_trace_chain(self, covenant_compliant_project):
-        """MCP trace_chain tool should work."""
+    async def test_mcp_trace_causal_path(self, covenant_compliant_project):
+        """MCP trace_causal_path tool should work."""
         from daem0nmcp import server
 
         # Use context to get direct access to memory_manager (bypass covenant)
@@ -584,7 +584,7 @@ class TestMCPGraphRAGTools:
         )
 
         # Use MCP tool
-        result = await server.trace_chain(
+        result = await server.trace_causal_path(
             start_memory_id=mem1["id"],
             end_memory_id=mem2["id"],
             project_path=covenant_compliant_project
@@ -692,7 +692,7 @@ class TestGraphCacheInvalidation:
         """Graph cache should invalidate when new memory is created."""
         # Load graph
         graph = await memory_manager.get_knowledge_graph()
-        assert graph._loaded == True
+        assert graph._loaded
 
         # Add memory
         await memory_manager.remember(
@@ -702,7 +702,7 @@ class TestGraphCacheInvalidation:
         )
 
         # Cache should be invalidated
-        assert memory_manager._knowledge_graph._loaded == False
+        assert not memory_manager._knowledge_graph._loaded
 
     @pytest.mark.asyncio
     async def test_graph_reloads_after_invalidation(
@@ -711,7 +711,7 @@ class TestGraphCacheInvalidation:
         """Graph should reload when accessed after invalidation."""
         # Initial load
         graph = await memory_manager.get_knowledge_graph()
-        initial_count = graph.get_node_count()
+        graph.get_node_count()
 
         # Add memory (invalidates cache)
         await memory_manager.remember(
@@ -723,4 +723,4 @@ class TestGraphCacheInvalidation:
         # Access graph again (should reload)
         graph2 = await memory_manager.get_knowledge_graph()
 
-        assert graph2._loaded == True, "Graph should reload on access"
+        assert graph2._loaded, "Graph should reload on access"

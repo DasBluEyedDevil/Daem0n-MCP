@@ -1,0 +1,8 @@
+# HTML template sources for MCP Apps UI views
+# Current templates:
+# - base.html: Base layout template
+# - search.html: Search Results UI
+# - briefing.html: Briefing Dashboard
+# - covenant.html: Covenant Status Dashboard
+# - community.html: Community Cluster Map
+# - graph.html: Memory Graph Viewer

@@ -13,7 +13,7 @@ Based on AriGraph and memory survey (arxiv 2512.13564) patterns.
 import logging
 from collections import Counter
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from ..memory import MemoryManager

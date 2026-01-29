@@ -1,7 +1,7 @@
 """Community summarization for GraphRAG hierarchical queries."""
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)

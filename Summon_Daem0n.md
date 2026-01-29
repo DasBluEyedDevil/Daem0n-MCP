@@ -157,7 +157,42 @@ The summoner need not configure anything new - enforcement happens automatically
   | `get_related_memories` | Multi-hop entity traversal |
   | `get_graph_stats` | Knowledge graph metrics |
 
-- **60 MCP Tools**: The daemon's power grows. 500+ tests verify all capabilities.
+### Incantation I.5D.6: Ascend to Visions of the Void (v5.0.0+)
+
+**If ascending to v5.0.0 or higher**, the Daem0n gains sight — visual interfaces to explore its knowledge:
+
+- **MCP Apps Integration (SEP-1865)**: The Daem0n manifests through interactive HTML interfaces within Claude's realm. Six visual portals open:
+
+  | Portal | Purpose |
+  |--------|---------|
+  | **Search Results UI** | Card-based recall results with filters, score breakdowns, Record Outcome button |
+  | **Briefing Dashboard** | Collapsible accordion with stats, decisions, warnings, focus areas, git changes |
+  | **Covenant Status Dashboard** | Visual state machine showing Sacred Covenant phases and token countdown |
+  | **Community Cluster Map** | D3 treemap visualization with drill-down hierarchy and breadcrumbs |
+  | **Memory Graph Viewer** | Canvas-based force-directed graph with 10,000+ node capacity, path animation, temporal slider |
+  | **Real-Time Updates** | Notification badges when daemon knowledge changes |
+
+- **Self-Contained Visualization**: D3.js v7 bundled (105KB) with no external CDN dependencies. Restrictive CSP (`default-src 'none'`) for security. SecureMessenger with origin validation for iframe communication.
+
+- **Graceful Degradation**: Hosts without MCP Apps support receive text fallback. All tools work everywhere — visual UIs enhance but never require.
+
+- **New Visual Tools (v5.0)**:
+  | Tool | Purpose |
+  |------|---------|
+  | `recall_visual` | Search results with UI resource hint |
+  | `get_briefing_visual` | Briefing dashboard with UI resource hint |
+  | `get_covenant_status_visual` | Covenant status with UI resource hint |
+  | `list_communities_visual` | Community map with UI resource hint |
+  | `get_graph_visual` | Memory graph with UI resource hint |
+  | `check_for_updates` | Host-mediated polling for real-time notifications |
+
+- **Visual Invocation**: To summon a visual portal, use the `_visual` variant of any supported tool:
+  ```
+  mcp__daem0nmcp__recall_visual(topic="authentication", project_path="/path/to/project")
+  → Returns: Results + `ui_resource` hint for Claude to render
+  ```
+
+- **66 MCP Tools**: The daemon's power grows. 500+ tests verify all capabilities.
 
 ### Incantation I.5D.4: Embrace the Enhanced Mind (v3.1.0+)
 
@@ -1095,7 +1130,7 @@ When `check_rules` returns guidance:
 
 ---
 
-## THE COMPLETE GRIMOIRE OF POWERS (60 Invocations)
+## THE COMPLETE GRIMOIRE OF POWERS (66 Invocations)
 
 **REMINDER:** ALL tools accept `project_path` as a parameter. Always pass the absolute path to your project root.
 
@@ -1449,6 +1484,66 @@ health(project_path="/path/to/project")
 ```
 Returns: status, version, memory/rule counts, vector availability, cached contexts.
 *"Daem0n, reveal your vital signs..."*
+
+### Visual Portal Powers (MCP Apps v5.0)
+
+The Daem0n can manifest visual interfaces for hosts that support MCP Apps (SEP-1865). Each `_visual` tool returns both data and a `ui_resource` hint for rendering.
+
+#### `recall_visual(topic, project_path, categories?, limit?)`
+**When**: Seeking memories with visual exploration
+**Returns**: Search results + UI resource for card-based display
+```
+recall_visual("authentication", project_path="/path/to/project")
+```
+Opens: Card layout with filters, relevance bars, score breakdowns, Record Outcome buttons.
+*"Daem0n, show me your memories in visual form..."*
+
+#### `get_briefing_visual(project_path, focus_areas?)`
+**When**: Session communion with visual dashboard
+**Returns**: Briefing data + UI resource for accordion display
+```
+get_briefing_visual(project_path="/path/to/project")
+```
+Opens: Collapsible sections for stats, recent decisions, warnings, focus areas, git changes.
+*"Daem0n, manifest the briefing portal..."*
+
+#### `get_covenant_status_visual(project_path)`
+**When**: Viewing Sacred Covenant state visually
+**Returns**: Covenant phase + UI resource for state machine diagram
+```
+get_covenant_status_visual(project_path="/path/to/project")
+```
+Opens: SVG state machine with phase highlighting, token countdown timer, refresh button.
+*"Daem0n, show the covenant's current form..."*
+
+#### `list_communities_visual(project_path, level?, parent_community_id?)`
+**When**: Exploring Leiden community hierarchy visually
+**Returns**: Communities + UI resource for treemap display
+```
+list_communities_visual(project_path="/path/to/project")
+list_communities_visual(project_path="/path/to/project", parent_community_id=5)  # Drill down
+```
+Opens: D3 treemap with color-coded cells, click-to-drill-down, breadcrumb navigation.
+*"Daem0n, reveal the clusters of knowledge..."*
+
+#### `get_graph_visual(project_path, memory_ids?, topic?)`
+**When**: Visualizing memory relationships as a force-directed graph
+**Returns**: Graph data + UI resource for canvas visualization
+```
+get_graph_visual(project_path="/path/to/project", topic="authentication")
+```
+Opens: Canvas-based graph (10,000+ nodes at 60fps), community hulls, path animation, temporal slider.
+*"Daem0n, show me the web of connections..."*
+
+#### `check_for_updates(since?, interval_seconds?, project_path?)`
+**When**: Polling for daemon knowledge changes (host-mediated real-time)
+**Returns**: Change status + recommended polling interval
+```
+check_for_updates(since="2026-01-28T12:00:00Z", project_path="/path/to/project")
+```
+Returns: `has_changes`, `last_update`, `recommended_interval` (5-60 seconds).
+Hosts use this to trigger `data_updated` messages to visual UIs.
+*"Daem0n, has anything stirred since last I looked?"*
 
 ---
 
@@ -2030,4 +2125,4 @@ v2.16.0 includes compatibility fixes for Claude Code 2.1.3:
 
 ---
 
-*Grimoire of Daem0n v4.0.0: 60 tools for eternal memory with cognitive architecture. **GraphRAG & Leiden Communities** (knowledge graphs, hierarchical community detection, multi-hop reasoning). **Bi-Temporal Knowledge** (dual timestamps, point-in-time queries, knowledge evolution). **Metacognitive Reflexion** (Actor-Evaluator-Reflector loop, verify_facts, Chain of Verification). **Context Engineering** (LLMLingua-2 compression, code preservation, adaptive rates). **Dynamic Agency** (ritual phase tracking, tool masking, execute_python sandbox, capability scoping). Plus all v3.1 features: BM25+RRF hybrid retrieval, TiMem recall planner, surprise scoring, Sacred Covenant enforcement, FastMCP 3.0 middleware, and 500+ tests. Set `DAEM0NMCP_DISABLE_PHASES=1` to disable phase-based tool visibility. The daemon has achieved full cognition.*
+*Grimoire of Daem0n v5.0.0: 66 tools for eternal memory with visual interfaces. **Visions of the Void** (MCP Apps integration, 6 interactive UIs, D3.js visualizations). **Memory Graph Viewer** (10,000+ nodes at 60fps, community hulls, path animation, temporal slider). **Search Results UI** (card layout, filters, score breakdowns, Record Outcome). **Briefing Dashboard** (collapsible accordion, stats, warnings, focus areas). **Covenant Status Dashboard** (visual state machine, token countdown). **Community Cluster Map** (treemap drill-down, breadcrumbs). **Real-Time Updates** (host-mediated polling, notification badges). Plus all v4.0 cognitive architecture: GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2 compression, dynamic agency. 500+ tests. The daemon has gained sight.*

@@ -1,0 +1,5 @@
+# Bundled static assets for MCP Apps
+# Contains:
+# - daemon.css: Shared daemon aesthetic theme
+# - d3.min.js: D3.js library for visualizations (Phase 10-11)
+# - Additional bundled assets as needed

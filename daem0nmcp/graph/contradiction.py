@@ -15,9 +15,9 @@ Links:
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import MemoryVersion
@@ -146,15 +146,21 @@ async def detect_contradictions(
     result = await session.execute(query)
     versions = result.scalars().all()
 
-    for version in versions:
-        # Compute embedding for existing version content
-        version_embedding_bytes = encode(version.content)
-        if version_embedding_bytes is None:
-            continue
+    # Cache embeddings to avoid recomputing for the same content across calls
+    embedding_cache: Dict[int, Any] = {}
 
-        version_embedding = decode(version_embedding_bytes)
-        if version_embedding is None:
-            continue
+    for version in versions:
+        # Use cached embedding if available, otherwise compute and cache
+        if version.id in embedding_cache:
+            version_embedding = embedding_cache[version.id]
+        else:
+            version_embedding_bytes = encode(version.content)
+            if version_embedding_bytes is None:
+                continue
+            version_embedding = decode(version_embedding_bytes)
+            if version_embedding is None:
+                continue
+            embedding_cache[version.id] = version_embedding
 
         # Compute similarity
         similarity = cosine_similarity(new_embedding, version_embedding)
