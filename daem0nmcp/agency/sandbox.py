@@ -76,7 +76,7 @@ class SandboxExecutor:
     def _check_availability(self) -> bool:
         """Check if E2B sandbox is available."""
         try:
-            from e2b_code_interpreter import Sandbox
+            from e2b_code_interpreter import Sandbox  # noqa: F401 (import tests availability)
             if not self._api_key:
                 logger.warning("E2B_API_KEY not set - sandbox unavailable")
                 return False

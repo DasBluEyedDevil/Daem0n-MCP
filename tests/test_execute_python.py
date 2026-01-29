@@ -7,7 +7,7 @@ Integration tests require E2B_API_KEY and e2b-code-interpreter installed.
 
 import logging
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -134,7 +134,7 @@ class TestSandboxExecutorAvailability:
         """Sandbox should report unavailable without e2b-code-interpreter."""
         with patch.dict("sys.modules", {"e2b_code_interpreter": None}):
             # Mock the import to fail
-            executor = SandboxExecutor()
+            SandboxExecutor()
             # Check internal state (it checked availability at init)
             # Note: This may vary based on actual e2b installation
 

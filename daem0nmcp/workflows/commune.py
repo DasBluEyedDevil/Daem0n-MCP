@@ -12,7 +12,7 @@ Actions:
 
 from typing import Any, Dict, List, Optional
 
-from .errors import InvalidActionError, MissingParamError
+from .errors import InvalidActionError
 
 VALID_ACTIONS = frozenset({
     "briefing",

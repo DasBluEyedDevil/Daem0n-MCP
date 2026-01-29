@@ -1,5 +1,4 @@
 """Tests for UI text fallback formatting."""
-import pytest
 from datetime import datetime, timezone
 
 from daem0nmcp.ui.fallback import (

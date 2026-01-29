@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 
 from daem0nmcp.graph.contradiction import (
     Contradiction,
-    NEGATION_PATTERNS,
-    SIMILARITY_THRESHOLD,
     check_and_invalidate_contradictions,
     detect_contradictions,
     has_negation_mismatch,

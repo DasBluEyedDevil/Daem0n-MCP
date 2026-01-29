@@ -1,6 +1,5 @@
 """Tests for workflow error handling."""
 
-import pytest
 
 
 class TestWorkflowErrors:

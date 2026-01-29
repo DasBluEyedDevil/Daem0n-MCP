@@ -1,7 +1,7 @@
 """Tests for episodic-to-semantic memory consolidation."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from daem0nmcp.reflexion.consolidation import (
     consolidate_reflections,

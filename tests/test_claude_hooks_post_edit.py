@@ -1,7 +1,6 @@
 """Tests for the post_edit Claude Code hook."""
 
 import json
-import sys
 
 import pytest
 

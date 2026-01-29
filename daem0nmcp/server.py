@@ -5189,7 +5189,7 @@ async def backfill_entities(
 
 @mcp.tool(version="3.0.0")
 @with_request_id
-async def trace_chain(
+async def trace_causal_path(
     start_memory_id: int,
     end_memory_id: int,
     max_depth: int = 5,

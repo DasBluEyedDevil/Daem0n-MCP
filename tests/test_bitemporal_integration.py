@@ -259,7 +259,7 @@ class TestCriticalBitemporalScenario:
     @pytest.mark.asyncio
     async def test_full_invalidation_scenario(self, memory_manager, db_manager):
         """Full bi-temporal scenario with invalidation."""
-        from daem0nmcp.models import Memory, MemoryVersion, ExtractedEntity, MemoryEntityRef
+        from daem0nmcp.models import MemoryVersion
         from sqlalchemy import select
 
         # T1: January 15 - We believe "Auth uses session cookies"
@@ -334,7 +334,7 @@ class TestCriticalBitemporalScenario:
         )
 
         # The invalidated memory should NOT appear in T3 query
-        session_cookie_found_t3 = any(
+        any(
             "session cookies" in p.get("content", "").lower()
             and "not" not in p.get("content", "").lower()  # Exclude the correction message
             for p in patterns_t3
@@ -350,7 +350,6 @@ class TestCriticalBitemporalScenario:
     async def test_trace_evolution_shows_invalidation_chain(self, memory_manager, db_manager):
         """trace_evolution should show which versions superseded which."""
         from daem0nmcp.models import Memory, MemoryVersion, ExtractedEntity, MemoryEntityRef
-        from sqlalchemy import select
 
         # Create an entity
         async with db_manager.get_session() as session:

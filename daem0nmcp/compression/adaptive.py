@@ -9,7 +9,6 @@ import logging
 from enum import Enum
 from typing import Dict, Any, Optional, List
 
-from .config import CompressionConfig
 from .compressor import ContextCompressor
 from .entity_preserver import CodeEntityPreserver
 

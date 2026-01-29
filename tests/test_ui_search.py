@@ -1,5 +1,4 @@
 """Tests for Search Results UI building."""
-import pytest
 
 from daem0nmcp.ui.resources import _build_search_ui, _highlight_keywords
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from daem0nmcp.workflows.errors import InvalidActionError, MissingParamError
+from daem0nmcp.workflows.errors import InvalidActionError
 
 
 class TestCommuneImport:
