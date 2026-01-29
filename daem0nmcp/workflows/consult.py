@@ -61,6 +61,7 @@ async def dispatch(
     action_desc: Optional[str] = None,
     context: Optional[Dict[str, Any]] = None,
     # compress params
+    compress_text: Optional[str] = None,
     rate: Optional[float] = None,
     content_type: Optional[str] = None,
     preserve_code: bool = True,
@@ -116,12 +117,8 @@ async def dispatch(
         return await _do_check_rules(project_path, action_desc, context)
 
     elif action == "compress":
-        # context param is used for check_rules; for compress we use kwargs
-        compress_text = kwargs.get("context") if isinstance(kwargs.get("context"), str) else None
-        # But since context is already captured as a Dict above, we need a
-        # separate way to pass the text. Let's check kwargs first.
         if compress_text is None:
-            raise MissingParamError("context", action)
+            raise MissingParamError("compress_text", action)
         return await _do_compress(
             compress_text, rate, content_type, preserve_code
         )

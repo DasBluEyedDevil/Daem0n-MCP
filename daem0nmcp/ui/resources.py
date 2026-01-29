@@ -17,6 +17,7 @@ Resource registrations:
 - ui://daem0n/community - Community cluster map (Phase 10)
 - ui://daem0n/graph - Memory graph viewer (Phase 11)
 """
+from html import escape as _html_escape
 import json
 import re
 from datetime import datetime
@@ -77,22 +78,28 @@ def _highlight_keywords(text: str, query: str) -> str:
     """
     Wrap query keywords in <mark> tags for highlighting.
 
+    HTML-escapes the text first to prevent XSS, then applies
+    safe highlighting with <mark> tags.
+
     Args:
         text: The text content to highlight within
         query: Space-separated query words
 
     Returns:
-        Text with matching keywords wrapped in <mark> tags
+        HTML-escaped text with matching keywords wrapped in <mark> tags
     """
     if not query or not text:
-        return text
+        return _html_escape(text) if text else text
+
+    # Escape HTML entities first to prevent injection
+    result = _html_escape(text)
 
     words = query.split()
-    result = text
     for word in words:
         if len(word) > 2:  # Skip short words
-            pattern = re.compile(re.escape(word), re.IGNORECASE)
-            result = pattern.sub(f"<mark>{word}</mark>", result)
+            escaped_word = _html_escape(word)
+            pattern = re.compile(re.escape(escaped_word), re.IGNORECASE)
+            result = pattern.sub(f"<mark>{escaped_word}</mark>", result)
     return result
 
 
@@ -164,7 +171,7 @@ def _build_search_ui(data: Dict[str, Any]) -> str:
 
         tags_html = ""
         if tags:
-            tag_spans = [f'<span class="result-card__tag">{tag}</span>' for tag in tags]
+            tag_spans = [f'<span class="result-card__tag">{_html_escape(str(tag))}</span>' for tag in tags]
             tags_html = f'<div class="result-card__tags">{" ".join(tag_spans)}</div>'
 
         # Format percentages for display
@@ -351,7 +358,7 @@ def _build_briefing_ui(data: Dict[str, Any]) -> str:
     # Build message block (if present)
     message_html = ""
     if message:
-        message_html = f'<div class="briefing-message">{message}</div>'
+        message_html = f'<div class="briefing-message">{_html_escape(message)}</div>'
 
     # Build accordion sections
     sections = []
@@ -361,7 +368,7 @@ def _build_briefing_ui(data: Dict[str, Any]) -> str:
         decisions_html = []
         for d in recent_decisions:
             outcome = _outcome_indicator(d.get("worked"))
-            content = d.get("content", "")[:200]  # Truncate for display
+            content = _html_escape(d.get("content", "")[:200])  # Truncate for display
             date = _format_date(d.get("created_at", ""))
             decisions_html.append(f'''
 <div class="decision-item">
@@ -391,7 +398,7 @@ def _build_briefing_ui(data: Dict[str, Any]) -> str:
         warnings_html = []
         for w in active_warnings:
             severity = w.get("severity", "medium").lower()
-            content = w.get("content", "")
+            content = _html_escape(w.get("content", ""))
             warnings_html.append(f'''
 <div class="warning-item warning-item--{severity}">
     <div class="warning-item__content">{content}</div>
@@ -415,7 +422,7 @@ def _build_briefing_ui(data: Dict[str, Any]) -> str:
     if failed_approaches:
         failed_html = []
         for f in failed_approaches:
-            content = f.get("content", "")
+            content = _html_escape(f.get("content", ""))
             failed_html.append(f'''
 <div class="warning-item warning-item--high">
     <div class="warning-item__content">{content}</div>
@@ -468,7 +475,7 @@ def _build_briefing_ui(data: Dict[str, Any]) -> str:
     if focus_areas:
         buttons_html = []
         for area in focus_areas:
-            topic = area.get("topic", "")
+            topic = _html_escape(area.get("topic", ""))
             buttons_html.append(f'''
 <button class="daemon-btn daemon-btn--small daemon-btn--secondary focus-area-btn"
         data-action="focus-area"

@@ -81,8 +81,8 @@ class TestConsultValidation:
         assert exc_info.value.param == "action_desc"
 
     @pytest.mark.asyncio
-    async def test_compress_requires_context(self):
+    async def test_compress_requires_compress_text(self):
         from daem0nmcp.workflows.consult import dispatch
         with pytest.raises(MissingParamError) as exc_info:
             await dispatch(action="compress", project_path="/tmp")
-        assert exc_info.value.param == "context"
+        assert exc_info.value.param == "compress_text"

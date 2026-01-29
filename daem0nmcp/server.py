@@ -5932,6 +5932,7 @@ async def consult(
     action_desc: Optional[str] = None,
     context: Optional[Dict[str, Any]] = None,
     # compress params
+    compress_text: Optional[str] = None,
     rate: Optional[float] = None,
     content_type: Optional[str] = None,
     preserve_code: bool = True,
@@ -5976,6 +5977,7 @@ async def consult(
             highlight_end=highlight_end,
             action_desc=action_desc,
             context=context,
+            compress_text=compress_text,
             rate=rate,
             content_type=content_type,
             preserve_code=preserve_code,

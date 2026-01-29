@@ -58,8 +58,11 @@ async def check_for_updates(
             # Invalid timestamp treated as None (check everything)
             since_dt = None
 
-    # Check for changes
-    has_changes = await db.has_changes_since(since_dt)
+    # Check for changes — first call (no timestamp) always reports changes
+    if since_dt is None:
+        has_changes = True
+    else:
+        has_changes = await db.has_changes_since(since_dt)
 
     # Get current last update time
     last_update_dt = await db.get_last_update_time()

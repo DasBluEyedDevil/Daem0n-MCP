@@ -94,7 +94,7 @@ class SecureMessenger {
 
         // Handle incoming request/notification
         if (message.method) {
-            this._handleRequest(message, event.source);
+            this._handleRequest(message, event.source, event.origin);
         }
     }
 
@@ -124,7 +124,7 @@ class SecureMessenger {
      * Handle incoming request from host.
      * @private
      */
-    _handleRequest(message, source) {
+    _handleRequest(message, source, origin) {
         const handler = this.handlers.get(message.method);
 
         if (!handler) {
@@ -133,7 +133,7 @@ class SecureMessenger {
                 this._sendResponse(source, message.id, null, {
                     code: -32601,
                     message: `Method not found: ${message.method}`
-                });
+                }, origin);
             }
             return;
         }
@@ -146,7 +146,7 @@ class SecureMessenger {
                 result.then(
                     (res) => {
                         if (message.id !== undefined) {
-                            this._sendResponse(source, message.id, res);
+                            this._sendResponse(source, message.id, res, null, origin);
                         }
                     },
                     (err) => {
@@ -154,20 +154,20 @@ class SecureMessenger {
                             this._sendResponse(source, message.id, null, {
                                 code: -32603,
                                 message: err.message
-                            });
+                            }, origin);
                         }
                     }
                 );
             } else if (message.id !== undefined) {
                 // Synchronous result
-                this._sendResponse(source, message.id, result);
+                this._sendResponse(source, message.id, result, null, origin);
             }
         } catch (err) {
             if (message.id !== undefined) {
                 this._sendResponse(source, message.id, null, {
                     code: -32603,
                     message: err.message
-                });
+                }, origin);
             }
         }
     }
@@ -175,8 +175,13 @@ class SecureMessenger {
     /**
      * Send a JSON-RPC 2.0 response.
      * @private
+     * @param {Window} target - The target window to send to
+     * @param {number|string} id - The JSON-RPC request ID
+     * @param {*} result - The result value (if success)
+     * @param {object|null} error - The error object (if error)
+     * @param {string} targetOrigin - The validated origin to send to
      */
-    _sendResponse(target, id, result, error = null) {
+    _sendResponse(target, id, result, error = null, targetOrigin = '*') {
         if (id === undefined) return;  // Notification, no response needed
 
         const response = {
@@ -190,7 +195,7 @@ class SecureMessenger {
             response.result = result;
         }
 
-        target.postMessage(response, '*');
+        target.postMessage(response, targetOrigin);
     }
 
     /**
