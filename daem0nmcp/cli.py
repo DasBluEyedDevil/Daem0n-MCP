@@ -15,6 +15,8 @@ Usage:
     python -m daem0nmcp.cli record-outcome <memory_id> "<outcome>" --worked|--failed
     python -m daem0nmcp.cli install-hooks [--force]
     python -m daem0nmcp.cli uninstall-hooks
+    python -m daem0nmcp.cli install-claude-hooks [--dry-run]
+    python -m daem0nmcp.cli uninstall-claude-hooks [--dry-run]
     python -m daem0nmcp.cli watch [--debounce SECONDS] [--no-system] [--no-log] [--no-poll]
     python -m daem0nmcp.cli index [--path PATH] [--patterns *.py *.ts ...]
     python -m daem0nmcp.cli remember --category CATEGORY --content CONTENT [--rationale TEXT] [--file-path PATH] [--tags TAGS]
@@ -305,6 +307,14 @@ def main():
     # uninstall-hooks command
     subparsers.add_parser("uninstall-hooks", help="Remove daem0nmcp git hooks")
 
+    # install-claude-hooks command
+    install_claude_parser = subparsers.add_parser("install-claude-hooks", help="Install Claude Code hooks for Daem0n enforcement")
+    install_claude_parser.add_argument("--dry-run", action="store_true", help="Show what would change")
+
+    # uninstall-claude-hooks command
+    uninstall_claude_parser = subparsers.add_parser("uninstall-claude-hooks", help="Remove Daem0n Claude Code hooks")
+    uninstall_claude_parser.add_argument("--dry-run", action="store_true", help="Show what would change")
+
     # watch command
     watch_parser = subparsers.add_parser("watch", help="Start file watcher daemon")
     watch_parser.add_argument("--debounce", type=float, default=1.0,
@@ -519,6 +529,24 @@ def main():
         else:
             print(message)
 
+        sys.exit(0 if success else 1)
+
+    elif args.command == "install-claude-hooks":
+        from .claude_hooks.install import install_claude_hooks
+        success, message = install_claude_hooks(dry_run=getattr(args, 'dry_run', False))
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "uninstall-claude-hooks":
+        from .claude_hooks.install import uninstall_claude_hooks
+        success, message = uninstall_claude_hooks(dry_run=getattr(args, 'dry_run', False))
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
         sys.exit(0 if success else 1)
 
     elif args.command == "watch":
