@@ -174,27 +174,93 @@ def _extract_decisions(text: str) -> list[dict]:
 
 # ─── auto-remember via direct import ──────────────────────────────
 
-def _auto_remember(decisions: list[dict], project_path: str) -> list[int]:
-    """Remember decisions directly using MemoryManager (no subprocess)."""
+async def _async_auto_remember(decisions: list[dict], project_path: str) -> list[int]:
+    """Remember decisions directly using MemoryManager."""
     db, memory, _rules = get_managers(project_path)
+    await db.init_db()
+    ids: list[int] = []
+    for d in decisions:
+        result = await memory.remember(
+            category=d["category"],
+            content=d["content"],
+            rationale="Auto-captured from conversation",
+            file_path=d.get("file_path"),
+            project_path=project_path,
+        )
+        mem_id = result.get("id")
+        if mem_id:
+            ids.append(mem_id)
+    return ids
 
-    async def _run():
-        await db.init_db()
-        ids: list[int] = []
-        for d in decisions:
-            result = await memory.remember(
-                category=d["category"],
-                content=d["content"],
-                rationale="Auto-captured from conversation",
-                file_path=d.get("file_path"),
-                project_path=project_path,
+
+# ─── testable core logic ─────────────────────────────────────────
+
+class StopResult:
+    """Value object returned by ``analyse_and_remember``."""
+    __slots__ = ("message",)
+
+    def __init__(self, message: str):
+        self.message = message
+
+
+async def analyse_and_remember(
+    project_path: str,
+    messages: list[dict],
+    state: dict,
+) -> StopResult:
+    """
+    Core logic extracted for in-process testing.
+
+    * Analyses transcript content
+    * Auto-remembers decisions
+    * Returns result message (empty = nothing to say)
+    * Updates *state* in-place for anti-loop tracking
+    """
+    current_turn = len(messages)
+
+    # Anti-loop check
+    if state.get("last_reminder_turn", -1) >= current_turn - 2:
+        if state.get("reminder_count", 0) >= 2:
+            return StopResult(message="")
+
+    recent_content = _get_recent_assistant_content(messages)
+    recent_tools = _get_recent_tool_calls(messages)
+
+    if _matches_any(recent_content, EXPLORATION_PATTERNS):
+        return StopResult(message="")
+
+    if not _matches_any(recent_content, COMPLETION_PATTERNS):
+        return StopResult(message="")
+
+    if _has_daem0n_outcome(recent_content, recent_tools):
+        return StopResult(message="")
+
+    # Auto-extract and remember decisions
+    extracted = _extract_decisions(recent_content)
+    if extracted:
+        memory_ids = await _async_auto_remember(extracted, project_path)
+        if memory_ids:
+            summaries = "\n".join(f"  - {d['content'][:80]}" for d in extracted[:3])
+            return StopResult(
+                message=(
+                    f"[Daem0n auto-captured] {len(memory_ids)} decision(s):\n"
+                    f"{summaries}\n"
+                    f"Memory IDs: {memory_ids}. Remember to record_outcome() when results are known."
+                )
             )
-            mem_id = result.get("id")
-            if mem_id:
-                ids.append(mem_id)
-        return ids
 
-    return run_async(_run())
+    # Generic reminder
+    state["reminder_count"] = state.get("reminder_count", 0) + 1
+    state["last_reminder_turn"] = current_turn
+
+    return StopResult(
+        message=(
+            "[Daem0n whispers] Task completion detected. "
+            "If you made decisions worth tracking, consider: "
+            "inscribe(action='remember', content='...') and later "
+            "reflect(action='record_outcome', memory_id=<id>, outcome='...', worked=True/False)"
+        )
+    )
 
 
 # ─── main ─────────────────────────────────────────────────────────
@@ -204,57 +270,17 @@ def main() -> None:
     if project_path is None:
         sys.exit(0)
 
-    # Read transcript
     messages = _read_transcript()
     if not messages:
         sys.exit(0)
 
-    # Anti-loop
     state = _load_state()
-    current_turn = len(messages)
-    if state.get("last_reminder_turn", -1) >= current_turn - 2:
-        if state.get("reminder_count", 0) >= 2:
-            sys.exit(0)
-
-    # Analyse recent content
-    recent_content = _get_recent_assistant_content(messages)
-    recent_tools = _get_recent_tool_calls(messages)
-
-    # Skip exploration-only turns
-    if _matches_any(recent_content, EXPLORATION_PATTERNS):
-        sys.exit(0)
-
-    # Need a completion signal
-    if not _matches_any(recent_content, COMPLETION_PATTERNS):
-        sys.exit(0)
-
-    # Skip if outcome already recorded
-    if _has_daem0n_outcome(recent_content, recent_tools):
-        sys.exit(0)
-
-    # Try to auto-extract and remember decisions
-    extracted = _extract_decisions(recent_content)
-    if extracted:
-        memory_ids = _auto_remember(extracted, project_path)
-        if memory_ids:
-            summaries = "\n".join(f"  - {d['content'][:80]}" for d in extracted[:3])
-            succeed(
-                f"[Daem0n auto-captured] {len(memory_ids)} decision(s):\n"
-                f"{summaries}\n"
-                f"Memory IDs: {memory_ids}. Remember to record_outcome() when results are known."
-            )
-
-    # Generic reminder
-    state["reminder_count"] = state.get("reminder_count", 0) + 1
-    state["last_reminder_turn"] = current_turn
+    result = run_async(analyse_and_remember(project_path, messages, state))
     _save_state(state)
 
-    succeed(
-        "[Daem0n whispers] Task completion detected. "
-        "If you made decisions worth tracking, consider: "
-        "inscribe(action='remember', content='...') and later "
-        "reflect(action='record_outcome', memory_id=<id>, outcome='...', worked=True/False)"
-    )
+    if result.message:
+        succeed(result.message)
+    sys.exit(0)
 
 
 if __name__ == "__main__":

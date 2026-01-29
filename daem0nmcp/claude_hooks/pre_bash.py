@@ -17,6 +17,44 @@ from ._client import (
 )
 
 
+class PreBashResult:
+    """Value object returned by ``async_main``."""
+    __slots__ = ("blocked", "message")
+
+    def __init__(self, blocked: bool, message: str):
+        self.blocked = blocked
+        self.message = message
+
+
+async def async_main(project_path: str, command: str) -> PreBashResult:
+    """Core async logic.  Returns a result instead of calling sys.exit."""
+    db, _memory, rules = get_managers(project_path)
+    await db.init_db()
+
+    result = await rules.check_rules(f"executing bash: {command[:200]}")
+
+    guidance = result.get("guidance")
+    if not guidance:
+        return PreBashResult(blocked=False, message="")
+
+    must_not = guidance.get("must_not", [])
+    warnings = guidance.get("warnings", [])
+
+    if must_not:
+        lines = ["[Daem0n blocks] Rule violation for bash command:", "MUST NOT:"]
+        for item in must_not:
+            lines.append(f"  - {item}")
+        return PreBashResult(blocked=True, message="\n".join(lines))
+
+    if warnings:
+        lines = ["[Daem0n warns] Rule guidance for bash command:"]
+        for w in warnings:
+            lines.append(f"  - {w}")
+        return PreBashResult(blocked=False, message="\n".join(lines))
+
+    return PreBashResult(blocked=False, message="")
+
+
 def main() -> None:
     project_path = get_project_path()
     if project_path is None:
@@ -26,32 +64,13 @@ def main() -> None:
     if not command:
         sys.exit(0)
 
-    db, _memory, rules = get_managers(project_path)
+    result = run_async(async_main(project_path, command))
 
-    async def _check():
-        await db.init_db()
-        return await rules.check_rules(f"executing bash: {command[:200]}")
+    if result.blocked:
+        block(result.message)
 
-    result = run_async(_check())
-
-    guidance = result.get("guidance")
-    if not guidance:
-        sys.exit(0)
-
-    must_not = guidance.get("must_not", [])
-    warnings = guidance.get("warnings", [])
-
-    if must_not:
-        lines = ["[Daem0n blocks] Rule violation for bash command:", "MUST NOT:"]
-        for item in must_not:
-            lines.append(f"  - {item}")
-        block("\n".join(lines))
-
-    if warnings:
-        lines = ["[Daem0n warns] Rule guidance for bash command:"]
-        for w in warnings:
-            lines.append(f"  - {w}")
-        succeed("\n".join(lines))
+    if result.message:
+        succeed(result.message)
 
     sys.exit(0)
 

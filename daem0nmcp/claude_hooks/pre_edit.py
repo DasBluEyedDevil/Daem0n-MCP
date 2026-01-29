@@ -78,6 +78,46 @@ def _format_file_context(file_memories: dict, rule_result: dict) -> str:
     return "\n".join(parts)
 
 
+class PreEditResult:
+    """Value object returned by ``async_main``."""
+    __slots__ = ("allowed", "message")
+
+    def __init__(self, allowed: bool, message: str):
+        self.allowed = allowed
+        self.message = message
+
+
+async def async_main(project_path: str, file_path: str) -> PreEditResult:
+    """Core async logic.  Returns a result instead of calling sys.exit."""
+    db, memory, rules = get_managers(project_path)
+    await db.init_db()
+
+    from ..enforcement import SessionManager
+    session_mgr = SessionManager(db)
+    has_token = await session_mgr.has_recent_context_check(project_path)
+
+    if not has_token:
+        return PreEditResult(
+            allowed=False,
+            message=(
+                "[Daem0n blocks] No preflight token. "
+                "You must call consult(action='preflight', description='<what you plan to do>') "
+                "before editing files. This ensures awareness of existing memories, warnings, and rules."
+            ),
+        )
+
+    from ..cli import check_file
+    file_result = await check_file(file_path, db, memory, rules)
+
+    filename = Path(file_path).name
+    rule_result = await rules.check_rules(f"editing {filename}")
+
+    context = _format_file_context(file_result, rule_result)
+    if context:
+        return PreEditResult(allowed=True, message=f"[Daem0n recalls for {filename}]\n{context}")
+    return PreEditResult(allowed=True, message="")
+
+
 def main() -> None:
     project_path = get_project_path()
     if project_path is None:
@@ -87,45 +127,13 @@ def main() -> None:
     if not file_path:
         sys.exit(0)
 
-    db, memory, rules = get_managers(project_path)
+    result = run_async(async_main(project_path, file_path))
 
-    async def _check():
-        await db.init_db()
+    if not result.allowed:
+        block(result.message)
 
-        # Check preflight token
-        from ..enforcement import SessionManager
-
-        session_mgr = SessionManager(db)
-        has_token = await session_mgr.has_recent_context_check(project_path)
-
-        if not has_token:
-            return False, "", {}
-
-        # Recall file memories
-        from ..cli import check_file
-
-        file_result = await check_file(file_path, db, memory, rules)
-
-        # Check rules for this file
-        filename = Path(file_path).name
-        rule_result = await rules.check_rules(f"editing {filename}")
-
-        return True, file_result, rule_result
-
-    allowed, file_result, rule_result = run_async(_check())
-
-    if not allowed:
-        block(
-            "[Daem0n blocks] No preflight token. "
-            "You must call consult(action='preflight', description='<what you plan to do>') "
-            "before editing files. This ensures awareness of existing memories, warnings, and rules."
-        )
-
-    # Output file context if any
-    context = _format_file_context(file_result, rule_result)
-    filename = Path(file_path).name
-    if context:
-        succeed(f"[Daem0n recalls for {filename}]\n{context}")
+    if result.message:
+        succeed(result.message)
     else:
         sys.exit(0)
 
