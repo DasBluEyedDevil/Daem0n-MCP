@@ -68,6 +68,89 @@ class TestQualifiedNames:
         assert 'models' in helper_func['qualified_name']
 
 
+class TestNestedFunctionQualifiedNames:
+    """Test qualified names for nested functions (duplicate ID bug fix)."""
+
+    def test_nested_functions_same_name_get_unique_ids(self, temp_project):
+        """Nested functions with the same name in different parents must have unique IDs."""
+        from daem0nmcp.code_indexer import TreeSitterIndexer
+
+        indexer = TreeSitterIndexer()
+        if not indexer.available:
+            pytest.skip("tree-sitter not available")
+
+        py_file = temp_project / "utils.py"
+        py_file.write_text('''
+def outer_one():
+    def helper():
+        pass
+
+def outer_two():
+    def helper():
+        pass
+''')
+        entities = list(indexer.index_file(py_file, temp_project))
+
+        helpers = [e for e in entities if e['name'] == 'helper']
+        assert len(helpers) == 2, f"Expected 2 helper entities, got {len(helpers)}"
+
+        # Qualified names must differ
+        qnames = {e['qualified_name'] for e in helpers}
+        assert len(qnames) == 2, f"Qualified names collide: {qnames}"
+        assert any('outer_one' in q for q in qnames), f"Missing outer_one scope: {qnames}"
+        assert any('outer_two' in q for q in qnames), f"Missing outer_two scope: {qnames}"
+
+        # IDs must differ
+        ids = {e['id'] for e in helpers}
+        assert len(ids) == 2, f"Entity IDs collide: {ids}"
+
+    def test_nested_function_qualified_name_includes_parent(self, temp_project):
+        """A function nested inside another includes the parent in its qualified name."""
+        from daem0nmcp.code_indexer import TreeSitterIndexer
+
+        indexer = TreeSitterIndexer()
+        if not indexer.available:
+            pytest.skip("tree-sitter not available")
+
+        py_file = temp_project / "service.py"
+        py_file.write_text('''
+def process():
+    def validate():
+        pass
+''')
+        entities = list(indexer.index_file(py_file, temp_project))
+
+        validate = next((e for e in entities if e['name'] == 'validate'), None)
+        assert validate is not None
+        assert 'process' in validate['qualified_name'], (
+            f"Expected 'process' in qualified_name, got: {validate['qualified_name']}"
+        )
+
+    def test_deeply_nested_functions(self, temp_project):
+        """Triple-nested functions get fully qualified names."""
+        from daem0nmcp.code_indexer import TreeSitterIndexer
+
+        indexer = TreeSitterIndexer()
+        if not indexer.available:
+            pytest.skip("tree-sitter not available")
+
+        py_file = temp_project / "deep.py"
+        py_file.write_text('''
+def level_one():
+    def level_two():
+        def level_three():
+            pass
+''')
+        entities = list(indexer.index_file(py_file, temp_project))
+
+        l3 = next((e for e in entities if e['name'] == 'level_three'), None)
+        assert l3 is not None
+        qn = l3['qualified_name']
+        assert 'level_one' in qn, f"Missing level_one in: {qn}"
+        assert 'level_two' in qn, f"Missing level_two in: {qn}"
+        assert 'level_three' in qn, f"Missing level_three in: {qn}"
+
+
 class TestStableEntityIDs:
     """Test entity ID stability across line changes."""
 
