@@ -618,9 +618,11 @@ class TreeSitterIndexer:
 
     def _make_entity_dict(self, **kwargs) -> Dict[str, Any]:
         """Create a CodeEntity-compatible dictionary."""
-        # Use qualified_name for stable IDs that don't change when lines shift
+        # Use qualified_name + signature for stable IDs that handle overloaded functions
+        # Signature differs between overloads but doesn't change when lines shift
         identifier = kwargs.get('qualified_name') or kwargs['name']
-        id_string = f"{kwargs['project_path']}:{kwargs['file_path']}:{identifier}:{kwargs['entity_type']}"
+        signature = kwargs.get('signature', '')
+        id_string = f"{kwargs['project_path']}:{kwargs['file_path']}:{identifier}:{kwargs['entity_type']}:{signature}"
         entity_id = hashlib.sha256(id_string.encode()).hexdigest()[:16]
 
         return {
