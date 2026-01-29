@@ -269,37 +269,6 @@ class TestExecutePythonTool:
             finally:
                 server._sandbox_executor._sandbox_available = original
 
-    @pytest.mark.asyncio
-    async def test_ritual_phase_updated(self):
-        """Tool should update ritual phase on execution."""
-        from daem0nmcp import server
-
-        # Reset tracker state
-        server._ritual_phase_tracker.clear_project("/test/project")
-
-        # Mock sandbox to return a result
-        mock_result = ExecutionResult(
-            success=True, output="hello", execution_time_ms=10
-        )
-
-        with patch.object(SandboxExecutor, "execute", new_callable=AsyncMock) as mock:
-            mock.return_value = mock_result
-
-            # Force sandbox available
-            original = server._sandbox_executor._sandbox_available
-            server._sandbox_executor._sandbox_available = True
-            try:
-                await server.execute_python(
-                    code="print('hello')", project_path="/test/project"
-                )
-
-                # Check phase was updated to action
-                phase = server._ritual_phase_tracker.get_phase("/test/project")
-                assert phase == "action"
-            finally:
-                server._sandbox_executor._sandbox_available = original
-
-
 # Integration tests - skip without E2B_API_KEY
 @pytest.mark.skipif(
     not os.environ.get("E2B_API_KEY"), reason="E2B_API_KEY not set - skip integration"

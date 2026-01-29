@@ -145,14 +145,14 @@ The summoner need not configure anything new - enforcement happens automatically
 
 - **Context Engineering**: LLMLingua-2 integration achieves 3x-6x compression while preserving code syntax and entities. Adaptive rates by content type. `compress_context` MCP tool for on-demand optimization.
 
-- **Dynamic Agency**: Ritual phase tracking (BRIEFING -> EXPLORATION -> ACTION -> REFLECTION). Tool masking hides irrelevant tools per phase. `execute_python` provides sandboxed code execution via E2B Firecracker microVMs. Capability scoping enforces least-privilege.
+- **Dynamic Agency**: `execute_python` provides sandboxed code execution via E2B Firecracker microVMs. Capability scoping enforces least-privilege.
 
 - **New Tools (v4.0)**:
   | Tool | Purpose |
   |------|---------|
   | `verify_facts` | Validate claims against stored knowledge |
   | `compress_context` | LLMLingua-2 context compression |
-  | `execute_python` | Sandboxed Python execution (action phase) |
+  | `execute_python` | Sandboxed Python execution |
   | `trace_evolution` | Knowledge evolution over time |
   | `get_related_memories` | Multi-hop entity traversal |
   | `get_graph_stats` | Knowledge graph metrics |

@@ -25,7 +25,7 @@ A smarter MCP server that provides:
 - recall: Retrieve relevant memories for a topic (semantic search)
 - verify_facts: Verify factual claims in text against stored knowledge
 - compress_context: Compress context using LLMLingua-2 for token reduction
-- execute_python: Execute Python code in isolated sandbox (action phase only)
+- execute_python: Execute Python code in isolated sandbox
 - recall_for_file: Get all memories for a specific file
 - recall_by_entity: Get all memories mentioning a specific code entity
 - list_entities: List most frequently mentioned entities
@@ -93,14 +93,11 @@ try:
     from .covenant import set_context_callback
     from .transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
     from .agency import (
-        RitualPhaseTracker,
-        AgencyMiddleware,
         SandboxExecutor,
         CapabilityScope,
         CapabilityManager,
         check_capability,
     )
-    from .agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from .rwlock import RWLock
     from .ui.resources import register_ui_resources
 except ImportError:
@@ -116,14 +113,11 @@ except ImportError:
     from daem0nmcp.covenant import set_context_callback
     from daem0nmcp.transforms.covenant import CovenantMiddleware, _FASTMCP_MIDDLEWARE_AVAILABLE
     from daem0nmcp.agency import (
-        RitualPhaseTracker,
-        AgencyMiddleware,
         SandboxExecutor,
         CapabilityScope,
         CapabilityManager,
         check_capability,
     )
-    from daem0nmcp.agency.middleware import _FASTMCP_MIDDLEWARE_AVAILABLE as _AGENCY_MIDDLEWARE_AVAILABLE
     from daem0nmcp.rwlock import RWLock
     from daem0nmcp.ui.resources import register_ui_resources
 from sqlalchemy import select, delete, or_, func
@@ -149,10 +143,6 @@ mcp = FastMCP("Daem0nMCP")
 
 # Register UI resources for MCP Apps (v5.0)
 register_ui_resources(mcp)
-
-# Global ritual phase tracker for tool visibility
-_ritual_phase_tracker = RitualPhaseTracker()
-
 
 # ============================================================================
 # PROJECT CONTEXT MANAGEMENT - Support multiple projects via HTTP transport
@@ -189,21 +179,6 @@ _default_project_path: Optional[str] = os.environ.get('DAEM0NMCP_PROJECT_ROOT')
 # Agency globals - sandbox executor and capability manager for execute_python
 _sandbox_executor = SandboxExecutor(timeout_seconds=30)
 _capability_manager = CapabilityManager()
-
-
-def _update_ritual_phase(project_path: str, tool_name: str) -> None:
-    """
-    Update ritual phase based on tool call.
-
-    Called at the end of key tool implementations to track phase transitions.
-    The phase tracker uses tool_name to determine the new phase:
-    - get_briefing -> stays in briefing
-    - context_check -> exploration
-    - remember, remember_batch, add_rule -> action
-    - record_outcome, verify_facts -> reflection
-    """
-    if project_path:
-        _ritual_phase_tracker.on_tool_called(project_path, tool_name)
 
 
 def _get_context_for_covenant(project_path: str) -> Optional[ProjectContext]:
@@ -260,20 +235,6 @@ else:
     logger.warning(
         "FastMCP 3.0 middleware not available - falling back to decorator-based enforcement"
     )
-
-
-def _get_ritual_phase_for_middleware(project_path: str) -> str:
-    """Get ritual phase for AgencyMiddleware."""
-    return _ritual_phase_tracker.get_phase(project_path)
-
-
-# Register AgencyMiddleware for phase-based tool filtering
-if _AGENCY_MIDDLEWARE_AVAILABLE:
-    _agency_middleware = AgencyMiddleware(
-        get_phase=_get_ritual_phase_for_middleware,
-    )
-    mcp.add_middleware(_agency_middleware)
-    logger.info("AgencyMiddleware registered with FastMCP server")
 
 
 def _missing_project_path_error() -> Dict[str, Any]:
@@ -762,9 +723,6 @@ async def remember(
         happened_at=happened_at_dt
     )
 
-    # Track phase transition (action phase)
-    _update_ritual_phase(ctx.project_path, "remember")
-
     return result
 
 
@@ -809,9 +767,6 @@ async def remember_batch(
         f"Stored {result['created_count']} memories"
         + (f" with {result['error_count']} error(s)" if result['error_count'] else "")
     )
-
-    # Track phase transition (action phase)
-    _update_ritual_phase(ctx.project_path, "remember_batch")
 
     return result
 
@@ -1038,9 +993,6 @@ async def add_rule(
         priority=priority
     )
 
-    # Track phase transition (action phase)
-    _update_ritual_phase(ctx.project_path, "add_rule")
-
     return result
 
 
@@ -1106,9 +1058,6 @@ async def record_outcome(
         worked=worked,
         project_path=effective_project_path
     )
-
-    # Track phase transition (reflection phase)
-    _update_ritual_phase(ctx.project_path, "record_outcome")
 
     return result
 
@@ -2107,9 +2056,6 @@ async def get_briefing(
         logger.warning(f"Failed to fetch active context: {e}")
         active_context["error"] = str(e)
 
-    # Track phase transition (briefing phase)
-    _update_ritual_phase(ctx.project_path, "get_briefing")
-
     return {
         "status": "ready",
         "statistics": stats,
@@ -2202,17 +2148,14 @@ async def get_covenant_status(
 
     ctx = await get_project_context(project_path)
 
-    # Get ritual phase from tracker
-    phase = _ritual_phase_tracker.get_phase(ctx.project_path)
-
-    # Map RitualPhase to covenant terminology
-    COVENANT_PHASES = {
-        "briefing": "commune",
-        "exploration": "counsel",
-        "action": "inscribe",
-        "reflection": "seal",
-    }
-    covenant_phase = COVENANT_PHASES.get(phase, "commune")
+    # Determine covenant phase from session state
+    # Without phase tracker, infer from session state
+    if not ctx.briefed:
+        covenant_phase = "commune"
+    elif not ctx.context_checks:
+        covenant_phase = "counsel"
+    else:
+        covenant_phase = "inscribe"
 
     PHASE_DISPLAY = {
         "commune": {"label": "COMMUNE", "description": "Receive briefing from the Daem0n"},
@@ -2582,9 +2525,6 @@ async def verify_facts(
     summary = summarize_verification(verification_results)
     summary["message"] = _build_verification_message(summary)
 
-    # Track phase transition (reflection phase)
-    _update_ritual_phase(ctx.project_path, "verify_facts")
-
     return {
         "claims": [
             {"text": c.text, "type": c.claim_type.value, "subject": c.subject}
@@ -2778,9 +2718,6 @@ async def execute_python(
         f"time={result.execution_time_ms}ms, output_len={len(result.output)}"
     )
 
-    # Update ritual phase (action phase tool)
-    _update_ritual_phase(effective_path, "execute_python")
-
     return {
         "success": result.success,
         "output": result.output,
@@ -2868,9 +2805,6 @@ async def context_check(
         session_id=get_session_id(ctx.project_path),
         project_path=ctx.project_path,
     )
-
-    # Track phase transition (exploration phase)
-    _update_ritual_phase(ctx.project_path, "context_check")
 
     return {
         "description": description,
