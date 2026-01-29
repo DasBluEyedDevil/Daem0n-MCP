@@ -576,13 +576,16 @@ class TreeSitterIndexer:
             scope_name = None
 
             if lang == 'python':
-                if current.type == 'class_definition':
+                if current.type in ('class_definition', 'function_definition'):
                     scope_name = self._extract_name_from_node(current, source)
             elif lang in ('typescript', 'javascript', 'tsx'):
-                if current.type == 'class_declaration':
+                if current.type in ('class_declaration', 'function_declaration', 'method_definition'):
                     scope_name = self._extract_name_from_node(current, source)
             elif lang == 'go':
-                if current.type == 'type_declaration':
+                if current.type in ('type_declaration', 'function_declaration', 'method_declaration'):
+                    scope_name = self._extract_name_from_node(current, source)
+            elif lang == 'rust':
+                if current.type in ('impl_item', 'function_item'):
                     scope_name = self._extract_name_from_node(current, source)
 
             if scope_name:
