@@ -1,8 +1,14 @@
 """Tests for passive capture CLI commands."""
 
 import json
+import os
 import subprocess
 import sys
+
+# Qdrant local model loading can be slow on CI runners (especially Windows).
+# Increase both the subprocess timeout and the Qdrant client timeout.
+_CLI_TIMEOUT = 120
+_CLI_ENV = {**os.environ, "QDRANT_TIMEOUT": "90"}
 
 
 class TestRememberCLI:
@@ -22,7 +28,8 @@ class TestRememberCLI:
             ],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=_CLI_TIMEOUT,
+            env=_CLI_ENV,
             stdin=subprocess.DEVNULL
         )
 
@@ -45,7 +52,8 @@ class TestRememberCLI:
             ],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=_CLI_TIMEOUT,
+            env=_CLI_ENV,
             stdin=subprocess.DEVNULL
         )
 

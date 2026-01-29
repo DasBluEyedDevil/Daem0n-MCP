@@ -11,6 +11,7 @@ with cosine similarity for semantic matching.
 """
 
 import logging
+import os
 from typing import Optional
 
 from qdrant_client import QdrantClient
@@ -48,7 +49,8 @@ class QdrantVectorStore:
                   Uses file-based mode (no server required).
         """
         logger.info(f"Initializing Qdrant vector store at: {path}")
-        self.client = QdrantClient(path=path)
+        timeout = int(os.getenv("QDRANT_TIMEOUT", "60"))
+        self.client = QdrantClient(path=path, timeout=timeout)
         self._ensure_collections()
 
     def _ensure_collections(self) -> None:
