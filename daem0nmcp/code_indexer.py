@@ -547,7 +547,7 @@ class TreeSitterIndexer:
     def _extract_name_from_node(self, node, source: bytes) -> Optional[str]:
         """Try to extract a name from a node by looking for identifier children."""
         name_types = {'identifier', 'type_identifier', 'field_identifier',
-                      'property_identifier', 'constant', 'name'}
+                      'property_identifier', 'constant', 'name', 'simple_identifier'}
 
         for child in node.children:
             if child.type in name_types:
@@ -586,6 +586,9 @@ class TreeSitterIndexer:
                     scope_name = self._extract_name_from_node(current, source)
             elif lang == 'rust':
                 if current.type in ('impl_item', 'function_item'):
+                    scope_name = self._extract_name_from_node(current, source)
+            elif lang in ('kotlin', 'java'):
+                if current.type in ('class_declaration', 'object_declaration', 'function_declaration'):
                     scope_name = self._extract_name_from_node(current, source)
 
             if scope_name:
