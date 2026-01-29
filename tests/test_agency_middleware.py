@@ -94,6 +94,15 @@ def create_mock_tools() -> List[MockTool]:
         # Reflection phase tools
         MockTool("verify_facts"),
         MockTool("compress_context"),
+        # Consolidated workflow tools (span multiple phases)
+        MockTool("commune"),
+        MockTool("consult"),
+        MockTool("inscribe"),
+        MockTool("reflect"),
+        MockTool("understand"),
+        MockTool("govern"),
+        MockTool("explore"),
+        MockTool("maintain"),
         # Tool not in any phase
         MockTool("unknown_tool"),
     ]

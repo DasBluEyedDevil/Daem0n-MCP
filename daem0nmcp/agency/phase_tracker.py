@@ -36,6 +36,10 @@ PHASE_TOOL_VISIBILITY: Dict[str, Set[str]] = {
         "recall",
         "list_rules",
         "get_graph",
+        # Consolidated workflow tools
+        "commune",      # Session start (briefing, health, etc.)
+        "consult",      # Pre-action intelligence (recall, search)
+        "explore",      # Graph discovery (graph, communities)
     },
     "exploration": {
         "get_briefing",
@@ -58,6 +62,12 @@ PHASE_TOOL_VISIBILITY: Dict[str, Set[str]] = {
         "list_entities",
         "get_memory_versions",
         "get_memory_at_time",
+        # Consolidated workflow tools
+        "commune",      # Session status
+        "consult",      # Pre-action intelligence
+        "understand",   # Code comprehension
+        "explore",      # Graph & discovery
+        "govern",       # Rules listing
     },
     "action": {
         "get_briefing",
@@ -78,6 +88,12 @@ PHASE_TOOL_VISIBILITY: Dict[str, Set[str]] = {
         "set_active_context",
         "remove_from_active_context",
         "clear_active_context",
+        # Consolidated workflow tools
+        "commune",      # Session status
+        "consult",      # Preflight checks
+        "inscribe",     # Memory writing & linking
+        "govern",       # Rules management
+        "maintain",     # Housekeeping & federation
     },
     "reflection": {
         "get_briefing",
@@ -89,6 +105,10 @@ PHASE_TOOL_VISIBILITY: Dict[str, Set[str]] = {
         "search_memories",
         "find_related",
         "get_memory_versions",
+        # Consolidated workflow tools
+        "commune",      # Session status
+        "consult",      # Recall & search
+        "reflect",      # Outcomes & verification
     },
 }
 
