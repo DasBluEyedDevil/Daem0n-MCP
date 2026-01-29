@@ -13,9 +13,18 @@ Consolidates 67 tools into 8 workflow-oriented tools:
 """
 
 from .errors import WorkflowError, InvalidActionError, MissingParamError
+from . import commune, consult, inscribe, reflect, understand, govern, explore, maintain
 
 __all__ = [
     "WorkflowError",
     "InvalidActionError",
     "MissingParamError",
+    "commune",
+    "consult",
+    "inscribe",
+    "reflect",
+    "understand",
+    "govern",
+    "explore",
+    "maintain",
 ]
