@@ -715,6 +715,8 @@ async def remember(
     happened_at: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use inscribe(action='remember') instead.
+
     Store a memory (decision/pattern/warning/learning).
     Auto-detects conflicts with past failures. Patterns and warnings are permanent.
 
@@ -776,6 +778,8 @@ async def remember_batch(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use inscribe(action='remember_batch') instead.
+
     Store multiple memories atomically. Efficient for bulk imports.
 
     Args:
@@ -832,6 +836,8 @@ async def recall(
     as_of_time: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use consult(action='recall') instead.
+
     Semantic search for memories using TF-IDF. Results weighted by relevance, recency, importance.
 
     Args:
@@ -914,6 +920,8 @@ async def recall_visual(
     project_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use consult(action='recall', visual=True) instead.
+
     Search memories with visual UI support.
 
     Same as recall() but returns results with UI resource hint for
@@ -1003,6 +1011,8 @@ async def add_rule(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use govern(action='add_rule') instead.
+
     Add a decision tree rule. Rules are matched semantically.
 
     Args:
@@ -1045,6 +1055,8 @@ async def check_rules(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use consult(action='check_rules') instead.
+
     Check if an action matches any rules. Call before significant changes.
 
     Args:
@@ -1072,6 +1084,8 @@ async def record_outcome(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use reflect(action='outcome') instead.
+
     Record whether a decision worked. Failed outcomes get boosted in future searches.
 
     Args:
@@ -2018,6 +2032,8 @@ async def get_briefing(
     focus_areas: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use commune(action='briefing') instead.
+
     Session start - call FIRST. Returns stats, recent decisions, warnings, failed approaches, git changes.
 
     Args:
@@ -2120,6 +2136,8 @@ async def get_briefing_visual(
     focus_areas: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use commune(action='briefing', visual=True) instead.
+
     Session start with visual UI support.
 
     Same as get_briefing() but returns results with UI resource hint for
@@ -2164,6 +2182,8 @@ async def get_covenant_status(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use commune(action='covenant') instead.
+
     Get current Sacred Covenant status for dashboard visualization.
 
     Returns the current ritual phase, preflight token status, and data
@@ -2305,6 +2325,8 @@ async def search_memories(
     project_path: Optional[str] = None
 ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
     """
+    [DEPRECATED] Use consult(action='search') instead.
+
     Full-text search across all memories with TF-IDF ranking.
 
     Args:
@@ -2458,6 +2480,8 @@ async def verify_facts(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use reflect(action='verify') instead.
+
     Verify factual claims in text against stored knowledge.
 
     Extracts claims from the provided text and verifies them against:
@@ -2776,6 +2800,8 @@ async def context_check(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use consult(action='preflight') instead.
+
     Pre-flight check combining recall + check_rules. Issues preflight token valid for 5 min.
 
     Args:
@@ -3030,6 +3056,8 @@ async def scan_todos(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='todos') instead.
+
     Scan codebase for TODO/FIXME/HACK/XXX/BUG comments.
 
     Args:
@@ -3626,6 +3654,8 @@ async def export_data(
     include_vectors: bool = False
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use maintain(action='export') instead.
+
     Export all memories and rules as JSON for backup/migration.
 
     Args:
@@ -3702,6 +3732,8 @@ async def import_data(
     merge: bool = True
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use maintain(action='import_data') instead.
+
     Import memories/rules from exported JSON.
 
     Args:
@@ -4034,6 +4066,8 @@ async def prune_memories(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use maintain(action='prune') instead.
+
     Prune old low-value memories. Protected: permanent, pinned, with outcomes, frequently accessed.
 
     Args:
@@ -4305,6 +4339,8 @@ async def health(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use commune(action='health') instead.
+
     Get server health, version, and statistics.
 
     Args:
@@ -4377,6 +4413,8 @@ async def index_project(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='index') instead.
+
     Index code structure using tree-sitter. Extracts classes, functions, methods with signatures.
 
     Args:
@@ -4428,6 +4466,8 @@ async def find_code(
     limit: int = 20
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='find') instead.
+
     Semantic search across indexed code entities using vector similarity.
 
     Args:
@@ -4478,6 +4518,8 @@ async def analyze_impact(
     project_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    [DEPRECATED] Use understand(action='impact') instead.
+
     Analyze blast radius of changing a code entity. Finds affected files and dependents.
 
     Args:
