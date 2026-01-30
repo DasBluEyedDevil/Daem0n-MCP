@@ -101,6 +101,81 @@ storage_path = settings.get_storage_path()
 db_manager = DatabaseManager(storage_path)
 memory_manager, rules_engine = MemoryManager(db_manager), RulesEngine(db_manager)
 logger.info(f"Daem0nMCP initialized (storage: {storage_path})")
+# --- Dream scheduler setup ---
+_dream_scheduler = None
+try:
+    from .dreaming import IdleDreamScheduler, FailedDecisionReview, DreamSession
+    from .dreaming.persistence import persist_session_summary
+except ImportError:
+    from daem0nmcp.dreaming import IdleDreamScheduler, FailedDecisionReview, DreamSession
+    from daem0nmcp.dreaming.persistence import persist_session_summary
+
+if settings.dream_enabled:
+    import asyncio as _asyncio
+    import uuid as _uuid
+    from datetime import datetime as _dt, timezone as _tz
+
+    _dream_scheduler = IdleDreamScheduler(
+        idle_timeout=settings.dream_idle_timeout,
+        enabled=settings.dream_enabled,
+    )
+
+    # Wire scheduler into CovenantMiddleware for tool call notifications
+    if _FASTMCP_MIDDLEWARE_AVAILABLE:
+        _covenant_middleware.set_dream_scheduler(_dream_scheduler)
+
+    # Define the dream callback that connects scheduler to strategy + context
+    async def _dream_callback(scheduler: IdleDreamScheduler):
+        """Execute a dream session using the most recently accessed project context."""
+        _dream_logger = logging.getLogger("daem0nmcp.dreaming")
+
+        # Find most recently accessed project context
+        if not _project_contexts:
+            _dream_logger.debug("No project contexts available for dreaming")
+            return
+
+        # Get the most recently accessed context
+        most_recent_path = max(
+            _project_contexts.keys(),
+            key=lambda p: _project_contexts[p].last_accessed,
+        )
+        ctx = _project_contexts[most_recent_path]
+
+        if not ctx.initialized:
+            _dream_logger.debug("Project context not initialized: %s", most_recent_path)
+            return
+
+        # Create dream session
+        session = DreamSession(
+            session_id=str(_uuid.uuid4())[:12],
+            project_path=ctx.project_path,
+            started_at=_dt.now(_tz.utc),
+        )
+
+        _dream_logger.info("Dream session %s started for %s", session.session_id, ctx.project_path)
+
+        try:
+            # Execute the FailedDecisionReview strategy
+            strategy = FailedDecisionReview()
+            session = await strategy.execute(session, ctx, scheduler)
+            session.ended_at = _dt.now(_tz.utc)
+
+            # Persist session summary if insights were generated
+            await persist_session_summary(ctx.memory_manager, session)
+
+            _dream_logger.info(
+                "Dream session %s complete: %d reviewed, %d insights, interrupted=%s",
+                session.session_id,
+                session.decisions_reviewed,
+                session.insights_generated,
+                session.interrupted,
+            )
+        except Exception as e:
+            _dream_logger.error("Dream session %s failed: %s", session.session_id, e, exc_info=True)
+
+    _dream_scheduler.set_dream_callback(_dream_callback)
+    logger.info("Dream scheduler configured (idle_timeout=%.1fs)", settings.dream_idle_timeout)
+
 # --- Cleanup & lifecycle ---
 async def _cleanup_all_contexts():
     for ctx in _project_contexts.values():
@@ -111,6 +186,14 @@ async def _cleanup_all_contexts():
 def cleanup():
     import asyncio
     try:
+        # Stop dream scheduler first (before context cleanup)
+        if _dream_scheduler and _dream_scheduler.is_running:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_dream_scheduler.stop())
+            except RuntimeError:
+                pass
+
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(_cleanup_all_contexts())

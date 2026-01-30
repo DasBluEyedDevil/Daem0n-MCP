@@ -75,10 +75,22 @@ class IdleDreamScheduler:
 
         Resets the idle timer (debounce) and signals dreaming to yield
         if currently active. Must be synchronous -- called from middleware.
+
+        Also auto-starts the scheduler on first tool call if enabled but
+        not yet running (handles startup race condition where the event
+        loop was not yet available when the scheduler was created).
         """
         self._last_tool_call = time.monotonic()
         if self._is_dreaming:
             self._user_active.set()
+
+        # Auto-start if enabled but not yet running (startup race condition)
+        if self._enabled and not self._running and self._monitor_task is None:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.start())
+            except RuntimeError:
+                pass  # No event loop yet
 
     async def start(self) -> None:
         """Start the idle monitoring loop.
