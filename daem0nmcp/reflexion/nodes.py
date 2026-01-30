@@ -87,11 +87,33 @@ Provide an improved response addressing the critique."""
             if critique:
                 draft += f" (Addressing: {critique[:50]}...)"
 
+        # Phase 14: Generate verification code for code-verifiable claims
+        verification_code = None
+        try:
+            from .claims import extract_claims as _extract_claims
+            from .code_gen import generate_verification_code
+
+            claims = _extract_claims(draft)
+            if claims:
+                verification_code = generate_verification_code(
+                    claims=claims,
+                    draft=draft,
+                    llm_func=llm_func,
+                )
+                if verification_code:
+                    logger.debug(
+                        f"Actor generated verification code ({len(verification_code)} chars)"
+                    )
+        except Exception as e:
+            logger.warning(f"Verification code generation failed: {e}")
+            verification_code = None
+
         logger.debug(f"Actor generated draft, iteration {iteration}")
 
         return {
             "draft": draft,
             "iteration": iteration,
+            "verification_code": verification_code,
         }
 
     return actor_node
@@ -100,6 +122,7 @@ Provide an improved response addressing the critique."""
 def create_evaluator_node(
     memory_manager: "MemoryManager",
     knowledge_graph: Optional["KnowledgeGraph"] = None,
+    sandbox_executor: Optional[Any] = None,
 ) -> Callable[[ReflexionState], Dict[str, Any]]:
     """
     Create an Evaluator node function.
@@ -170,7 +193,38 @@ def create_evaluator_node(
         else:
             critique = " | ".join(critique_parts)
 
-        # Calculate quality score
+        # Phase 14: Code execution with budget control
+        code_used = state.get("code_executions_used", 0)
+        max_code = state.get("max_code_executions", 2)
+        verification_code = state.get("verification_code")
+        code_result = None
+        code_result_dict = None
+
+        if verification_code and sandbox_executor is not None:
+            if code_used < max_code:
+                try:
+                    from .code_exec import execute_verification_code, CodeFailureType  # noqa: F811
+
+                    code_result = await execute_verification_code(
+                        code=verification_code,
+                        executor=sandbox_executor,
+                    )
+                    code_used += 1
+                    code_result_dict = code_result.to_dict()
+
+                    logger.info(
+                        f"Code verification: {code_result.failure_type.value}, "
+                        f"budget: {code_used}/{max_code}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Code execution failed: {e}")
+            else:
+                logger.info(
+                    f"Code execution budget exhausted ({code_used}/{max_code}), "
+                    "falling back to text-only evaluation"
+                )
+
+        # Calculate quality score (extended for Phase 14)
         # Base score from verification confidence
         base_score = summary["overall_confidence"]
 
@@ -180,8 +234,28 @@ def create_evaluator_node(
         # Minor penalty for unverified (not as bad)
         unverified_penalty = summary["unverified_count"] * 0.05
 
+        # Phase 14: Code execution adjustment
+        code_bonus = 0.0
+        code_penalty = 0.0
+        if code_result is not None:
+            from .code_exec import CodeFailureType as _CodeFailureType
+
+            if code_result.assertions_passed:
+                # Assertions passed -> positive signal (boost score)
+                code_bonus = 0.1
+                logger.debug("Code assertions passed: +0.1 quality bonus")
+            elif code_result.failure_type == _CodeFailureType.ASSERTION_FAILURE:
+                # Assertions failed -> claim is wrong (penalty like a conflict)
+                code_penalty = 0.15
+                logger.debug("Code assertion failure: -0.15 quality penalty")
+                # Add to critique
+                if code_result.error_message:
+                    critique = critique + f" | CODE VERIFICATION FAILED: {code_result.error_message}"
+            # SYNTAX_ERROR, IMPORT_ERROR, TIMEOUT, SANDBOX_ERROR -> no score impact
+            # (infrastructure issues should not affect quality assessment)
+
         quality_score = max(
-            0.0, min(1.0, base_score - conflict_penalty - unverified_penalty)
+            0.0, min(1.0, base_score - conflict_penalty - unverified_penalty + code_bonus - code_penalty)
         )
 
         # Decide whether to continue
@@ -219,13 +293,18 @@ def create_evaluator_node(
             for c in claims
         ]
 
-        return {
+        result = {
             "critique": critique,
             "quality_score": quality_score,
             "claims": claim_dicts,
             "verification_results": verification_dicts,
             "should_continue": should_continue,
+            # Phase 14 additions
+            "code_executions_used": code_used,
+            "code_verification_results": [code_result_dict] if code_result_dict else [],
         }
+
+        return result
 
     return evaluator_node
 
