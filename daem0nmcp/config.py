@@ -103,6 +103,13 @@ class Settings(BaseSettings):
     dream_yield_check_interval: float = 0.0         # Seconds between yield checks (0 = every step)
     dream_min_decision_age_hours: int = 1           # Min age of decision before re-evaluation eligible
 
+    # Cognitive Tools
+    cognitive_debate_max_rounds: int = 5
+    cognitive_debate_convergence_threshold: float = 0.05
+    cognitive_debate_min_evidence: int = 2
+    cognitive_evolve_max_rules: int = 10
+    cognitive_staleness_age_weight: float = 0.3
+
     # Code Indexing
     parse_tree_cache_maxsize: int = 200
     index_languages: List[str] = []  # Empty = all supported
