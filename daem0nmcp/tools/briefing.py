@@ -799,6 +799,74 @@ async def _fetch_recent_context(ctx: ProjectContext) -> Dict[str, Any]:
     }
 
 
+async def _fetch_dream_sessions(ctx: ProjectContext, limit: int = 5) -> List[Dict[str, Any]]:
+    """
+    Fetch recent dream session summaries for the briefing dashboard.
+
+    Queries dream-tagged memories and groups them by session ID to build
+    a summary of recent autonomous dream activity.
+
+    Args:
+        ctx: Project context with database access
+        limit: Maximum number of sessions to return
+
+    Returns:
+        List of dream session dicts with session_id, decisions_reviewed,
+        insights_generated, and individual insight summaries.
+    """
+    try:
+        async with ctx.db_manager.get_session() as session:
+            # Query dream-tagged memories (most recent first)
+            result = await session.execute(
+                select(Memory)
+                .where(Memory.tags.contains('"dream"'))
+                .where(Memory.archived == False)  # noqa: E712
+                .order_by(Memory.created_at.desc())
+                .limit(limit * 3)  # Fetch extra to group by session
+            )
+            dreams = result.scalars().all()
+
+        if not dreams:
+            return []
+
+        # Group by session ID from context dict
+        sessions: Dict[str, Dict[str, Any]] = {}
+        for m in dreams:
+            ctx_data = m.context or {}
+            sid = ctx_data.get("dream_session_id", "unknown")
+
+            if sid not in sessions:
+                sessions[sid] = {
+                    "session_id": sid,
+                    "decisions_reviewed": ctx_data.get("decisions_reviewed", 0),
+                    "insights_generated": ctx_data.get("insights_generated", 0),
+                    "interrupted": ctx_data.get("interrupted", False),
+                    "timestamp": m.created_at.isoformat() if m.created_at else None,
+                    "insights": [],
+                }
+
+            # Individual insight (not session summary)
+            if "dream-summary" not in (m.tags or []):
+                sessions[sid]["insights"].append({
+                    "source_decision_id": ctx_data.get("source_decision_id"),
+                    "result": ctx_data.get("re_evaluation_result"),
+                    "summary": m.content[:100] + "..." if len(m.content) > 100 else m.content,
+                })
+
+                # Update counters from individual results (more accurate than summary)
+                if sessions[sid]["decisions_reviewed"] == 0:
+                    sessions[sid]["decisions_reviewed"] = len(sessions[sid]["insights"])
+                if sessions[sid]["insights_generated"] == 0:
+                    sessions[sid]["insights_generated"] = len(
+                        [i for i in sessions[sid]["insights"] if i["result"] != "needs_more_data"]
+                    )
+
+        return list(sessions.values())[:limit]
+    except Exception as e:
+        logger.warning(f"Failed to fetch dream sessions: {e}")
+        return []
+
+
 async def _prefetch_focus_areas(
     ctx: ProjectContext,
     focus_areas: List[str]
@@ -917,7 +985,8 @@ def _build_briefing_message(
     bootstrap_result: Optional[Dict[str, Any]],
     failed_approaches: List[Dict[str, Any]],
     active_warnings: List[Dict[str, Any]],
-    git_changes: Optional[Dict[str, Any]]
+    git_changes: Optional[Dict[str, Any]],
+    dream_sessions: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """
     Build the actionable message for the briefing.
@@ -928,6 +997,7 @@ def _build_briefing_message(
         failed_approaches: List of failed approaches
         active_warnings: List of active warnings
         git_changes: Git changes info
+        dream_sessions: Recent dream session summaries
 
     Returns:
         Human-readable briefing message
@@ -953,6 +1023,16 @@ def _build_briefing_message(
 
     if git_changes and git_changes.get("uncommitted_changes"):
         message_parts.append(f"{len(git_changes['uncommitted_changes'])} uncommitted file(s).")
+
+    # Dream activity summary
+    if dream_sessions:
+        total_insights = sum(s.get("insights_generated", 0) for s in dream_sessions)
+        total_reviewed = sum(s.get("decisions_reviewed", 0) for s in dream_sessions)
+        if total_insights > 0:
+            message_parts.append(
+                f"[DREAM] Daemon reviewed {total_reviewed} decisions while idle, "
+                f"generated {total_insights} insight(s)."
+            )
 
     if stats.get("learning_insights", {}).get("suggestion"):
         message_parts.append(stats["learning_insights"]["suggestion"])
@@ -1010,13 +1090,17 @@ async def get_briefing(
     # Get linked projects summary
     linked_summary = await _get_linked_projects_summary(ctx)
 
+    # Fetch recent dream sessions
+    dream_sessions = await _fetch_dream_sessions(ctx)
+
     # Build actionable message
     message = _build_briefing_message(
         stats=stats,
         bootstrap_result=bootstrap_result,
         failed_approaches=recent_context["failed_approaches"],
         active_warnings=recent_context["active_warnings"],
-        git_changes=git_changes
+        git_changes=git_changes,
+        dream_sessions=dream_sessions,
     )
 
     # Mark this project as briefed (Sacred Covenant: communion complete)
@@ -1056,6 +1140,7 @@ async def get_briefing(
         "focus_areas": focus_memories,
         "bootstrap": bootstrap_result,
         "linked_projects": linked_summary,
+        "dream_sessions": dream_sessions,
         "active_context": active_context,
         "message": message
     }
