@@ -7,14 +7,14 @@ try:
     from ..mcp_instance import mcp
     from ..context_manager import (
         get_project_context, _default_project_path,
-        _missing_project_path_error,
+        _missing_project_path_error, hold_context,
     )
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
-        _missing_project_path_error,
+        _missing_project_path_error, hold_context,
     )
     from daem0nmcp.logging_config import with_request_id
 
@@ -90,83 +90,85 @@ async def verify_facts(
 
     ctx = await get_project_context(project_path)
 
-    # Import reflexion modules
-    try:
-        from ..reflexion.claims import extract_claims
-        from ..reflexion.verification import verify_claims, summarize_verification
-    except ImportError:
-        from daem0nmcp.reflexion.claims import extract_claims
-        from daem0nmcp.reflexion.verification import verify_claims, summarize_verification
+    # Hold context for entire Reflexion loop to prevent mid-loop eviction
+    async with hold_context(ctx):
+        # Import reflexion modules
+        try:
+            from ..reflexion.claims import extract_claims
+            from ..reflexion.verification import verify_claims, summarize_verification
+        except ImportError:
+            from daem0nmcp.reflexion.claims import extract_claims
+            from daem0nmcp.reflexion.verification import verify_claims, summarize_verification
 
-    # Extract claims from text
-    claims = extract_claims(text)
+        # Extract claims from text
+        claims = extract_claims(text)
 
-    if not claims:
+        if not claims:
+            return {
+                "claims": [],
+                "verified": [],
+                "unverified": [],
+                "conflicts": [],
+                "summary": {
+                    "verified_count": 0,
+                    "unverified_count": 0,
+                    "conflict_count": 0,
+                    "overall_confidence": 1.0,
+                    "message": "No verifiable claims found in text",
+                },
+            }
+
+        # Get knowledge graph if available
+        knowledge_graph = None
+        try:
+            knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
+        except Exception:
+            pass  # GraphRAG optional
+
+        # Verify claims
+        verification_results = await verify_claims(
+            claims=claims,
+            memory_manager=ctx.memory_manager,
+            knowledge_graph=knowledge_graph,
+            as_of_time=as_of_time,
+            categories=categories,
+        )
+
+        # Categorize results
+        verified = []
+        unverified = []
+        conflicts = []
+
+        for result in verification_results:
+            result_dict = {
+                "claim": result.claim_text,
+                "type": result.claim_type,
+                "confidence": round(result.confidence, 3),
+                "evidence": [
+                    {"source": e.source, "content": e.content[:100]}
+                    for e in result.evidence[:3]  # Limit evidence for readability
+                ],
+            }
+
+            if result.status == "verified":
+                verified.append(result_dict)
+            elif result.status == "conflict":
+                result_dict["conflict_reason"] = result.conflict_reason
+                conflicts.append(result_dict)
+            else:
+                unverified.append(result_dict)
+
+        # Build summary
+        summary = summarize_verification(verification_results)
+        summary["message"] = _build_verification_message(summary)
+
         return {
-            "claims": [],
-            "verified": [],
-            "unverified": [],
-            "conflicts": [],
-            "summary": {
-                "verified_count": 0,
-                "unverified_count": 0,
-                "conflict_count": 0,
-                "overall_confidence": 1.0,
-                "message": "No verifiable claims found in text",
-            },
-        }
-
-    # Get knowledge graph if available
-    knowledge_graph = None
-    try:
-        knowledge_graph = await ctx.memory_manager.get_knowledge_graph()
-    except Exception:
-        pass  # GraphRAG optional
-
-    # Verify claims
-    verification_results = await verify_claims(
-        claims=claims,
-        memory_manager=ctx.memory_manager,
-        knowledge_graph=knowledge_graph,
-        as_of_time=as_of_time,
-        categories=categories,
-    )
-
-    # Categorize results
-    verified = []
-    unverified = []
-    conflicts = []
-
-    for result in verification_results:
-        result_dict = {
-            "claim": result.claim_text,
-            "type": result.claim_type,
-            "confidence": round(result.confidence, 3),
-            "evidence": [
-                {"source": e.source, "content": e.content[:100]}
-                for e in result.evidence[:3]  # Limit evidence for readability
+            "claims": [
+                {"text": c.text, "type": c.claim_type.value, "subject": c.subject}
+                for c in claims
             ],
+            "verified": verified,
+            "unverified": unverified,
+            "conflicts": conflicts,
+            "summary": summary,
         }
-
-        if result.status == "verified":
-            verified.append(result_dict)
-        elif result.status == "conflict":
-            result_dict["conflict_reason"] = result.conflict_reason
-            conflicts.append(result_dict)
-        else:
-            unverified.append(result_dict)
-
-    # Build summary
-    summary = summarize_verification(verification_results)
-    summary["message"] = _build_verification_message(summary)
-
-    return {
-        "claims": [
-            {"text": c.text, "type": c.claim_type.value, "subject": c.subject}
-            for c in claims
-        ],
-        "verified": verified,
-        "unverified": unverified,
-        "conflicts": conflicts,
-        "summary": summary,
-    }

@@ -282,9 +282,9 @@ class TestMCPToolIntegration:
         assert callable(compress_context)
 
     def test_server_tool_count_updated(self):
-        """Server docstring shows 60 tools."""
+        """Server is composition root with compress_context re-exported."""
         import daem0nmcp.server as server
 
-        # Check the module docstring mentions 60 tools
-        assert "60 Tools" in server.__doc__
-        assert "compress_context" in server.__doc__
+        # Verify server is a composition root with tools re-exported
+        assert "Composition" in server.__doc__ or "composition" in server.__doc__
+        assert hasattr(server, "compress_context")

@@ -18,6 +18,7 @@ It sits between the MCP instance and the tool implementations in the DAG.
 import sys
 import os
 import asyncio
+import contextlib
 import logging
 import time
 from pathlib import Path
@@ -526,3 +527,25 @@ async def cleanup_all_contexts():
         except Exception as e:
             logger.warning(f"Error closing database for {path}: {e}")
     _project_contexts.clear()
+
+
+@contextlib.asynccontextmanager
+async def hold_context(ctx: "ProjectContext"):
+    """
+    Hold a project context's active_requests for the duration of a block.
+
+    Use this for long-running operations (like Reflexion loops) that span
+    multiple iterations. This prevents context eviction mid-operation.
+
+    Usage:
+        ctx = await get_project_context(project_path)
+        async with hold_context(ctx):
+            # ... long-running operation, context cannot be evicted ...
+    """
+    async with ctx.lock:
+        ctx.active_requests += 1
+    try:
+        yield ctx
+    finally:
+        async with ctx.lock:
+            ctx.active_requests = max(0, ctx.active_requests - 1)
