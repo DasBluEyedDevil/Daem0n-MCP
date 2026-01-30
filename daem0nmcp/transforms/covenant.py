@@ -60,6 +60,10 @@ COVENANT_EXEMPT_TOOLS: Set[str] = {
     "check_context_triggers",  # Read-only query
     "get_active_context",   # Read-only query
     "list_linked_projects",  # Read-only query
+    # Cognitive tools (Phase 17) -- analytical, read-only instruments
+    "simulate_decision",
+    "evolve_rule",
+    "debate_internal",
 }
 
 # Tools that REQUIRE communion (must call get_briefing first)

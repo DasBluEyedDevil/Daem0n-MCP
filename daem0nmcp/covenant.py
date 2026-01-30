@@ -75,6 +75,10 @@ COMMUNION_REQUIRED_TOOLS: Set[str] = {
     "propose_refactor",
     "get_graph",
     "trace_chain",
+    # Cognitive tools (Phase 17) -- analytical instruments requiring communion
+    "simulate_decision",
+    "evolve_rule",
+    "debate_internal",
 }
 
 # Tools that REQUIRE counsel (must call context_check before mutating)

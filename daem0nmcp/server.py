@@ -79,6 +79,7 @@ from .tools.agency_tools import (compress_context, execute_python, ingest_doc,  
     _chunk_markdown_content, _resolve_public_ips,
     MAX_CONTENT_SIZE, MAX_CHUNKS, INGEST_TIMEOUT, ALLOWED_URL_SCHEMES)
 from .tools.temporal import trace_causal_path, trace_evolution  # noqa: F401
+from .tools.cognitive_tools import simulate_decision, evolve_rule, debate_internal  # noqa: F401
 from .tools.entity_tools import list_entities, backfill_entities  # noqa: F401
 from .tools.resources import (_warnings_resource_impl, _failed_resource_impl,  # noqa: F401
     _rules_resource_impl, _context_resource_impl, get_triggered_context_resource,
@@ -86,6 +87,54 @@ from .tools.resources import (_warnings_resource_impl, _failed_resource_impl,  #
     triggered_context_resource)
 from .tools.workflows import (commune, consult, inscribe, reflect,  # noqa: F401
     understand, govern, explore, maintain)
+
+# --- Remove deprecated individual tools from MCP registry ---
+# Workflow tools (commune, consult, inscribe, reflect, understand, govern,
+# explore, maintain) consolidate all functionality. The old individual tools
+# are still importable as Python functions (used by workflow dispatchers),
+# but should not be exposed as MCP tools to clients.
+_DEPRECATED_TOOLS = [
+    # memory.py
+    "remember", "remember_batch", "recall", "recall_visual", "record_outcome",
+    "recall_for_file", "recall_by_entity", "recall_hierarchical", "search_memories",
+    "find_related", "get_related_memories", "get_memory_versions", "get_memory_at_time",
+    "compact_memories", "cleanup_memories", "archive_memory", "pin_memory",
+    # rules.py
+    "add_rule", "check_rules", "list_rules", "update_rule",
+    # briefing.py
+    "get_briefing", "get_briefing_visual", "get_covenant_status",
+    "get_covenant_status_visual", "context_check", "check_for_updates", "health",
+    # verification.py
+    "verify_facts",
+    # code_tools.py
+    "scan_todos", "index_project", "find_code", "analyze_impact", "propose_refactor",
+    # maintenance.py
+    "rebuild_index", "export_data", "import_data", "prune_memories",
+    # graph_tools.py
+    "link_memories", "unlink_memories", "trace_chain", "get_graph", "get_graph_visual",
+    "get_graph_stats", "rebuild_communities", "list_communities",
+    "list_communities_visual", "get_community_details",
+    # context_tools.py
+    "set_active_context", "get_active_context", "remove_from_active_context",
+    "clear_active_context", "add_context_trigger", "list_context_triggers",
+    "remove_context_trigger", "check_context_triggers",
+    # federation.py
+    "link_projects", "unlink_projects", "list_linked_projects",
+    "consolidate_linked_databases",
+    # agency_tools.py
+    "compress_context", "execute_python", "ingest_doc",
+    # temporal.py
+    "trace_causal_path", "trace_evolution",
+    # entity_tools.py
+    "list_entities", "backfill_entities",
+]
+for _tool_name in _DEPRECATED_TOOLS:
+    try:
+        mcp.remove_tool(_tool_name)
+    except Exception:
+        pass  # Tool may not exist if module import was skipped
+del _DEPRECATED_TOOLS, _tool_name
+
 try:
     from .workflows.errors import WorkflowError  # noqa: F401
 except ImportError:
