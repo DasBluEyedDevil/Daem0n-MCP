@@ -8,10 +8,15 @@ ExemplarQueryClassifier output:
 - MEDIUM  -> hybrid BM25+vector with RRF fusion (current default baseline)
 - COMPLEX -> GraphRAG multi-hop traversal + community summaries
 
+After retrieval, optional JIT compression fires on assembled result text
+when token counts exceed tiered thresholds (soft 4K / hard 8K / emergency 16K).
+Compression metadata is returned alongside results for observability.
+
 Safety guarantees:
 - Shadow mode (default): logs classifications without changing behavior
 - All strategy methods fall back to hybrid search on any failure
 - Low-confidence classifications default to hybrid (never degrades below baseline)
+- JIT compression failures never block the pipeline (try/except with fallback)
 """
 
 from __future__ import annotations
@@ -150,6 +155,66 @@ class RetrievalRouter:
             "classification": classification_info,
             "community_context": community_context,
         }
+
+    # ------------------------------------------------------------------
+    # JIT compression on assembled results
+    # ------------------------------------------------------------------
+
+    async def route_and_compress(
+        self,
+        query: str,
+        top_k: int = 10,
+        result_text: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Route query and optionally JIT-compress assembled result text.
+
+        Calls :meth:`route_search` for classification and retrieval, then
+        runs JIT compression on *result_text* if it exceeds the soft token
+        threshold.  Compression metadata is added to the return dict so
+        callers can observe what happened without destroying structured data.
+
+        Args:
+            query: Search query text.
+            top_k: Maximum results to return.
+            result_text: Assembled text of retrieval results (all memory
+                content concatenated).  When ``None``, compression is skipped.
+            **kwargs: Forwarded to :meth:`route_search`.
+
+        Returns:
+            Dict from ``route_search`` augmented with:
+                compression_metadata -- dict or ``None``
+                compressed_text      -- str (only when compression fired)
+        """
+        result = await self.route_search(query, top_k=top_k, **kwargs)
+
+        # JIT compression on assembled text (best-effort, never blocks pipeline)
+        if result_text:
+            try:
+                from .compression.jit import get_jit_compressor
+
+                jit = get_jit_compressor()
+                compression_result = jit.compress_if_needed(result_text)
+
+                if compression_result.get("threshold_triggered") is not None:
+                    result["compression_metadata"] = {
+                        "original_tokens": compression_result["original_tokens"],
+                        "compressed_tokens": compression_result["compressed_tokens"],
+                        "compression_rate": compression_result["compression_rate"],
+                        "threshold_triggered": compression_result["threshold_triggered"],
+                        "content_type": compression_result.get("content_type"),
+                    }
+                    result["compressed_text"] = compression_result["text"]
+                else:
+                    result["compression_metadata"] = None
+            except Exception:
+                logger.warning(
+                    "[AUTO-ZOOM] JIT compression failed, continuing without compression",
+                    exc_info=True,
+                )
+                result["compression_metadata"] = None
+
+        return result
 
     # ------------------------------------------------------------------
     # Strategy: vector-only (SIMPLE queries)
