@@ -161,6 +161,10 @@ async def run_reflexion(
         "iteration": 0,
         "should_continue": True,
         "context_filter": None,
+        "code_executions_used": 0,
+        "max_code_executions": 2,
+        "code_verification_results": [],
+        "verification_code": None,
     }
 
     config: Dict[str, Any] = {}
