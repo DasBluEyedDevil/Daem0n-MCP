@@ -18,6 +18,8 @@ except ImportError:
     )
     from daem0nmcp.logging_config import with_request_id
 
+from ._deprecation import add_deprecation
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,7 @@ async def add_rule(
         priority=priority
     )
 
-    return result
+    return add_deprecation(result, "add_rule", "govern(action='add_rule')")
 
 
 # ============================================================================
@@ -91,7 +93,8 @@ async def check_rules(
         return _missing_project_path_error()
 
     ctx = await get_project_context(project_path)
-    return await ctx.rules_engine.check_rules(action=action, context=context)
+    result = await ctx.rules_engine.check_rules(action=action, context=context)
+    return add_deprecation(result, "check_rules", "consult(action='check_rules')")
 
 
 # ============================================================================

@@ -27,6 +27,8 @@ except ImportError:
 
 from sqlalchemy import select
 
+from ._deprecation import add_deprecation
+
 logger = logging.getLogger(__name__)
 
 
@@ -254,7 +256,7 @@ async def scan_todos(
             count = len(by_type[todo_type])
             summary_parts.append(f"{count} {todo_type}")
 
-    return {
+    result = {
         "total_found": len(found_todos),
         "by_type": by_type,
         "summary": ", ".join(summary_parts) if summary_parts else "No tech debt found",
@@ -264,6 +266,7 @@ async def scan_todos(
             (f", created {len(new_memories)} new warnings" if new_memories else "")
         )
     }
+    return add_deprecation(result, "scan_todos", "understand(action='todos')")
 
 
 # ============================================================================
@@ -316,10 +319,11 @@ async def index_project(
     target_path = path or ctx.project_path
     result = await indexer.index_project(target_path, patterns)
 
-    return {
+    index_result = {
         "result": result,
         "message": f"Indexed {result.get('indexed', 0)} code entities from {result.get('files_processed', 0)} files"
     }
+    return add_deprecation(index_result, "index_project", "understand(action='index')")
 
 
 @mcp.tool(version="3.0.0")
@@ -368,11 +372,12 @@ async def find_code(
 
     results = await indexer.search_entities(query, ctx.project_path, limit)
 
-    return {
+    find_result = {
         "query": query,
         "results": results,
         "count": len(results)
     }
+    return add_deprecation(find_result, "find_code", "understand(action='find')")
 
 
 @mcp.tool(version="3.0.0")
@@ -411,7 +416,7 @@ async def analyze_impact(
 
     result = await indexer.analyze_impact(entity_name, ctx.project_path)
 
-    return {"result": result}
+    return add_deprecation({"result": result}, "analyze_impact", "understand(action='impact')")
 
 
 # ============================================================================

@@ -23,6 +23,8 @@ except ImportError:
     from daem0nmcp.logging_config import with_request_id
     from daem0nmcp.models import Memory
 
+from ._deprecation import add_deprecation
+
 from sqlalchemy import select, or_, func
 
 logger = logging.getLogger(__name__)
@@ -91,7 +93,7 @@ async def remember(
         happened_at=happened_at_dt
     )
 
-    return result
+    return add_deprecation(result, "remember", "inscribe(action='remember')")
 
 
 # ============================================================================
@@ -136,7 +138,7 @@ async def remember_batch(
         + (f" with {result['error_count']} error(s)" if result['error_count'] else "")
     )
 
-    return result
+    return add_deprecation(result, "remember_batch", "inscribe(action='remember_batch')")
 
 
 # ============================================================================
@@ -211,7 +213,7 @@ async def recall(
             return {"error": f"Invalid 'as_of_time' date format: {as_of_time}. Use ISO format (e.g., '2025-12-01T00:00:00Z')"}
 
     ctx = await get_project_context(project_path)
-    return await ctx.memory_manager.recall(
+    result = await ctx.memory_manager.recall(
         topic=topic,
         categories=categories,
         tags=tags,
@@ -225,6 +227,7 @@ async def recall(
         condensed=condensed,
         as_of_time=as_of_time_dt
     )
+    return add_deprecation(result, "recall", "consult(action='recall')")
 
 
 # ============================================================================
@@ -312,11 +315,12 @@ async def recall_visual(
     )
 
     # Return with UI hint
-    return format_with_ui_hint(
+    ui_result = format_with_ui_hint(
         data=result,
         ui_resource="ui://daem0n/search",
         text=text
     )
+    return add_deprecation(ui_result, "recall_visual", "consult(action='recall', visual=True)")
 
 
 # ============================================================================
@@ -354,7 +358,7 @@ async def record_outcome(
         project_path=effective_project_path
     )
 
-    return result
+    return add_deprecation(result, "record_outcome", "reflect(action='outcome')")
 
 
 # ============================================================================
@@ -507,7 +511,7 @@ async def search_memories(
     paginated = results[offset:offset + limit]
 
     if include_meta:
-        return {
+        result = {
             "query": query,
             "offset": offset,
             "limit": limit,
@@ -515,8 +519,13 @@ async def search_memories(
             "highlight": highlight,
             "results": paginated
         }
+        return add_deprecation(result, "search_memories", "consult(action='search')")
 
-    return paginated
+    # List return path: wrap in dict to include deprecation field
+    return add_deprecation(
+        {"results": paginated, "query": query},
+        "search_memories", "consult(action='search')"
+    )
 
 
 # ============================================================================

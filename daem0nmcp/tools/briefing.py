@@ -34,6 +34,8 @@ except ImportError:
 
 from sqlalchemy import select, func
 
+from ._deprecation import add_deprecation
+
 logger = logging.getLogger(__name__)
 
 
@@ -1043,7 +1045,7 @@ async def get_briefing(
         logger.warning(f"Failed to fetch active context: {e}")
         active_context["error"] = str(e)
 
-    return {
+    result = {
         "status": "ready",
         "statistics": stats,
         "recent_decisions": recent_context["recent_decisions"],
@@ -1057,6 +1059,7 @@ async def get_briefing(
         "active_context": active_context,
         "message": message
     }
+    return add_deprecation(result, "get_briefing", "commune(action='briefing')")
 
 
 # ============================================================================
@@ -1099,11 +1102,12 @@ async def get_briefing_visual(
     text = format_briefing_text(result)
 
     # Return with UI hint
-    return format_with_ui_hint(
+    ui_result = format_with_ui_hint(
         data=result,
         ui_resource="ui://daem0n/briefing",
         text=text
     )
+    return add_deprecation(ui_result, "get_briefing_visual", "commune(action='briefing', visual=True)")
 
 
 # ============================================================================
@@ -1179,7 +1183,7 @@ async def get_covenant_status(
         "seal": "Outcomes recorded. The covenant cycle may begin anew.",
     }
 
-    return {
+    result = {
         "phase": covenant_phase,
         "phase_label": phase_info["label"],
         "phase_description": phase_info["description"],
@@ -1193,6 +1197,7 @@ async def get_covenant_status(
         "can_mutate": preflight_status == "valid",
         "message": messages.get(covenant_phase, messages["commune"]),
     }
+    return add_deprecation(result, "get_covenant_status", "commune(action='covenant')")
 
 
 # ============================================================================
@@ -1324,7 +1329,7 @@ async def context_check(
         project_path=ctx.project_path,
     )
 
-    return {
+    result = {
         "description": description,
         "has_concerns": has_concerns,
         "memories_found": memories.get('found', 0),
@@ -1339,6 +1344,7 @@ async def context_check(
             "\u2713 No concerns found, but always use good judgment"
         )
     }
+    return add_deprecation(result, "context_check", "consult(action='preflight')")
 
 
 # ============================================================================
@@ -1436,7 +1442,7 @@ async def health(
         index_age_seconds = (now - last_indexed).total_seconds()
         index_stale = index_age_seconds > 86400  # 24 hours
 
-    return {
+    result = {
         "status": "healthy",
         "version": __version__,
         "project_path": ctx.project_path,
@@ -1454,3 +1460,4 @@ async def health(
         "index_age_seconds": index_age_seconds,
         "index_stale": index_stale,
     }
+    return add_deprecation(result, "health", "commune(action='health')")

@@ -26,6 +26,8 @@ except ImportError:
 
 from sqlalchemy import select, delete, or_
 
+from ._deprecation import add_deprecation
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,13 +129,14 @@ async def export_data(
             for r in result.scalars().all()
         ]
 
-    return {
+    result = {
         "version": __version__,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "project_path": ctx.project_path,
         "memories": memories,
         "rules": rules
     }
+    return add_deprecation(result, "export_data", "maintain(action='export')")
 
 
 @mcp.tool(version="3.0.0")
@@ -241,12 +244,13 @@ async def import_data(
     await ctx.memory_manager.rebuild_index()
     await ctx.rules_engine.rebuild_index()
 
-    return {
+    result = {
         "status": "imported",
         "memories_imported": memories_imported,
         "rules_imported": rules_imported,
         "message": f"Imported {memories_imported} memories and {rules_imported} rules"
     }
+    return add_deprecation(result, "import_data", "maintain(action='import_data')")
 
 
 @mcp.tool(version="3.0.0")
@@ -302,7 +306,7 @@ async def prune_memories(
         to_prune = result.scalars().all()
 
         if dry_run:
-            return {
+            return add_deprecation({
                 "dry_run": True,
                 "would_prune": len(to_prune),
                 "categories": categories,
@@ -318,7 +322,7 @@ async def prune_memories(
                     }
                     for m in to_prune[:5]
                 ]
-            }
+            }, "prune_memories", "maintain(action='prune')")
 
         # Actually delete
         for memory in to_prune:
@@ -327,10 +331,10 @@ async def prune_memories(
     # Rebuild index to remove pruned documents
     await ctx.memory_manager.rebuild_index()
 
-    return {
+    return add_deprecation({
         "pruned": len(to_prune),
         "categories": categories,
         "older_than_days": older_than_days,
         "min_recall_count": min_recall_count,
         "message": f"Pruned {len(to_prune)} old memories (protected: pinned, outcomes, recall_count>={min_recall_count}, successful)"
-    }
+    }, "prune_memories", "maintain(action='prune')")

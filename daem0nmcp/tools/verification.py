@@ -18,6 +18,8 @@ except ImportError:
     )
     from daem0nmcp.logging_config import with_request_id
 
+from ._deprecation import add_deprecation
+
 logger = logging.getLogger(__name__)
 
 
@@ -162,7 +164,7 @@ async def verify_facts(
         summary = summarize_verification(verification_results)
         summary["message"] = _build_verification_message(summary)
 
-        return {
+        result = {
             "claims": [
                 {"text": c.text, "type": c.claim_type.value, "subject": c.subject}
                 for c in claims
@@ -172,3 +174,4 @@ async def verify_facts(
             "conflicts": conflicts,
             "summary": summary,
         }
+        return add_deprecation(result, "verify_facts", "reflect(action='verify')")
