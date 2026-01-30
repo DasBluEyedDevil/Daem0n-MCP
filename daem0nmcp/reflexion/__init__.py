@@ -42,6 +42,15 @@ from .persistence import (
     create_reflection_from_evaluation,
 )
 from .code_gen import generate_verification_code
+from .code_exec import (
+    CodeFailureType,
+    CodeExecutionResult,
+    classify_failure,
+    execute_verification_code,
+    FIXABLE_FAILURES,
+    INFRASTRUCTURE_FAILURES,
+    VERIFICATION_FAILURES,
+)
 from .consolidation import (
     consolidate_reflections,
     check_and_consolidate,
@@ -83,6 +92,14 @@ __all__ = [
     "should_continue",
     # Code generation
     "generate_verification_code",
+    # Code execution
+    "CodeFailureType",
+    "CodeExecutionResult",
+    "classify_failure",
+    "execute_verification_code",
+    "FIXABLE_FAILURES",
+    "INFRASTRUCTURE_FAILURES",
+    "VERIFICATION_FAILURES",
     # Persistence
     "Reflection",
     "compute_error_signature",
