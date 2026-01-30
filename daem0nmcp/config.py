@@ -90,6 +90,12 @@ class Settings(BaseSettings):
     # Fact promotion
     fact_promotion_threshold: int = Field(default=3, ge=1)  # Successful outcomes to promote
 
+    # Auto-Zoom retrieval routing
+    auto_zoom_enabled: bool = False  # Master switch (shadow mode when False)
+    auto_zoom_shadow: bool = True    # Log classifications without routing
+    auto_zoom_confidence_threshold: float = 0.25  # Below this -> hybrid fallback
+    auto_zoom_graph_expansion_depth: int = 2  # Multi-hop depth for complex queries
+
     # Code Indexing
     parse_tree_cache_maxsize: int = 200
     index_languages: List[str] = []  # Empty = all supported
