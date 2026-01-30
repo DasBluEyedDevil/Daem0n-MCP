@@ -34,6 +34,23 @@ class ExecutionResult:
     logs: List[str] = field(default_factory=list)
 
 
+@dataclass
+class StructuredExecutionResult:
+    """Result of sandboxed code execution with structured error details.
+
+    Unlike ExecutionResult which flattens errors to strings,
+    this preserves the error classification information needed
+    by the Reflexion Evaluator for failure classification.
+    """
+    success: bool
+    output: str
+    error_name: Optional[str] = None
+    error_value: Optional[str] = None
+    error_traceback: Optional[str] = None
+    execution_time_ms: int = 0
+    logs: List[str] = field(default_factory=list)
+
+
 class SandboxExecutor:
     """
     E2B-based sandboxed Python executor.
@@ -161,6 +178,84 @@ class SandboxExecutor:
                 success=False,
                 output="",
                 error=str(e),
+                execution_time_ms=elapsed_ms,
+            )
+
+    async def execute_structured(self, code: str) -> StructuredExecutionResult:
+        """Execute Python code and return structured error details.
+
+        Like execute(), but preserves the E2B ExecutionError structure
+        (name, value, traceback) instead of flattening to a string.
+        Used by the Reflexion Evaluator for failure classification.
+
+        Args:
+            code: Python code to execute
+
+        Returns:
+            StructuredExecutionResult with error_name, error_value, error_traceback
+        """
+        if not self._sandbox_available:
+            return StructuredExecutionResult(
+                success=False,
+                output="",
+                error_name="SandboxError",
+                error_value="Sandbox not available. Check E2B_API_KEY and e2b-code-interpreter installation.",
+            )
+
+        start_time = time.time()
+
+        try:
+            from e2b_code_interpreter import Sandbox
+
+            with Sandbox(api_key=self._api_key) as sandbox:
+                execution = sandbox.run_code(
+                    code,
+                    timeout=self.timeout_seconds,
+                )
+
+                output = execution.text or ""
+                logs = []
+                if execution.logs:
+                    logs = [
+                        log.line if hasattr(log, 'line') else str(log)
+                        for log in execution.logs
+                    ]
+
+                error_name = None
+                error_value = None
+                error_traceback = None
+
+                if execution.error:
+                    error_name = getattr(execution.error, 'name', type(execution.error).__name__)
+                    error_value = getattr(execution.error, 'value', str(execution.error))
+                    error_traceback = getattr(execution.error, 'traceback', None)
+                    logger.warning(f"Sandbox structured execution error: {error_name}: {error_value}")
+
+                elapsed_ms = int((time.time() - start_time) * 1000)
+
+                logger.info(
+                    f"Sandbox structured execution completed: success={error_name is None}, "
+                    f"time={elapsed_ms}ms, output_len={len(output)}"
+                )
+
+                return StructuredExecutionResult(
+                    success=error_name is None,
+                    output=output,
+                    error_name=error_name,
+                    error_value=error_value,
+                    error_traceback=error_traceback,
+                    execution_time_ms=elapsed_ms,
+                    logs=logs,
+                )
+
+        except Exception as e:
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            logger.error(f"Sandbox structured execution failed: {e}")
+            return StructuredExecutionResult(
+                success=False,
+                output="",
+                error_name="SandboxError",
+                error_value=str(e),
                 execution_time_ms=elapsed_ms,
             )
 

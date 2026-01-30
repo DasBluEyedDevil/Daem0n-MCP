@@ -10,11 +10,12 @@ Provides:
 """
 
 from .capabilities import CapabilityManager, CapabilityScope, check_capability
-from .sandbox import ExecutionResult, SandboxExecutor
+from .sandbox import ExecutionResult, SandboxExecutor, StructuredExecutionResult
 
 __all__ = [
     "SandboxExecutor",
     "ExecutionResult",
+    "StructuredExecutionResult",
     "CapabilityScope",
     "CapabilityManager",
     "check_capability",
