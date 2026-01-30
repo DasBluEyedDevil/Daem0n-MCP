@@ -28,6 +28,13 @@ class HierarchicalContextManager:
     of compression - they're human-readable summaries that don't need
     LLMLingua processing.
 
+    NOTE: JIT compression (compression/jit.py) is now the preferred compression
+    point in the retrieval pipeline. When JIT is active, HierarchicalContextManager
+    should be used for context assembly only (choosing between summaries and raw
+    memories) without applying its own compression. The JIT layer handles all
+    token-threshold-based compression with tiered rates and metadata output.
+    Pass skip_compression=True to get_context() when JIT is the compression point.
+
     Usage:
         manager = HierarchicalContextManager(
             compressor=AdaptiveCompressor(),
@@ -37,6 +44,14 @@ class HierarchicalContextManager:
             query="what is the auth flow?",
             memories=retrieved_memories,
             community_summaries=summaries,
+        )
+
+        # With JIT compression (skip internal compression):
+        context = manager.get_context(
+            query="what is the auth flow?",
+            memories=retrieved_memories,
+            community_summaries=summaries,
+            skip_compression=True,
         )
     """
 
@@ -61,6 +76,7 @@ class HierarchicalContextManager:
         memories: List[Dict[str, Any]],
         community_summaries: Optional[List[str]] = None,
         plan: Optional[RecallPlan] = None,
+        skip_compression: bool = False,
     ) -> Dict[str, Any]:
         """
         Get optimized context for the query.
@@ -73,6 +89,9 @@ class HierarchicalContextManager:
             memories: Retrieved memory dicts (with 'content' field)
             community_summaries: Pre-computed Leiden community summaries
             plan: Optional RecallPlan. Computes from query if None.
+            skip_compression: If True, skip internal compression (for JIT callers).
+                              When JIT compression is the compression point, pass True
+                              to prevent double-compression.
 
         Returns:
             Dict with:
@@ -93,10 +112,10 @@ class HierarchicalContextManager:
             return self._simple_strategy(community_summaries, raw_context)
 
         elif plan.complexity == QueryComplexity.MEDIUM:
-            return self._medium_strategy(community_summaries, raw_context, plan)
+            return self._medium_strategy(community_summaries, raw_context, plan, skip_compression)
 
         else:  # COMPLEX
-            return self._complex_strategy(raw_context, plan)
+            return self._complex_strategy(raw_context, plan, skip_compression)
 
     def _format_memories(self, memories: List[Dict[str, Any]]) -> str:
         """Format memory list into context string."""
@@ -149,19 +168,26 @@ class HierarchicalContextManager:
         community_summaries: Optional[List[str]],
         raw_context: str,
         plan: RecallPlan,
+        skip_compression: bool = False,
     ) -> Dict[str, Any]:
         """
         Medium query strategy: Hybrid summaries + compressed raw.
 
         Combines community context with selective raw memories,
         applies moderate compression if over threshold.
+
+        Args:
+            community_summaries: Pre-computed Leiden community summaries.
+            raw_context: Formatted raw memory text.
+            plan: RecallPlan with compression settings.
+            skip_compression: If True, skip internal compression (JIT handles it).
         """
         # Combine summaries with raw
         summary_context = self._format_summaries(community_summaries) if community_summaries else ""
         combined = f"{summary_context}\n\n---\n\n{raw_context}" if summary_context else raw_context
 
-        # Check if compression needed
-        if plan.compress and self.compressor.compressor.should_compress(combined):
+        # Check if compression needed (skip when JIT is the compression point)
+        if not skip_compression and plan.compress and self.compressor.compressor.should_compress(combined):
             result = self.compressor.compress(combined, rate_override=plan.compression_rate)
             return {
                 "context": result["compressed_prompt"],
@@ -183,13 +209,19 @@ class HierarchicalContextManager:
         self,
         raw_context: str,
         plan: RecallPlan,
+        skip_compression: bool = False,
     ) -> Dict[str, Any]:
         """
         Complex query strategy: Full raw with adaptive compression.
 
         Uses content-aware compression for maximum detail retention.
+
+        Args:
+            raw_context: Formatted raw memory text.
+            plan: RecallPlan with compression settings.
+            skip_compression: If True, skip internal compression (JIT handles it).
         """
-        if plan.compress and self.compressor.compressor.should_compress(raw_context):
+        if not skip_compression and plan.compress and self.compressor.compressor.should_compress(raw_context):
             # Let AdaptiveCompressor detect content type
             result = self.compressor.compress(raw_context)
             return {

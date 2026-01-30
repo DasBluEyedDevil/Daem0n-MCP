@@ -10,6 +10,7 @@ from .compressor import ContextCompressor
 from .entity_preserver import CodeEntityPreserver
 from .adaptive import AdaptiveCompressor, ContentType, COMPRESSION_RATES
 from .hierarchical import HierarchicalContextManager
+from .jit import JITCompressor, JITCompressionConfig
 
 __all__ = [
     "CompressionConfig",
@@ -19,4 +20,6 @@ __all__ = [
     "ContentType",
     "COMPRESSION_RATES",
     "HierarchicalContextManager",
+    "JITCompressor",
+    "JITCompressionConfig",
 ]
