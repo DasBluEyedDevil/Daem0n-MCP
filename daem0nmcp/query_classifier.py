@@ -26,6 +26,7 @@ from sentence_transformers.util import cos_sim
 
 from .recall_planner import QueryComplexity
 from .vectors import _get_model
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,8 @@ class ExemplarQueryClassifier:
 
         embeddings: Dict[QueryComplexity, np.ndarray] = {}
         for level, texts in self.EXEMPLARS.items():
-            embeddings[level] = self._model.encode(texts, convert_to_numpy=True)
+            prefixed_texts = [f"{settings.embedding_document_prefix}{t}" for t in texts]
+            embeddings[level] = self._model.encode(prefixed_texts, convert_to_numpy=True)
 
         self._exemplar_embeddings = embeddings
         self._initialized = True
@@ -110,7 +112,9 @@ class ExemplarQueryClassifier:
         """
         self._ensure_initialized()
 
-        query_embedding = self._model.encode(query, convert_to_numpy=True)
+        query_embedding = self._model.encode(
+            f"{settings.embedding_query_prefix}{query}", convert_to_numpy=True
+        )
 
         scores: Dict[str, float] = {}
         best_level = self.FALLBACK_LEVEL
