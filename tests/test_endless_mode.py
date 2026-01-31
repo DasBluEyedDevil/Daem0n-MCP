@@ -4,6 +4,7 @@
 import pytest
 import tempfile
 import shutil
+from unittest.mock import patch
 
 from daem0nmcp.database import DatabaseManager
 from daem0nmcp.memory import MemoryManager
@@ -195,11 +196,16 @@ class TestEndlessModeMCP:
         # First, call get_briefing to satisfy Sacred Covenant
         await server.get_briefing(project_path=project_path)
 
+        # Disable Qdrant to avoid dimension mismatch (384-dim bootstrap vs 256-dim model)
+        ctx = await server.get_project_context(project_path)
+        ctx.memory_manager._qdrant = None
+
         # Use context_check to satisfy counsel requirement
-        await server.context_check(
-            description="Testing condensed parameter",
-            project_path=project_path
-        )
+        with patch.object(ctx.rules_engine, 'check_rules', return_value={}):
+            await server.context_check(
+                description="Testing condensed parameter",
+                project_path=project_path
+            )
 
         await server.remember(
             category="decision",
@@ -237,11 +243,16 @@ class TestEndlessModeMCP:
         # First, call get_briefing to satisfy Sacred Covenant
         await server.get_briefing(project_path=project_path)
 
+        # Disable Qdrant to avoid dimension mismatch (384-dim bootstrap vs 256-dim model)
+        ctx = await server.get_project_context(project_path)
+        ctx.memory_manager._qdrant = None
+
         # Use context_check to satisfy counsel requirement
-        await server.context_check(
-            description="Testing condensed vs full mode",
-            project_path=project_path
-        )
+        with patch.object(ctx.rules_engine, 'check_rules', return_value={}):
+            await server.context_check(
+                description="Testing condensed vs full mode",
+                project_path=project_path
+            )
 
         await server.remember(
             category="decision",

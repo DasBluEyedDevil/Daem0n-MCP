@@ -59,6 +59,9 @@ class TestIndexFreshness:
             assert result2["found"] >= 1, f"Should find Redis memory, got: {result2}"
 
         finally:
+            # Close Qdrant client (holds its own SQLite handle)
+            if manager._qdrant:
+                manager._qdrant.client.close()
             # Ensure database is properly closed
             await db.close()
             # Give Windows time to release file handles
@@ -93,6 +96,9 @@ class TestIndexFreshness:
             assert result["rules_indexed"] >= 1
 
         finally:
+            # Close Qdrant client (holds its own SQLite handle)
+            if memory._qdrant:
+                memory._qdrant.client.close()
             await db.close()
             # Give Windows time to release file handles
             time.sleep(0.1)

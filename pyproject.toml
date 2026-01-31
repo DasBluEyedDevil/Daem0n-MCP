@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daem0nmcp"
-version = "6.0.0"
+version = "6.6.6"
 description = "AI Memory & Decision System - Give AI agents persistent memory and consistent decision-making"
 readme = "README.md"
 license = {text = "MIT"}
@@ -32,7 +32,7 @@ dependencies = [
     "httpx>=0.25.0",
     "beautifulsoup4>=4.12.0",
     # Vector embeddings
-    "sentence-transformers>=2.2.0",
+    "sentence-transformers>=3.0.0",
     "numpy>=1.24.0",
     # Vector database
     "qdrant-client>=1.7.0",
@@ -61,6 +61,9 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+]
+onnx = [
+    "onnxruntime>=1.16.0",
 ]
 tracing = [
     "opentelemetry-api>=1.20.0",

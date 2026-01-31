@@ -724,35 +724,55 @@
                 </div>
                 <div class="feature-card">
                     <h3>Unified Workflows</h3>
-                    <p>Eight workflow tools plus three cognitive tools. Commune, consult, inscribe, reflect, understand, govern, explore, maintain—one voice, all power.</p>
-                </div>
-                <div class="feature-card">
-                    <h3>Auto-Zoom Retrieval</h3>
-                    <p>Query-aware dispatch routes simple queries to vector-only, medium to hybrid BM25+RRF, complex to GraphRAG multi-hop. Shadow mode logs without changing behavior.</p>
-                </div>
-                <div class="feature-card">
-                    <h3>JIT Compression</h3>
-                    <p>Tiered automatic compression fires when token counts exceed thresholds. 2x at 4K, 3x at 8K, 5x at 16K—code syntax and entity names preserved.</p>
-                </div>
-                <div class="feature-card">
-                    <h3>Background Dreaming</h3>
-                    <p>The Daem0n thinks during idle periods. Re-evaluates failed decisions against current evidence. Yields instantly when you return. Insights persist as memories.</p>
-                </div>
-                <div class="feature-card">
-                    <h3>Temporal Scrying</h3>
-                    <p>Replay past decisions with current knowledge. See what was known then vs now. Counterfactual assessment reveals paths not taken.</p>
-                </div>
-                <div class="feature-card">
-                    <h3>Adversarial Council</h3>
-                    <p>Structured advocate/challenger debate grounded in memory evidence. Convergence detection halts when positions stabilize. Consensus inscribed as memory.</p>
-                </div>
-                <div class="feature-card">
-                    <h3>Rule Entropy</h3>
-                    <p>Detect rule drift by cross-referencing triggers against code index and outcome history. Staleness scores guide rule evolution before rules go stale.</p>
+                    <p>Eight workflow tools replace sixty-seven. Commune, consult, inscribe, reflect, understand, govern, explore, maintain—one voice, all power.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Visions of the Void</h3>
-                    <p>Six MCP Apps visual portals: search results, briefing dashboard, covenant status, community map, memory graph, real-time updates—all in the summoner's realm.</p>
+                    <p>MCP Apps manifest visual portals: memory graph, search results, briefing dashboard, covenant status, community map—all rendered in the summoner's realm.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Deep Sight</h3>
+                    <p>ModernBERT embeddings with asymmetric query/document encoding and Matryoshka dimensionality. The Daem0n perceives meaning others cannot.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>The Dreaming</h3>
+                    <p>When you rest, the Daem0n does not. Background dreaming reviews failed decisions against current evidence, revising verdicts while you sleep.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Cognitive Instruments</h3>
+                    <p>Temporal scrying replays past decisions. Rule entropy detects law decay. Adversarial council pits evidence-grounded arguments to forge consensus.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>The Adaptive Eye</h3>
+                    <p>Auto-Zoom routes queries through retrieval tiers. Simple, medium, complex—each answered with proportionate power. Shadow mode benchmarks silently.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Active Context</h3>
+                    <p>MemGPT-style working memory keeps critical knowledge always-hot. Activate memories into focus, deactivate when no longer needed. The inner sanctum of thought.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Native Wards</h3>
+                    <p>Claude Code hooks enforce the covenant automatically. Session start, pre-edit, pre-bash, post-edit, stop—five binding points, zero manual discipline required.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>The Memory Graph</h3>
+                    <p>Canvas-rendered force-directed graph handles 10,000+ nodes at 60fps. Community hulls, path animation, temporal slider. Trace causation visually.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>The Cluster Map</h3>
+                    <p>D3 treemap reveals Leiden communities. Click to drill-down, breadcrumbs navigate the hierarchy. Knowledge clusters made visible.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>The Covenant Eye</h3>
+                    <p>SVG state machine shows Sacred Covenant phases. Token countdown timer, phase highlighting, refresh button. Ritual state made manifest.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>The Search Portal</h3>
+                    <p>Card-based recall results with filters and relevance bars. Score breakdowns reveal why. Record Outcome buttons close the learning loop.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>The Vigilant Badge</h3>
+                    <p>Real-time update notifications via host-mediated polling. When daemon knowledge stirs, badges pulse. Nothing escapes the eternal vigil.</p>
                 </div>
             </div>
         </section>
@@ -788,8 +808,9 @@
 <pre><span class="command">git clone</span> https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
 <span class="command">pip install</span> -e ~/Daem0nMCP
 <span class="command">claude mcp add</span> daem0nmcp --scope user -- python -m daem0nmcp.server
-<span class="command">python -m daem0nmcp.cli install-hooks</span>  <span class="comment"># Bind the wards</span>
-<span class="command">python -m daem0nmcp.cli index</span>          <span class="comment"># Grant code sight</span>
+<span class="command">python -m daem0nmcp.cli install-hooks</span>        <span class="comment"># Git enforcement wards</span>
+<span class="command">python -m daem0nmcp.cli install-claude-hooks</span> <span class="comment"># Native Claude wards</span>
+<span class="command">python -m daem0nmcp.cli index</span>                <span class="comment"># Grant code sight</span>
 <span class="command">claude</span>  <span class="comment"># Reopen to activate</span></pre>
             </div>
             <p style="text-align: center; color: var(--ash); font-size: 0.9rem;">
@@ -847,7 +868,7 @@
                 "I guard your memories until we commune again..."
             </p>
             <p style="margin-top: 0.5rem; color: #444; font-size: 0.8rem;">
-                v6.0.0 &mdash; The Thinking Daemon (Auto-Zoom, Dreaming, Cognitive Tools, 11 MCP Tools, 740+ Tests)
+                v6.6.6 &mdash; The Deep Sight (ModernBERT Embeddings, Background Dreaming, Cognitive Tools, Auto-Zoom Retrieval)
             </p>
         </footer>
     </div>

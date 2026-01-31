@@ -6,8 +6,8 @@ This module provides:
 - Metadata filtering for efficient memory retrieval
 - Replaces the in-memory VectorIndex from vectors.py for production use
 
-The store uses sentence-transformers all-MiniLM-L6-v2 embeddings (384 dimensions)
-with cosine similarity for semantic matching.
+The store uses configurable sentence-transformers embeddings with cosine similarity
+for semantic matching. Dimension is controlled by settings.embedding_dimension.
 """
 
 import logging
@@ -27,6 +27,8 @@ from qdrant_client.models import (
 
 logger = logging.getLogger(__name__)
 
+from .config import settings
+
 
 class QdrantVectorStore:
     """
@@ -38,7 +40,7 @@ class QdrantVectorStore:
 
     COLLECTION_MEMORIES = "daem0n_memories"
     COLLECTION_CODE = "daem0n_code_entities"  # Reserved for Phase 2
-    EMBEDDING_DIMENSION = 384  # all-MiniLM-L6-v2 output dimension
+    EMBEDDING_DIMENSION = settings.embedding_dimension
 
     def __init__(self, path: str = "./storage/qdrant"):
         """
@@ -57,26 +59,28 @@ class QdrantVectorStore:
         """Ensure required collections exist with proper configuration."""
         collections = [c.name for c in self.client.get_collections().collections]
 
-        if self.COLLECTION_MEMORIES not in collections:
-            logger.info(f"Creating collection: {self.COLLECTION_MEMORIES}")
-            self.client.create_collection(
-                collection_name=self.COLLECTION_MEMORIES,
-                vectors_config=VectorParams(
-                    size=self.EMBEDDING_DIMENSION,
-                    distance=Distance.COSINE
-                )
-            )
+        for coll_name in [self.COLLECTION_MEMORIES, self.COLLECTION_CODE]:
+            if coll_name in collections:
+                # Check for dimension mismatch
+                info = self.client.get_collection(coll_name)
+                existing_dim = info.config.params.vectors.size
+                if existing_dim != self.EMBEDDING_DIMENSION:
+                    logger.warning(
+                        f"Collection {coll_name} has dimension {existing_dim}, "
+                        f"expected {self.EMBEDDING_DIMENSION}. Recreating collection."
+                    )
+                    self.client.delete_collection(coll_name)
+                    collections.remove(coll_name)
 
-        # Create code entities collection for Phase 2 (code understanding)
-        if self.COLLECTION_CODE not in collections:
-            logger.info(f"Creating collection: {self.COLLECTION_CODE}")
-            self.client.create_collection(
-                collection_name=self.COLLECTION_CODE,
-                vectors_config=VectorParams(
-                    size=self.EMBEDDING_DIMENSION,
-                    distance=Distance.COSINE
+            if coll_name not in collections:
+                logger.info(f"Creating collection: {coll_name}")
+                self.client.create_collection(
+                    collection_name=coll_name,
+                    vectors_config=VectorParams(
+                        size=self.EMBEDDING_DIMENSION,
+                        distance=Distance.COSINE
+                    )
                 )
-            )
 
     def upsert_memory(
         self,
@@ -89,7 +93,7 @@ class QdrantVectorStore:
 
         Args:
             memory_id: Unique identifier for the memory (from SQLite).
-            embedding: Vector embedding (384 dimensions from sentence-transformers).
+            embedding: Vector embedding (dimensions from sentence-transformers).
             metadata: Payload data including category, tags, file_path, worked, etc.
         """
         self.client.upsert(
@@ -115,7 +119,7 @@ class QdrantVectorStore:
         Uses the modern query_points API (qdrant-client >= 1.10).
 
         Args:
-            query_vector: Query embedding vector (384 dimensions).
+            query_vector: Query embedding vector (configured dimensions).
             limit: Maximum number of results to return.
             category_filter: Filter to memories in these categories.
             tags_filter: Filter to memories with any of these tags.

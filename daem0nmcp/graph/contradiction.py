@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import MemoryVersion
-from ..vectors import cosine_similarity, decode, encode
+from ..vectors import cosine_similarity, decode, encode_document
 
 
 # Similarity threshold: Above this = potentially discussing same topic
@@ -127,7 +127,7 @@ async def detect_contradictions(
     contradictions = []
 
     # Encode the new content
-    new_embedding_bytes = encode(new_content)
+    new_embedding_bytes = encode_document(new_content)
     if new_embedding_bytes is None:
         # Can't compute similarity without embeddings
         return contradictions
@@ -154,7 +154,7 @@ async def detect_contradictions(
         if version.id in embedding_cache:
             version_embedding = embedding_cache[version.id]
         else:
-            version_embedding_bytes = encode(version.content)
+            version_embedding_bytes = encode_document(version.content)
             if version_embedding_bytes is None:
                 continue
             version_embedding = decode(version_embedding_bytes)

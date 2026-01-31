@@ -32,29 +32,65 @@ def _get_model() -> SentenceTransformer:
     global _model
 
     if _model is None:
-        logger.info(f"Loading embedding model ({settings.embedding_model})...")
-        _model = SentenceTransformer(settings.embedding_model)
+        backend = settings.embedding_backend
+        logger.info(
+            f"Loading embedding model ({settings.embedding_model}, "
+            f"backend={backend}, dim={settings.embedding_dimension})..."
+        )
+        try:
+            _model = SentenceTransformer(
+                settings.embedding_model,
+                truncate_dim=settings.embedding_dimension,
+                backend=backend,
+                model_kwargs={"file_name": "onnx/model_quantized.onnx"} if backend == "onnx" else {},
+            )
+        except Exception:
+            logger.warning(
+                f"Failed to load model with backend={backend}, falling back to torch"
+            )
+            _model = SentenceTransformer(
+                settings.embedding_model,
+                truncate_dim=settings.embedding_dimension,
+            )
         logger.info("Embedding model loaded.")
 
     return _model
 
 
-def encode(text: str) -> Optional[bytes]:
-    """
-    Encode text to a vector embedding.
+def get_dimension() -> int:
+    """Return the configured embedding dimension."""
+    return settings.embedding_dimension
 
-    Returns None if vectors are not available.
+
+def encode(text: str, *, prefix: str = "document") -> Optional[bytes]:
+    """
+    Encode text to a vector embedding with the specified prefix.
+
+    Args:
+        text: Text to encode.
+        prefix: "query" or "document" -- selects the appropriate prefix
+                from settings.
+
     Returns bytes (packed floats) for storage in SQLite.
     """
+    if prefix == "query":
+        prefixed = f"{settings.embedding_query_prefix}{text}"
+    else:
+        prefixed = f"{settings.embedding_document_prefix}{text}"
+
     model = _get_model()
-    if model is None:
-        return None
+    embedding = model.encode(prefixed, convert_to_numpy=True)
+    return struct.pack(f"{len(embedding)}f", *embedding)
 
-    # Generate embedding
-    embedding = model.encode(text, convert_to_numpy=True)
 
-    # Pack as bytes for SQLite storage
-    return struct.pack(f'{len(embedding)}f', *embedding)
+def encode_query(text: str) -> Optional[bytes]:
+    """Encode text as a search query (uses query prefix)."""
+    return encode(text, prefix="query")
+
+
+def encode_document(text: str) -> Optional[bytes]:
+    """Encode text as a document for storage (uses document prefix)."""
+    return encode(text, prefix="document")
 
 
 def decode(data: bytes) -> Optional[List[float]]:
@@ -92,9 +128,10 @@ class VectorIndex:
         self.vectors: Dict[int, List[float]] = {}
 
     def add(self, doc_id: int, text: str) -> bool:
-        """Add a document to the index."""
+        """Add a document to the index (encodes as document)."""
         model = _get_model()
-        embedding = model.encode(text, convert_to_numpy=True)
+        prefixed = f"{settings.embedding_document_prefix}{text}"
+        embedding = model.encode(prefixed, convert_to_numpy=True)
         self.vectors[doc_id] = embedding.tolist()
         return True
 
@@ -127,8 +164,9 @@ class VectorIndex:
 
         model = _get_model()
 
-        # Encode query
-        query_vec = model.encode(query, convert_to_numpy=True)
+        # Encode query with query prefix
+        prefixed = f"{settings.embedding_query_prefix}{query}"
+        query_vec = model.encode(prefixed, convert_to_numpy=True)
 
         # Compute similarities
         results = []
@@ -156,7 +194,7 @@ class HybridSearch:
     def __init__(self, tfidf_index, vector_index: Optional[VectorIndex] = None):
         self.tfidf = tfidf_index
         self.vectors = vector_index or VectorIndex()
-        self.vector_weight = settings.hybrid_vector_weight  # Configurable via DAEM0NMCP_HYBRID_VECTOR_WEIGHT
+        self.vector_weight = settings.hybrid_vector_weight
 
     def search(
         self,

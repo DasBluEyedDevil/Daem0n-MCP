@@ -422,7 +422,7 @@ def migrate_and_backfill_vectors(db_path: str) -> dict:
             if rationale:
                 text += " " + rationale
 
-            embedding = vectors.encode(text)
+            embedding = vectors.encode_document(text)
             if embedding:
                 cursor.execute(
                     "UPDATE memories SET vector_embedding = ? WHERE id = ?",

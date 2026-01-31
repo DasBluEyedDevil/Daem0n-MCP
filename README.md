@@ -13,482 +13,213 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
-## What's New in v6.0.0
+## What's New in v6.6.6
 
-### The Thinking Daemon
-The daemon awakens to autonomous thought. v6.0 adds four major cognitive capabilities: **Auto-Zoom retrieval routing**, **JIT compression**, **background dreaming**, and three **cognitive tools** for temporal scrying, rule evolution, and adversarial debate — all grounded purely in memory evidence with no LLM dependency.
+### ModernBERT Deep Sight (BREAKING)
+The daemon's vision has been fundamentally sharpened. The old `all-MiniLM-L6-v2` embedding model is replaced by **ModernBERT** with asymmetric query/document encoding and optional ONNX acceleration.
 
-#### Server Decomposition
-The monolithic `server.py` (6,467 lines) has been decomposed into a 149-line composition root plus 15 focused tool modules under `daem0nmcp/tools/`. Legacy individual tools are removed from MCP registration — all capabilities flow through 8 workflow tools plus 3 new cognitive tools.
+| Aspect | Old (v5.x) | New (v6.6.6) |
+|--------|------------|--------------|
+| **Model** | `all-MiniLM-L6-v2` | `nomic-ai/modernbert-embed-base` |
+| **Dimensions** | 384 | 256 (Matryoshka truncation) |
+| **Encoding** | Single `encode()` | Dual: `encode_query()` / `encode_document()` |
+| **Backend** | PyTorch only | ONNX quantized (with torch fallback) |
+| **Prefixes** | None | `search_query: ` / `search_document: ` |
 
-#### Auto-Zoom Retrieval Router
-Query-aware search dispatch routes queries to the optimal retrieval strategy:
-- **SIMPLE queries** (e.g., "auth") → vector-only search via Qdrant (fast path)
-- **MEDIUM queries** → hybrid BM25+vector with RRF fusion (baseline)
-- **COMPLEX queries** (e.g., "trace auth flow through all components") → GraphRAG multi-hop + community summaries
-- **Shadow mode** (default): logs classifications without changing behavior
-- **Safety guarantees**: all strategies fall back to hybrid on any failure
+**This is a BREAKING CHANGE** — existing embeddings must be re-encoded:
+```bash
+pip install -e ~/Daem0nMCP[onnx]  # Optional ONNX acceleration
+python -m daem0nmcp.migrations.migrate_embedding_model --project-path /path/to/.daem0nmcp
+```
 
-#### JIT Compression
-Automatic compression of retrieval results when token counts exceed tiered thresholds:
-- **Soft (>4K tokens)**: ~2x compression
-- **Hard (>8K tokens)**: ~3x compression
-- **Emergency (>16K tokens)**: ~5x compression
-- Code syntax and entity names preserved during compression
-- Compression metadata returned for observability
+### Background Dreaming
+When the user goes idle, the daemon autonomously re-evaluates past failed decisions using current evidence:
+- `IdleDreamScheduler` monitors tool call activity
+- After configurable idle timeout (default 60s), `FailedDecisionReview` strategy runs
+- Classifies decisions as **revised**, **confirmed_failure**, or **needs_more_data**
+- Insights persisted as `learning` memories with `dream` tag and full provenance
+- Yields immediately when user returns (cooperative scheduling)
 
-#### Background Dreaming
-The daemon thinks during idle periods:
-- **Idle detection**: triggers after 60 seconds of inactivity
-- **FailedDecisionReview**: re-evaluates `worked=False` decisions against current evidence
-- **Cooperative yielding**: immediately suspends when user returns
-- **Dream insights**: persisted as learning memories with full provenance
-- **Configurable**: `DAEM0NMCP_DREAM_ENABLED`, `DAEM0NMCP_DREAM_IDLE_TIMEOUT`
-
-#### Cognitive Tools (3 New MCP Tools)
-Three standalone reasoning tools grounded entirely in memory evidence:
+### Cognitive Tools (3 new standalone MCP tools)
+Meta-reasoning tools for daemon introspection:
 
 | Tool | Purpose |
 |------|---------|
-| `simulate_decision` | Temporal scrying — replay a past decision with current knowledge, revealing what is now known that wasn't known then |
-| `evolve_rule` | Rule entropy analysis — detect rule drift by cross-referencing triggers against code index and outcome history |
-| `debate_internal` | Adversarial council — structured advocate/challenger debate with convergence detection, consensus inscribed as memory |
+| `simulate_decision` | **Temporal Scrying** — replay a past decision with current knowledge, revealing what changed |
+| `evolve_rule` | **Rule Entropy Analysis** — examine rules for staleness, code drift, and outcome correlation |
+| `debate_internal` | **Adversarial Council** — structured evidence-grounded debate with convergence detection |
 
-#### Code-Augmented Reflexion
-The Reflexion loop now includes code verification:
-- Generates Python assertion code for verifiable claims
-- Classifies failures (assertion, syntax, import, timeout, sandbox)
-- Template fallback when LLM unavailable
-- Failure types inform reflection strategy
+### Auto-Zoom Retrieval Routing
+Query-aware search dispatch that routes to the optimal retrieval strategy:
+- **SIMPLE** queries → Vector-only search (fast path)
+- **MEDIUM** queries → Hybrid BM25+vector with RRF fusion
+- **COMPLEX** queries → GraphRAG multi-hop traversal + community summaries
+- Shadow mode (default) logs classifications without changing behavior
+- All strategies fall back to hybrid on failure
 
-### New Configuration Options (v6.0.0)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DAEM0NMCP_AUTO_ZOOM_ENABLED` | `false` | Enable active query-aware routing |
-| `DAEM0NMCP_AUTO_ZOOM_SHADOW` | `true` | Log classifications without routing |
-| `DAEM0NMCP_AUTO_ZOOM_CONFIDENCE_THRESHOLD` | `0.25` | Confidence floor for classification |
-| `DAEM0NMCP_AUTO_ZOOM_GRAPH_EXPANSION_DEPTH` | `2` | Multi-hop depth for complex queries |
-| `DAEM0NMCP_DREAM_ENABLED` | `true` | Enable background dreaming |
-| `DAEM0NMCP_DREAM_IDLE_TIMEOUT` | `60.0` | Seconds before dreaming starts |
-| `DAEM0NMCP_DREAM_MAX_DECISIONS_PER_SESSION` | `5` | Max decisions to review per idle session |
-| `DAEM0NMCP_DREAM_MIN_DECISION_AGE_HOURS` | `1` | Min age before re-evaluation |
-| `DAEM0NMCP_COGNITIVE_DEBATE_MAX_ROUNDS` | `5` | Max debate rounds |
-| `DAEM0NMCP_COGNITIVE_DEBATE_CONVERGENCE_THRESHOLD` | `0.05` | Position stabilization threshold |
-| `DAEM0NMCP_COGNITIVE_EVOLVE_MAX_RULES` | `10` | Max rules analyzed per session |
+### Claude Code Native Hooks
+New `daem0nmcp/claude_hooks/` module with 5 lifecycle hooks and automated installation:
+```bash
+python -m daem0nmcp.cli install-claude-hooks      # Install to ~/.claude/settings.json
+python -m daem0nmcp.cli uninstall-claude-hooks     # Remove
+```
+
+| Hook | Purpose |
+|------|---------|
+| `session_start` | Auto-briefing at session dawn |
+| `pre_edit` | Preflight enforcement + file memory recall before edits |
+| `pre_bash` | Rule enforcement on bash commands |
+| `post_edit` | Suggest remembrance for significant changes |
+| `stop` | Auto-capture decisions from conversation |
 
 ### Stats
-- **11 MCP tools** (8 workflows + 3 cognitive)
-- **63 total actions** across all tools
-- **740+ tests** passing
-- **Server decomposed** from 6,467 lines → 149-line root + 15 modules
+- **8 workflow tools** + **3 cognitive tools** (11 MCP tools total, plus legacy)
+- **59 workflow actions** across 8 workflows
+- **500+ tests** passing
 
 ---
 
 ## What's New in v5.1.0
 
 ### Workflow Consolidation
-The daemon speaks fewer words but with greater power. v5.1 consolidates **67 individual MCP tools into 8 workflow-oriented tools**, dramatically reducing context overhead for AI agents while preserving all capabilities.
+v5.1 consolidates **67 individual MCP tools into 8 workflow-oriented tools**, dramatically reducing context overhead for AI agents while preserving all capabilities.
 
-### Stats
-- **8 workflow tools** (consolidating 67 individual tools)
-- **60 total actions** across all workflows
-- **500+ tests** passing
+#### 8 Workflow Tools
+
+| Workflow | Purpose | Actions |
+|----------|---------|---------|
+| **`commune`** | Session start & status | `briefing`, `active_context`, `triggers`, `health`, `covenant`, `updates` |
+| **`consult`** | Pre-action intelligence | `preflight`, `recall`, `recall_file`, `recall_entity`, `recall_hierarchical`, `search`, `check_rules`, `compress` |
+| **`inscribe`** | Memory writing & linking | `remember`, `remember_batch`, `link`, `unlink`, `pin`, `activate`, `deactivate`, `clear_active`, `ingest` |
+| **`reflect`** | Outcomes & verification | `outcome`, `verify`, `execute` |
+| **`understand`** | Code comprehension | `index`, `find`, `impact`, `todos`, `refactor` |
+| **`govern`** | Rules & triggers | `add_rule`, `update_rule`, `list_rules`, `add_trigger`, `list_triggers`, `remove_trigger` |
+| **`explore`** | Graph & discovery | `related`, `chain`, `graph`, `stats`, `communities`, `community_detail`, `rebuild_communities`, `entities`, `backfill_entities`, `evolution`, `versions`, `at_time` |
+| **`maintain`** | Housekeeping & federation | `prune`, `archive`, `cleanup`, `compact`, `rebuild_index`, `export`, `import_data`, `link_project`, `unlink_project`, `list_projects`, `consolidate` |
+
+#### How It Works
+Each workflow tool accepts an `action` parameter that selects the operation:
+```python
+# Old way (67 separate tools)
+mcp__daem0nmcp__get_briefing(project_path="...")
+mcp__daem0nmcp__recall(topic="auth", project_path="...")
+mcp__daem0nmcp__remember(category="decision", content="...", project_path="...")
+mcp__daem0nmcp__record_outcome(memory_id=42, outcome="...", worked=True, project_path="...")
+
+# New way (8 workflow tools)
+mcp__daem0nmcp__commune(action="briefing", project_path="...")
+mcp__daem0nmcp__consult(action="recall", topic="auth", project_path="...")
+mcp__daem0nmcp__inscribe(action="remember", category="decision", content="...", project_path="...")
+mcp__daem0nmcp__reflect(action="outcome", memory_id=42, outcome_text="...", worked=True, project_path="...")
+```
+
+#### Why Consolidate?
+- **88% fewer tool definitions** in context (8 vs 67)
+- **Lower token overhead** — AI agents load fewer tool schemas
+- **Logical grouping** — related operations live in one tool
+- **Backward compatible** — legacy individual tools still registered alongside workflows
 
 ---
 
 ## What's New in v5.0.0
 
-### Visions of the Void
-The daemon gains sight. v5.0 brings daemon knowledge into the visual realm through **MCP Apps (SEP-1865)** — interactive HTML UIs for exploring memories, graphs, communities, and covenant status.
+### Visions of the Void (MCP Apps)
+Interactive HTML interfaces via MCP Apps (SEP-1865). Visual mode is now accessed via the `visual=true` parameter on workflow tools:
 
-#### MCP Apps Integration
-Six interactive visual portals accessible from MCP-Apps-enabled hosts:
+```python
+commune(action="briefing", visual=true, project_path="...")      # Briefing Dashboard
+consult(action="recall", topic="auth", visual=true, project_path="...")  # Search Results UI
+commune(action="covenant", visual=true, project_path="...")      # Covenant Status
+explore(action="communities", visual=true, project_path="...")   # Community Map
+explore(action="graph", topic="auth", visual=true, project_path="...")  # Memory Graph Viewer
+```
 
-| Portal | Description |
-|--------|-------------|
-| **Search Results UI** | Card-based recall results with filters, relevance bars, score breakdowns, Record Outcome buttons |
-| **Briefing Dashboard** | Collapsible accordion with stats, recent decisions, warnings, focus areas, git changes |
-| **Covenant Status Dashboard** | Visual state machine showing Sacred Covenant phases with token countdown timer |
-| **Community Cluster Map** | D3 treemap visualization with click-to-drill-down hierarchy and breadcrumb navigation |
-| **Memory Graph Viewer** | Canvas-based force-directed graph supporting 10,000+ nodes at 60fps, community hulls, path animation, temporal slider |
-| **Real-Time Updates** | Notification badges when daemon knowledge changes via host-mediated polling |
-
-#### Self-Contained Infrastructure
-- **D3.js Bundle**: 105KB self-contained bundle via esbuild (no CDN dependencies)
-- **CSP Security**: Restrictive Content Security Policy (`default-src 'none'`)
-- **SecureMessenger**: Origin-validated iframe communication (O(1) exact matching)
-- **Text Fallback**: All tools work on non-MCP-Apps hosts with formatted text output
-
-#### New Visual Tools (v5.0)
-| Tool | Purpose |
-|------|---------|
-| `recall_visual` | Search results with UI resource hint |
-| `get_briefing_visual` | Briefing dashboard with UI resource hint |
-| `get_covenant_status_visual` | Covenant status with UI resource hint |
-| `list_communities_visual` | Community map with UI resource hint |
-| `get_graph_visual` | Memory graph with UI resource hint |
-| `check_for_updates` | Host-mediated polling for real-time notifications |
-
-### Stats
-- **66 MCP tools** (up from 60)
-- **500+ tests** passing
-- **51,929 lines** of Python
-- **48 requirements** satisfied for v5.0
+Features: D3.js v7 bundled (105KB, no CDN), restrictive CSP, canvas-based graph (10,000+ nodes at 60fps), graceful text fallback for non-visual hosts.
 
 ---
 
 ## What's New in v4.0.0
 
 ### Cognitive Architecture
-The daemon awakens to full cognition. v4.0 transforms Daem0n-MCP from a reactive semantic engine into a complete **Cognitive Architecture** with five major capabilities:
+Five major capabilities:
 
-#### GraphRAG & Leiden Communities
-Knowledge graph construction with hierarchical community detection:
-- **Entity extraction**: Automatically extracts entities and relationships during `remember` operations
-- **NetworkX graph**: In-memory graph manipulation with directed edges
-- **Leiden algorithm**: Hierarchical community detection (replaces basic tag clustering)
-- **Multi-hop queries**: `trace_chain`, `trace_evolution`, `get_related_memories` MCP tools
-- **Global search**: `recall_hierarchical` uses community summaries for high-level queries
-
-#### Bi-Temporal Knowledge
-Track what was true vs when you learned it:
-- **Dual timestamps**: `valid_time` (when happened) and `transaction_time` (when learned)
-- **`happened_at` parameter**: Backfill historical knowledge with accurate timestamps
-- **Point-in-time queries**: `as_of_time` parameter for "what did we know then?" queries
-- **Knowledge evolution**: `trace_evolution` shows how understanding changed over time
-- **Contradiction detection**: Identifies when new facts invalidate existing beliefs
-
-#### Metacognitive Architecture (Reflexion)
-Self-correction before speaking:
-- **Actor-Evaluator-Reflector loop**: LangGraph state machine for iterative refinement
-- **`verify_facts` tool**: Validates claims against stored knowledge before output
-- **Chain of Verification**: Intercepts factual claims for grounding verification
-- **Reflection persistence**: Stores self-critiques as retrievable memories
-- **Episodic-to-semantic consolidation**: Automatic memory summarization
-
-#### Context Engineering
-Intelligent context compression:
-- **LLMLingua-2 integration**: 3x-6x compression while preserving meaning
-- **Code entity preservation**: Protects function signatures, variable names, syntax
-- **Adaptive compression**: Rates adjust based on content type (code vs narrative)
-- **Hierarchical compression**: Leverages Leiden community summaries
-- **`compress_context` tool**: On-demand context optimization
-
-#### Dynamic Agency
-Context-aware tool control:
-- **Ritual phase tracking**: BRIEFING -> EXPLORATION -> ACTION -> REFLECTION
-- **Tool masking**: Hides irrelevant tools based on current phase
-- **`execute_python` tool**: Sandboxed code execution via E2B Firecracker microVMs
-- **Capability scoping**: Least-privilege access enforcement
-- **Security logging**: All sandbox activity logged for anomaly detection
-
-### New Tools (v4.0)
-| Tool | Purpose |
-|------|---------|
-| `verify_facts` | Validate claims against stored knowledge |
-| `compress_context` | LLMLingua-2 context compression |
-| `execute_python` | Sandboxed Python code execution |
-| `trace_chain` | Multi-hop graph traversal |
-| `trace_evolution` | Knowledge evolution tracking |
-| `get_related_memories` | Entity relationship discovery |
-| `get_graph_stats` | Knowledge graph metrics |
-
-### Stats
-- **60 MCP tools** (up from 53)
-- **500+ tests** passing
-- **48,554 lines** of Python
-- **32 requirements** satisfied
+- **GraphRAG & Leiden Communities**: Knowledge graph construction with hierarchical community detection, multi-hop queries, global search via community summaries
+- **Bi-Temporal Knowledge**: Dual timestamps (`valid_time` vs `transaction_time`), `happened_at` backfilling, `as_of_time` point-in-time queries, contradiction detection
+- **Metacognitive Reflexion**: Actor-Evaluator-Reflector loop, `verify` action validates claims against stored knowledge, reflection persistence
+- **Context Engineering**: LLMLingua-2 for 3x-6x compression, code entity preservation, adaptive rates, `compress` action for on-demand optimization
+- **Dynamic Agency**: `execute` action for sandboxed Python execution via E2B Firecracker microVMs
 
 ---
 
 ## What's New in v3.1.0
 
 ### 2026 AI Memory Research Enhancements
-Seven cutting-edge enhancements from 2026 AI memory research to improve retrieval precision, memory efficiency, and context utilization:
-
-#### BM25 + RRF Hybrid Retrieval
-Replaces TF-IDF with Okapi BM25 for better keyword matching, combined with Reciprocal Rank Fusion for hybrid search:
-- **BM25 Index**: Better term frequency saturation (k1=1.5) and document length normalization (b=0.75)
-- **RRF Fusion**: Combines BM25 and vector results with k=60 dampening constant
-- **Configurable**: `DAEM0NMCP_BM25_K1`, `DAEM0NMCP_BM25_B`, `DAEM0NMCP_RRF_K`
-
-#### TiMem-Style Recall Planner
-Complexity-aware retrieval that adapts to query difficulty:
-- **Simple queries** (e.g., "auth"): Returns community summaries only (~50% context reduction)
-- **Medium queries**: Summaries + key raw memories
-- **Complex queries** (e.g., "trace auth flow through all components"): Full raw memory access
-- **Configurable limits**: `DAEM0NMCP_RECALL_SIMPLE_MAX_MEMORIES`, `DAEM0NMCP_RECALL_MEDIUM_MAX_MEMORIES`, `DAEM0NMCP_RECALL_COMPLEX_MAX_MEMORIES`
-
-#### Titans-Inspired Surprise Scoring
-Novelty detection for memory prioritization:
-- **`surprise_score`** field on memories (0.0-1.0)
-- High surprise = novel information to prioritize
-- Low surprise = routine, can be deprioritized
-- Uses k-nearest neighbor distance metric
-- **Configurable**: `DAEM0NMCP_SURPRISE_K_NEAREST`, `DAEM0NMCP_SURPRISE_BOOST_THRESHOLD`
-
-#### Importance-Weighted Learning
-EWC-inspired protection for valuable memories:
-- **`importance_score`** field on memories (0.0-1.0)
-- High importance = protected from decay/pruning
-- Based on: recall frequency, positive outcomes, user interactions
-
-#### Fact Model (Static Memory Separation)
-Engram-inspired separation of verified facts from dynamic memories:
-- **`Fact`** model for immutable, verified knowledge
-- Content hash for O(1) lookup instead of semantic search
-- Verification count and promotion threshold
-- **Configurable**: `DAEM0NMCP_FACT_PROMOTION_THRESHOLD`
-
-#### Tool Search Index
-Dynamic tool discovery to reduce context bloat:
-- Register tools with metadata (name, description, category, tags)
-- Search by natural language query
-- Only load relevant tools into context
-- Expected context savings: 85% for large tool libraries
-
-#### Prompt Template System
-AutoPDL-inspired modular prompts:
-- Structured templates with sections (role, context, task, constraints)
-- Variable substitution with `{placeholder}` syntax
-- Optional sections and importance weights
-- A/B testing support via `PromptVariant`
-
-### New Configuration Options (v3.1.0)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DAEM0NMCP_BM25_K1` | `1.5` | BM25 term frequency saturation |
-| `DAEM0NMCP_BM25_B` | `0.75` | BM25 document length normalization |
-| `DAEM0NMCP_RRF_K` | `60` | RRF fusion dampening constant |
-| `DAEM0NMCP_SURPRISE_K_NEAREST` | `5` | Neighbors for surprise calculation |
-| `DAEM0NMCP_SURPRISE_BOOST_THRESHOLD` | `0.7` | Boost memories above this surprise |
-| `DAEM0NMCP_RECALL_SIMPLE_MAX_MEMORIES` | `5` | Max memories for simple queries |
-| `DAEM0NMCP_RECALL_MEDIUM_MAX_MEMORIES` | `10` | Max memories for medium queries |
-| `DAEM0NMCP_RECALL_COMPLEX_MAX_MEMORIES` | `20` | Max memories for complex queries |
-| `DAEM0NMCP_FACT_PROMOTION_THRESHOLD` | `3` | Successful outcomes to promote to fact |
+- **BM25 + RRF Hybrid Retrieval**: Okapi BM25 replaces TF-IDF, Reciprocal Rank Fusion combines keyword and vector search
+- **TiMem-Style Recall Planner**: Complexity-aware retrieval adapting to query difficulty (simple/medium/complex)
+- **Titans-Inspired Surprise Scoring**: Novelty detection with `surprise_score` (0.0-1.0)
+- **Importance-Weighted Learning**: EWC-inspired protection for valuable memories via `importance_score`
+- **Fact Model**: Verified facts promote to immutable O(1) lookup after threshold successful outcomes
 
 ---
 
 ## What's New in v3.0.0
 
 ### FastMCP 3.0 Upgrade
-Daem0n-MCP now runs on FastMCP 3.0, bringing modern middleware architecture:
-
 - **CovenantMiddleware**: Sacred Covenant enforcement via FastMCP 3.0 middleware pattern
-  - Intercepts tool calls at the MCP protocol layer
-  - Works alongside existing decorators (belt and suspenders)
-  - Automatic enforcement without per-tool decoration
+- **Component Versioning**: All tools include version metadata
+- **OpenTelemetry Tracing** (Optional): `pip install daem0nmcp[tracing]`
 
-- **Component Versioning**: All 53 MCP tools now include version metadata
-  - Enables safe API evolution and deprecation tracking
-  - Tools report `version="3.0.0"` in their metadata
+---
 
-- **OpenTelemetry Tracing** (Optional): Built-in observability support
-  - Install with: `pip install daem0nmcp[tracing]`
-  - Enable with: `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`
+## Previous Versions
 
-### Breaking Changes
-- **Import path changed**: FastMCP 3.0 uses `from fastmcp import FastMCP` (was `from mcp.server.fastmcp`)
-- **Decorators deprecated**: `@requires_communion` and `@requires_counsel` now emit deprecation warnings
-  - CovenantMiddleware handles enforcement automatically
-  - Decorators still work but will be removed in a future version
+<details>
+<summary>v2.16.0 — Sacred Covenant Enforcement</summary>
 
-### Migration
-Upgrading from v2.x is straightforward:
-```bash
-cd ~/Daem0nMCP && git pull && pip install -e .
-```
-Database migrations run automatically. No manual steps required.
+- Tools block with `COMMUNION_REQUIRED`/`COUNSEL_REQUIRED` until proper rituals observed
+- Preflight tokens with 5-minute validity
+- MCP Resources for dynamic context injection (`daem0n://warnings/`, `daem0n://failed/`, etc.)
+</details>
 
-## What's New in v2.16.0
+<details>
+<summary>v2.14.0–v2.15.0 — Active Context, Temporal Versioning, Entities</summary>
 
-### Sacred Covenant Enforcement
-The Sacred Covenant is now **enforced**, not just advisory:
+- Active Working Context (MemGPT-style always-hot memories, max 10)
+- Temporal versioning with `versions` and `at_time` queries
+- Hierarchical summarization via Leiden communities
+- Auto entity extraction from memory content
+- Contextual recall triggers (auto-recall on file/tag/entity patterns)
+- Configurable hybrid search weight, result diversity, tag inference
+- Qualified entity names (`module.Class.method`), incremental indexing
+</details>
 
-- **`requires_communion`**: Tools block with `COMMUNION_REQUIRED` until `get_briefing()` is called
-- **`requires_counsel`**: Mutating tools block with `COUNSEL_REQUIRED` until `context_check()` is called
-- **Preflight tokens**: `context_check()` returns a cryptographic token valid for 5 minutes
-- **Remedies**: Each block includes the exact tool call needed to fix it
+<details>
+<summary>v2.11.0–v2.13.0 — Passive Capture, Linked Projects</summary>
 
-**Affected tools:**
-- Communion required: `remember`, `remember_batch`, `add_rule`, `update_rule`, `record_outcome`, `link_memories`, `pin_memory`, `archive_memory`, `prune_memories`, `cleanup_memories`, `compact_memories`, `recall`, `recall_for_file`, `search_memories`, `find_code`, `analyze_impact`
-- Counsel required (in addition to communion): `remember`, `remember_batch`, `add_rule`, `update_rule`
-- Exempt (entry points only): `get_briefing`, `context_check`, `health`
+- Passive Capture hooks (auto-remember decisions from conversation)
+- Endless Mode (condensed recall with 50-75% token reduction)
+- Linked Projects for cross-repo memory awareness
+</details>
 
-### MCP Resources (Dynamic Context Injection)
-Resources that Claude Desktop/Code can subscribe to for automatic context:
+<details>
+<summary>v2.7.0–v2.10.0 — Code Understanding, Enforcement, File Watcher</summary>
 
-| Resource URI | Content |
-|-------------|---------|
-| `daem0n://warnings/{project_path}` | All active warnings |
-| `daem0n://failed/{project_path}` | Failed approaches to avoid |
-| `daem0n://rules/{project_path}` | All configured rules |
-| `daem0n://context/{project_path}` | Combined context (warnings + failed + rules) |
-| `daem0n://triggered/{file_path}` | Auto-recalled context for a file |
+- Multi-language AST parsing via tree-sitter (Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP)
+- Qdrant vector backend for persistent vector storage
+- Proactive file watcher with desktop/log/editor-poll notifications
+- Pre-commit enforcement hooks blocking commits with stale decisions
+- CLI tools for status, record-outcome, install-hooks
+</details>
 
-### Claude Code 2.1.3 Compatibility
-- Fixed `daem0n_pre_edit_hook.py` to use MCP HTTP instead of removed `check-triggers` CLI command
-- Hooks now communicate directly with MCP server for context triggers
+<details>
+<summary>Core Features (v2.1+)</summary>
 
-## What's New in v2.15.0
-
-### Iteration 1: Search Quality
-- **Configurable hybrid weight**: `DAEM0NMCP_HYBRID_VECTOR_WEIGHT` (0.0-1.0)
-- **Result diversity**: `DAEM0NMCP_SEARCH_DIVERSITY_MAX_PER_FILE` limits same-file results
-- **Tag inference**: Auto-adds `bugfix`, `tech-debt`, `perf`, `warning` tags
-
-### Iteration 2: Code Entity Fidelity
-- **Qualified names**: Entities have `module.Class.method` identifiers
-- **Stable IDs**: Line changes don't invalidate entity IDs
-- **Import extraction**: Files track their imports for dependency analysis
-
-### Iteration 3: Incremental Indexing
-- **File hash tracking**: Only re-parses changed files
-- **`index_file_if_changed()`**: Efficient single-file re-indexing
-- **FileHash model**: Persists content hashes
-
-### Iteration 4: Performance & UX
-- **Parse tree caching**: Avoids re-parsing unchanged files
-- **Extended config**: `embedding_model`, `parse_tree_cache_maxsize`
-- **Enhanced health**: Code index stats, staleness detection
-
-## What's New in v2.14.0
-
-### Active Working Context (MemGPT-style)
-Always-hot memory layer that keeps critical information front and center:
-- `set_active_context(memory_id)` - Pin critical memories to active context
-- `get_active_context()` - Get all hot memories for current focus
-- `remove_from_active_context(memory_id)` - Remove from hot context
-- `clear_active_context()` - Clear all hot memories
-- Auto-included in `get_briefing()` responses
-- Failed decisions auto-activate with high priority
-- Max 10 items to prevent context bloat
-
-### Temporal Versioning
-Track how memories evolve over time:
-- Auto-creates versions on memory creation, outcome recording, relationship changes
-- `get_memory_versions(memory_id)` - Get full version history
-- `get_memory_at_time(memory_id, timestamp)` - Query historical state
-- Enables questions like "What did we believe about X last month?"
-
-### Hierarchical Summarization
-GraphRAG-style community detection and layered recall:
-- `rebuild_communities()` - Detect clusters by tag co-occurrence
-- `list_communities()` - Get summaries for high-level overview
-- `get_community_details(id)` - Drill down to member memories
-- `recall_hierarchical(topic)` - Layered retrieval: summaries then details
-- Auto-generated community names from dominant tags
-
-### Auto Entity Extraction (Cognee-style)
-Auto-extract and link code entities from memory content:
-- Auto-extracts functions, classes, files, concepts from memories on `remember()`
-- `recall_by_entity(name)` - Get all memories mentioning an entity
-- `list_entities()` - Most frequently mentioned entities
-- `backfill_entities()` - Extract entities from existing memories
-- Enables queries like "show everything about UserService"
-
-### Contextual Recall Triggers (Knowledge Graph MCP-style)
-Auto-recall memories without explicit calls based on context patterns:
-- `add_context_trigger(pattern, topic)` - Define auto-recall rules
-- `check_context_triggers(file_path)` - Get triggered context
-- `list_context_triggers()` / `remove_context_trigger(id)`
-- Supports file patterns, tag matching, entity matching
-- Integrated with pre-edit hooks for automatic injection
-- MCP Resource: `daem0n://triggered/{file_path}`
-
-## What's New in v2.13.0
-
-- **Passive Capture (Auto-Remember)**: Memories without manual calls
-  - Pre-edit hook: Auto-recalls memories for files being modified
-  - Post-edit hook: Suggests remember() for significant changes
-  - Stop hook: Auto-extracts decisions from Claude's responses
-  - CLI `remember` command for hook integration
-  - See `hooks/settings.json.example` for configuration
-
-## What's New in v2.12.0
-
-- **Endless Mode (Context Compression)**: Reduce token usage by 50-75%
-  - `recall(topic, condensed=True)` - Returns compressed memories
-  - Strips rationale, context fields; truncates content to 150 chars
-  - Focus areas in briefings use condensed mode automatically
-  - Inspired by memvid-mind's token efficiency approach
-
-## What's New in v2.11.0
-
-- **Linked Projects (Multi-Repo Support)**: Work across related repositories
-  - Link client/server or other related repos for cross-awareness
-  - `link_projects()` / `unlink_projects()` / `list_linked_projects()`
-  - `recall(include_linked=True)` - Search across linked repos
-  - `consolidate_linked_databases()` - Merge child DBs into unified parent
-  - `get_briefing()` now shows linked project warnings/stats
-  - See `docs/multi-repo-setup.md` for full guide
-  - New skill: `summon_daem0n` for project setup guidance
-
-### Previous Features (v2.10.0)
-
-- **Code Understanding Layer (Phase 2)**: The Daem0n now understands your code structure
-  - Multi-language AST parsing via `tree-sitter-language-pack`
-  - Supports: Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP
-  - Extracts: classes, functions, methods, signatures, docstrings
-  - New MCP tools:
-    - `index_project` - Index code entities for understanding
-    - `find_code` - Semantic search across code entities
-    - `analyze_impact` - Analyze what changing an entity would affect
-  - CLI: `python -m daem0nmcp.cli index`
-  - New models: `CodeEntity`, `MemoryCodeRef`
-
-### Previous Features (v2.9.0)
-
-- **Qdrant Vector Backend (Phase 0)**: Persistent vector storage replaces SQLite blob storage
-  - Qdrant local mode (file-based, no server required)
-  - Hybrid search: TF-IDF + vector similarity (0.3 weight)
-  - Migration script: `python -m daem0nmcp.migrations.migrate_vectors`
-
-- **Proactive File Watcher (Phase 1)**: The Daem0n now watches your files proactively
-  - Monitors file changes and notifies when files with associated memories are modified
-  - Multi-channel notifications:
-    - **System notifications**: Desktop alerts via `plyer`
-    - **Log file**: JSON-lines at `.daem0nmcp/storage/watcher.log`
-    - **Editor poll**: JSON at `.daem0nmcp/storage/editor-poll.json` for IDE plugins
-  - Start with: `python -m daem0nmcp.cli watch`
-  - Configurable debouncing, skip patterns, extension filters
-
-### Previous Features (v2.8.0)
-
-- **Automatic Tool Reminders (Stop Hook)**: Claude Code hooks that detect task completion and remind to record outcomes
-- **Enhanced SessionStart Hook**: Now reminds to commune with `get_briefing()` at session start
-- **Hook Scripts**: New `hooks/` directory with reusable Python scripts for Claude Code integration
-
-### Previous Features (v2.7.0)
-
-- **Pre-Commit Enforcement**: Git hooks that actually block commits when memory discipline is broken
-  - Blocks commits with decisions >24h old that lack recorded outcomes
-  - Blocks commits modifying files with known failed approaches
-  - Warns on recent pending decisions and file warnings
-- **CLI Resolution Tools**: New commands to resolve blocking issues
-  - `status` - Show pending decisions and what's blocking
-  - `record-outcome` - Record outcomes directly from CLI
-  - `install-hooks` / `uninstall-hooks` - Manage git hooks
-- **Automatic Session Tracking**: `remember()` now auto-tracks decisions as pending
-
-### Previous Features (v2.6.0)
-
-- **Enhanced Bootstrap**: First-run context collection extracts 7 memory categories automatically
-- **Smarter Session Start**: `get_briefing()` reports exactly what was ingested
-
-### Previous Features (v2.5.0)
-- **Windows HTTP Transport**: Full Windows support via streamable-http (bypasses stdio bugs)
-- **Ritual-Themed Installation**: `Summon_Daem0n.md` and `Banish_Daem0n.md` for fun
-- **Claude Code Hooks**: Auto-reminders to use memory tools
-- **Protocol Skill**: `daem0nmcp-protocol` skill for Superpowers users
-
-### Core Features (v2.1+)
-- **TF-IDF Semantic Search**: Real similarity matching, not just keyword overlap
-- **Memory Decay**: Recent memories weighted higher than old ones
-- **Conflict Detection**: Warns when new decisions contradict past failures
-- **Failed Decision Boosting**: Past mistakes surface prominently in recalls
-- **File-Level Memories**: Associate memories with specific files
-- **Vector Embeddings**: sentence-transformers for enhanced semantic matching
+- TF-IDF semantic search with real similarity matching
+- Memory decay (30-day half-life for decisions/learnings, eternal patterns/warnings)
+- Conflict detection and failed decision boosting (1.5x relevance)
+- File-level memory associations
+- Vector embeddings for enhanced semantic matching
+</details>
 
 ## Why Daem0nMCP?
 
@@ -503,11 +234,13 @@ AI agents start each session fresh. They don't remember:
 
 ### What Makes This Different
 
-Unlike keyword-based systems:
 - **Semantic matching**: "creating REST endpoint" matches rules about "adding API route"
 - **Time decay**: A decision from yesterday matters more than one from 6 months ago
 - **Conflict warnings**: "You tried this approach before and it failed"
 - **Learning loops**: Record outcomes, and failures get boosted in future recalls
+- **Surprise scoring**: Novel information surfaces above routine knowledge
+- **Graph reasoning**: Multi-hop traversal across linked memories and communities
+- **Background dreaming**: Idle-time re-evaluation of past failed decisions
 
 ## Quick Start
 
@@ -526,10 +259,13 @@ git clone https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
 # Install
 pip install -e ~/Daem0nMCP
 
-# Run the MCP server (Linux/macOS)
+# Optional: ONNX acceleration for embeddings
+pip install -e ~/Daem0nMCP[onnx]
+
+# Run the MCP server (Linux/macOS — stdio transport)
 python -m daem0nmcp.server
 
-# Run the MCP server (Windows - use HTTP transport)
+# Run the MCP server (Windows — HTTP transport required)
 python ~/Daem0nMCP/start_server.py --port 9876
 ```
 
@@ -571,15 +307,22 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## MCP Tools (11 Tools, 63 Actions)
+### Transport Modes
 
-As of v6.0, all capabilities are accessed through 8 workflow tools plus 3 cognitive tools. Each workflow tool accepts an `action` parameter to select the operation. Legacy individual tools have been removed from MCP registration.
+| Method | Transport | Default Port | Use Case |
+|--------|-----------|-------------|----------|
+| `python -m daem0nmcp.server` | `stdio` (default) or `sse` | 8765 (sse) | Unix/macOS direct channel |
+| `python start_server.py` | `streamable-http` | 9876 | Windows HTTP, remote access |
+
+## Workflow Tools (8 Tools, 59 Actions)
+
+All capabilities are accessed through 8 workflow tools. Each tool accepts an `action` parameter to select the operation. Legacy individual tools remain registered for backward compatibility.
 
 ### `commune` — Session Start & Status
 
 | Action | Purpose |
 |--------|---------|
-| `briefing` | Smart session start with git awareness (replaces `get_briefing`) |
+| `briefing` | Smart session start with git awareness |
 | `active_context` | Get all hot memories for current focus |
 | `triggers` | Check context triggers for auto-recalled memories |
 | `health` | Server health, version, and statistics |
@@ -590,12 +333,12 @@ As of v6.0, all capabilities are accessed through 8 workflow tools plus 3 cognit
 
 | Action | Purpose |
 |--------|---------|
-| `preflight` | Combined recall + rules check (replaces `context_check`) |
+| `preflight` | Combined recall + rules check before changes |
 | `recall` | Semantic memory retrieval by topic (supports `condensed`, `visual`) |
 | `recall_file` | Get memories linked to a specific file |
 | `recall_entity` | Get memories mentioning a code entity |
-| `recall_hierarchical` | GraphRAG-style layered retrieval |
-| `search` | Full-text search across all memories |
+| `recall_hierarchical` | GraphRAG-style layered retrieval with community summaries |
+| `search` | Full-text search across all memories (supports `highlight`, `visual`) |
 | `check_rules` | Validate action against decision rules |
 | `compress` | LLMLingua-2 context compression |
 
@@ -628,7 +371,7 @@ As of v6.0, all capabilities are accessed through 8 workflow tools plus 3 cognit
 | `index` | Index code entities via tree-sitter |
 | `find` | Semantic search across code entities |
 | `impact` | Analyze blast radius of code changes |
-| `todos` | Scan for TODO/FIXME/HACK comments |
+| `todos` | Scan for TODO/FIXME/HACK/XXX/BUG comments |
 | `refactor` | Generate refactor suggestions with causal history |
 
 ### `govern` — Rules & Triggers
@@ -675,26 +418,13 @@ As of v6.0, all capabilities are accessed through 8 workflow tools plus 3 cognit
 | `list_projects` | List all linked projects |
 | `consolidate` | Merge memories from linked projects |
 
-### Cognitive Tools (3 Standalone MCP Tools)
+### Cognitive Tools (Standalone)
 
 | Tool | Purpose |
 |------|---------|
-| `simulate_decision` | Temporal scrying — reconstruct past decision context vs current knowledge |
-| `evolve_rule` | Rule entropy analysis — detect staleness, code drift, and suggest evolution |
-| `debate_internal` | Adversarial council — evidence-grounded debate with convergence detection |
-
-### Visual Tools (MCP Apps — accessed via workflow tools)
-
-As of v5.1, these are no longer standalone MCP tools. Visual mode is accessed by passing `visual=True` to the `commune`, `consult`, or `explore` workflow tools. The table below lists the visual capabilities and which workflow action enables them:
-
-| Visual Capability | Access Via |
-|-------------------|------------|
-| Search results with card-based display | `consult(action="recall", visual=True)` |
-| Briefing dashboard with collapsible accordion | `commune(action="briefing", visual=True)` |
-| Covenant status with visual state machine | `commune(action="covenant", visual=True)` |
-| Community clusters with treemap visualization | `explore(action="communities", visual=True)` |
-| Memory graph with force-directed viewer | `explore(action="graph", visual=True)` |
-| Real-time update notifications | `commune(action="updates")` |
+| `simulate_decision` | Temporal Scrying — replay a past decision with current knowledge |
+| `evolve_rule` | Rule Entropy — examine rules for staleness and drift |
+| `debate_internal` | Adversarial Council — evidence-grounded debate with convergence detection |
 
 ## Usage Examples
 
@@ -714,10 +444,16 @@ inscribe(
 ```python
 consult(action="recall", topic="authentication")
 # Returns: decisions, patterns, warnings, learnings about auth
-# Sorted by: semantic relevance × recency × importance
+# Sorted by: semantic relevance x recency x importance
 
 consult(action="recall_file", file_path="src/auth/jwt.py")
 # Returns: all memories linked to this file
+
+consult(action="recall_entity", entity_name="UserService")
+# Returns: all memories mentioning the entity
+
+consult(action="recall", topic="auth", condensed=True)
+# Condensed: 50-75% fewer tokens, content truncated to 150 chars
 ```
 
 ### Create Rules
@@ -741,23 +477,37 @@ reflect(action="outcome", memory_id=43, outcome_text="Caching caused stale data"
 ### Session Start
 ```python
 commune(action="briefing", focus_areas=["authentication", "API"])
-# First run: Creates 6-7 memories from project structure, README, manifests, etc.
 # Returns: stats, recent decisions, warnings, failed approaches,
-# git changes, bootstrap summary, plus pre-fetched context for focus areas
+# git changes, plus pre-fetched context for focus areas
 ```
 
-### Endless Mode (Token Compression)
+### Active Context (Working Memory)
 ```python
-# Full recall (default) - ~40KB response
-consult(action="recall", topic="authentication")
+inscribe(action="activate", memory_id=42, reason="Working on auth refactor",
+         priority=10, expires_in_hours=8)
+# Memory stays in always-hot context, auto-injected into briefings
+# Max 10 items, auto-expires, duplicate prevention
 
-# Condensed recall - ~10KB response (75% smaller)
-consult(action="recall", topic="authentication", condensed=True)
-# Returns: truncated content, no rationale/context, minimal fields
+commune(action="active_context")  # View all hot memories
+inscribe(action="deactivate", memory_id=42)  # Remove
+inscribe(action="clear_active")  # Clear all
+```
 
-# Briefings automatically use condensed mode for focus areas
-commune(action="briefing", focus_areas=["auth", "database", "api"])
-# Focus area results are pre-compressed
+### Cognitive Tools
+```python
+# Temporal Scrying: What would I decide differently today?
+simulate_decision(decision_id=42)
+
+# Rule Entropy: Which rules have grown stale?
+evolve_rule(rule_id=5)       # Single rule
+evolve_rule()                 # Batch: all enabled rules
+
+# Adversarial Council: Evidence-grounded debate
+debate_internal(
+    topic="Database choice for sessions",
+    advocate_position="Use Redis",
+    challenger_position="Use PostgreSQL"
+)
 ```
 
 ### Import External Docs
@@ -768,55 +518,48 @@ inscribe(action="ingest", url="https://stripe.com/docs/api/charges", topic="stri
 
 ## AI Agent Protocol
 
-The recommended workflow for AI agents using the 8 workflow tools:
+The recommended workflow for AI agents:
 
 ```
 SESSION START
-    └─> commune(action="briefing")
+    +-> commune(action="briefing")
 
 BEFORE CHANGES
-    └─> consult(action="preflight", description="what you're doing")
-    └─> consult(action="recall_file", file_path="path/to/file.py")
+    +-> consult(action="preflight", description="what you're doing")
+    +-> consult(action="recall_file", file_path="path/to/file.py")
 
 AFTER DECISIONS
-    └─> inscribe(action="remember", category=..., content=..., rationale=..., file_path=...)
+    +-> inscribe(action="remember", category=..., content=..., rationale=..., file_path=...)
 
 AFTER IMPLEMENTATION
-    └─> reflect(action="outcome", memory_id=..., outcome_text=..., worked=...)
+    +-> reflect(action="outcome", memory_id=..., outcome_text=..., worked=...)
 ```
 
 See `Summon_Daem0n.md` for the complete protocol (with ritual theme for fun).
 
 ## Claude Code Integration
 
-### Hooks (Auto-Reminders)
+### Automated Hook Installation (Recommended)
 
-Add to `.claude/settings.json`:
-```json
-{
-  "hooks": {
-    "PreToolUse": [{
-      "matcher": "Edit|Write",
-      "hooks": [{
-        "type": "command",
-        "command": "echo '[Daem0n] Check memories before modifying'"
-      }]
-    }],
-    "PostToolUse": [{
-      "matcher": "Edit|Write",
-      "hooks": [{
-        "type": "command",
-        "command": "echo '[Daem0n] Consider calling remember()'"
-      }]
-    }]
-  }
-}
+```bash
+python -m daem0nmcp.cli install-claude-hooks
 ```
 
-### Passive Capture Hooks
+This registers 5 hook modules in `~/.claude/settings.json`:
 
-For fully automatic memory capture, enable all hooks in `.claude/settings.json`:
+| Event | Hook | Purpose |
+|-------|------|---------|
+| `SessionStart` | `session_start` | Auto-briefing summary |
+| `PreToolUse` (Edit/Write/NotebookEdit) | `pre_edit` | Preflight enforcement + file memory recall |
+| `PreToolUse` (Bash) | `pre_bash` | Rule enforcement on commands |
+| `PostToolUse` (Edit/Write) | `post_edit` | Suggest remembrance for significant changes |
+| `Stop`/`SubagentStop` | `stop` | Auto-capture decisions from conversation |
 
+To remove: `python -m daem0nmcp.cli uninstall-claude-hooks`
+
+### Manual Hooks (Legacy)
+
+Add to `.claude/settings.json`:
 ```json
 {
   "hooks": {
@@ -845,29 +588,29 @@ For fully automatic memory capture, enable all hooks in `.claude/settings.json`:
 }
 ```
 
-**What each hook does:**
-- **Pre-edit**: Shows warnings, patterns, and past decisions for files before you modify them
-- **Post-edit**: Suggests calling `remember()` when you make significant changes
-- **Stop**: Auto-extracts decisions from Claude's responses and creates memories
-
 ### Protocol Skill
 
-For Superpowers users, a skill is included at `.claude/skills/daem0nmcp-protocol/SKILL.md` that enforces the memory protocol.
+A Claude Code skill is included at `.claude/skills/daem0nmcp-protocol/SKILL.md` that enforces the memory protocol automatically.
 
 ## How It Works
 
-### TF-IDF Similarity
-Instead of simple keyword matching, Daem0nMCP builds TF-IDF vectors for all stored memories and queries. This means:
-- "authentication" matches memories about "auth", "login", "OAuth"
-- Rare terms (like project-specific names) get higher weight
-- Common words are automatically de-emphasized
+### Hybrid Search (BM25 + Vector + RRF)
+- **BM25** for keyword matching with term saturation and length normalization
+- **ModernBERT** vector embeddings (256-dim, asymmetric encoding) for deep semantic understanding
+- **Reciprocal Rank Fusion** combines both with configurable weights
+- "blocking database calls" matches memories about "synchronous queries"
+
+### Auto-Zoom Retrieval Routing
+Query-aware dispatch classifies complexity and routes to the optimal strategy:
+- Simple queries → vector-only (fast path)
+- Medium queries → hybrid BM25+vector
+- Complex queries → GraphRAG multi-hop with community summaries
 
 ### Memory Decay
 ```
-weight = e^(-λt) where λ = ln(2)/half_life_days
+weight = e^(-lambda*t) where lambda = ln(2)/half_life_days
 ```
-Default half-life is 30 days. A 60-day-old memory has ~25% weight.
-Patterns and warnings are permanent (no decay).
+Default half-life is 30 days. Patterns and warnings are permanent (no decay).
 
 ### Conflict Detection
 When storing a new memory, it's compared against recent memories:
@@ -877,7 +620,10 @@ When storing a new memory, it's compared against recent memories:
 
 ### Failed Decision Boosting
 Memories with `worked=False` get a 1.5x relevance boost in recalls.
-Warnings get a 1.2x boost. This ensures past mistakes surface prominently.
+Warnings get a 1.2x boost. Past mistakes surface prominently.
+
+### Background Dreaming
+During idle periods, the daemon re-evaluates failed decisions against current evidence. `FailedDecisionReview` strategy finds `worked=False` decisions, recalls current evidence, and persists actionable insights as `learning` memories. Yields cooperatively when the user returns.
 
 ## Data Storage
 
@@ -886,140 +632,217 @@ Each project gets isolated storage at:
 <project_root>/.daem0nmcp/storage/daem0nmcp.db
 ```
 
-### Legacy Migration
-If upgrading from DevilMCP, data is automatically migrated from `.devilmcp/` to `.daem0nmcp/`.
-
 ## Configuration
 
-Environment variables (prefix: `DAEM0NMCP_`):
+All settings are configurable via environment variables with `DAEM0NMCP_` prefix.
+
+### Core Settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DAEM0NMCP_PROJECT_ROOT` | `.` | Project root path |
 | `DAEM0NMCP_STORAGE_PATH` | auto | Override storage location |
 | `DAEM0NMCP_LOG_LEVEL` | `INFO` | Logging level |
-| `DAEM0NMCP_EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence-transformer model for embeddings |
-| `DAEM0NMCP_HYBRID_VECTOR_WEIGHT` | `0.3` | Vector vs BM25 weight (0.0–1.0) |
-| `DAEM0NMCP_QDRANT_PATH` | auto | Path for local Qdrant storage |
-| `DAEM0NMCP_QDRANT_URL` | — | Remote Qdrant URL (overrides local path) |
-| `DAEM0NMCP_WATCHER_ENABLED` | `false` | Enable file watcher daemon |
+| `DAEM0NMCP_QDRANT_URL` | `None` | Remote Qdrant URL (overrides local) |
 
-Version-specific configuration options are listed in the [v6.0.0](#new-configuration-options-v600) and [v3.1.0](#new-configuration-options-v310) sections above. See `daem0nmcp/config.py` for the full list of settings.
+### Embedding Model (v6.6.6+)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_EMBEDDING_MODEL` | `nomic-ai/modernbert-embed-base` | Model name |
+| `DAEM0NMCP_EMBEDDING_DIMENSION` | `256` | Matryoshka truncation dimension |
+| `DAEM0NMCP_EMBEDDING_BACKEND` | auto-detected | `onnx` or `torch` |
+| `DAEM0NMCP_EMBEDDING_QUERY_PREFIX` | `search_query: ` | Prefix for query encoding |
+| `DAEM0NMCP_EMBEDDING_DOCUMENT_PREFIX` | `search_document: ` | Prefix for document encoding |
+
+### Search Tuning
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_HYBRID_VECTOR_WEIGHT` | `0.3` | Vector weight in hybrid search (0.0-1.0) |
+| `DAEM0NMCP_BM25_K1` | `1.5` | BM25 term frequency saturation |
+| `DAEM0NMCP_BM25_B` | `0.75` | BM25 document length normalization |
+| `DAEM0NMCP_RRF_K` | `60` | RRF fusion dampening constant |
+| `DAEM0NMCP_SEARCH_DIVERSITY_MAX_PER_FILE` | `3` | Max results from same file |
+
+### Auto-Zoom Routing
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_AUTO_ZOOM_ENABLED` | `false` | Master switch for query-aware routing |
+| `DAEM0NMCP_AUTO_ZOOM_SHADOW` | `true` | Log classifications without routing |
+| `DAEM0NMCP_AUTO_ZOOM_CONFIDENCE_THRESHOLD` | `0.25` | Below this → hybrid fallback |
+| `DAEM0NMCP_AUTO_ZOOM_GRAPH_EXPANSION_DEPTH` | `2` | Multi-hop depth for complex queries |
+
+### Background Dreaming
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_DREAM_ENABLED` | `true` | Master switch for dreaming |
+| `DAEM0NMCP_DREAM_IDLE_TIMEOUT` | `60.0` | Seconds of idle before dreaming starts |
+| `DAEM0NMCP_DREAM_MAX_DECISIONS_PER_SESSION` | `5` | Max failed decisions to re-evaluate |
+| `DAEM0NMCP_DREAM_MIN_DECISION_AGE_HOURS` | `1` | Min age before re-evaluation eligible |
+
+### Cognitive Tools
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_COGNITIVE_DEBATE_MAX_ROUNDS` | `5` | Max rounds for adversarial council |
+| `DAEM0NMCP_COGNITIVE_EVOLVE_MAX_RULES` | `10` | Max rules to analyze for staleness |
+| `DAEM0NMCP_COGNITIVE_STALENESS_AGE_WEIGHT` | `0.3` | Time-based decay weight |
+
+### Recall Planner
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_SURPRISE_K_NEAREST` | `5` | Neighbors for surprise calculation |
+| `DAEM0NMCP_SURPRISE_BOOST_THRESHOLD` | `0.7` | Boost threshold (0.0-1.0) |
+| `DAEM0NMCP_RECALL_SIMPLE_MAX_MEMORIES` | `5` | Max memories for simple queries |
+| `DAEM0NMCP_RECALL_MEDIUM_MAX_MEMORIES` | `10` | Max memories for medium queries |
+| `DAEM0NMCP_RECALL_COMPLEX_MAX_MEMORIES` | `20` | Max memories for complex queries |
+| `DAEM0NMCP_FACT_PROMOTION_THRESHOLD` | `3` | Outcomes to promote to fact |
+
+See `Summon_Daem0n.md` for the complete configuration reference (~50 settings).
 
 ## Architecture
 
 ```
 daem0nmcp/
-├── server.py           # Composition root (149 lines) — imports & wires 15 tool modules
-├── mcp_instance.py     # Shared FastMCP instance
-├── context_manager.py  # Multi-project context management
-├── memory.py           # Memory storage & semantic retrieval (with Auto-Zoom integration)
-├── tools/              # 15 decomposed tool modules (v6.0)
-│   ├── briefing.py     # Session start, health, covenant, active context
-│   ├── memory.py       # Remember, recall, search, link, pin, archive
-│   ├── context_tools.py # Preflight, recall_file, recall_entity, triggers
-│   ├── code_tools.py   # Index, find, impact, todos, refactor
-│   ├── graph_tools.py  # Related, chain, graph, communities, evolution
-│   ├── entity_tools.py # Entity listing, backfill
-│   ├── rules.py        # Rule CRUD, context triggers
-│   ├── verification.py # Outcome recording, fact verification
-│   ├── agency_tools.py # Sandboxed code execution
-│   ├── maintenance.py  # Prune, cleanup, compact, export/import
-│   ├── federation.py   # Link/unlink projects, consolidate
-│   ├── temporal.py     # Memory versions, point-in-time queries
-│   ├── workflows.py    # 8 workflow tool registrations
-│   ├── cognitive_tools.py # 3 cognitive tools (simulate, evolve, debate)
-│   └── resources.py    # MCP resource providers
-├── cognitive/          # Cognitive reasoning (v6.0 Phase 17)
-│   ├── simulate.py     # Temporal scrying — decision replay
-│   ├── evolve.py       # Rule entropy analysis
-│   └── debate.py       # Adversarial council
-├── retrieval_router.py # Auto-Zoom query-aware dispatch (v6.0 Phase 15)
-├── query_classifier.py # ExemplarQueryClassifier (SentenceTransformer-based)
-├── compression/        # Context compression
-│   ├── jit.py          # JIT compression with tiered thresholds (v6.0 Phase 15)
-│   └── hierarchical.py # Hierarchical context management
-├── dreaming/           # Background dreaming (v6.0 Phase 16)
-│   ├── scheduler.py    # IdleDreamScheduler (idle detection + cooperative yielding)
-│   ├── strategies.py   # FailedDecisionReview strategy
-│   └── persistence.py  # DreamResult/DreamSession provenance
-├── reflexion/          # Metacognitive architecture
-│   ├── nodes.py        # Actor, Evaluator, Reflector (LangGraph)
-│   ├── code_gen.py     # Verification code generation (v6.0 Phase 14)
-│   ├── code_exec.py    # Sandboxed execution with failure classification (v6.0 Phase 14)
-│   ├── claims.py       # Claim extraction and classification
-│   └── graph.py        # Reflexion graph construction
-├── rules.py            # Rule engine with BM25 matching
-├── similarity.py       # TF-IDF index, decay, conflict detection
-├── vectors.py          # Vector embeddings (sentence-transformers)
-├── bm25_index.py       # BM25 Okapi keyword retrieval
-├── fusion.py           # Reciprocal Rank Fusion for hybrid search
-├── surprise.py         # Titans-inspired novelty detection
-├── recall_planner.py   # TiMem-style complexity classification
-├── covenant.py         # Sacred Covenant enforcement
-├── transforms/         # FastMCP 3.0 transforms
-│   └── covenant.py     # CovenantMiddleware
-├── channels/           # Notification channels (file watcher)
-│   ├── system_notify.py  # Desktop notifications via plyer
-│   ├── log_notify.py     # JSON-lines log file channel
-│   └── editor_poll.py    # JSON poll file for IDE plugins
-├── code_indexer.py     # Code understanding via tree-sitter
-├── database.py         # SQLite async database
-├── models.py           # 10+ tables
-├── config.py           # Pydantic settings (all v6.0 config options)
-└── ui/                 # MCP Apps visual interfaces
-    ├── build/          # D3.js bundle (105KB, no CDN)
-    ├── static/         # SecureMessenger, shared JS
-    └── templates/      # 6 HTML portals
+├── server.py            # MCP server with 8 workflow + 3 cognitive tools (FastMCP)
+├── mcp_instance.py      # FastMCP instance creation
+├── config.py            # Pydantic settings (~50 configurable options)
+├── memory.py            # Memory storage & semantic retrieval
+├── rules.py             # Rule engine with BM25 matching
+├── similarity.py        # TF-IDF index, decay, conflict detection
+├── vectors.py           # ModernBERT embeddings (ONNX/torch, asymmetric encoding)
+├── bm25_index.py        # BM25 Okapi keyword retrieval
+├── fusion.py            # Reciprocal Rank Fusion for hybrid search
+├── surprise.py          # Titans-inspired novelty detection
+├── recall_planner.py    # TiMem-style complexity classification
+├── retrieval_router.py  # Auto-Zoom query-aware search dispatch
+├── query_classifier.py  # Exemplar-based query complexity classification
+├── qdrant_store.py      # Qdrant vector database backend
+├── active_context.py    # MemGPT-style always-hot working memory
+├── entity_extractor.py  # Entity extraction from memory content
+├── entity_manager.py    # Entity lifecycle management
+├── communities.py       # Leiden community detection & summaries
+├── context_triggers.py  # Auto-recall trigger system
+├── context_manager.py   # Multi-project context management
+├── covenant.py          # Sacred Covenant enforcement & preflight tokens
+├── database.py          # SQLite async database
+├── models.py            # 10+ tables: memories, rules, relationships, etc.
+├── enforcement.py       # Pre-commit enforcement & session tracking
+├── hooks.py             # Git hook templates & installation
+├── cli.py               # Command-line interface
+├── workflows/           # 8 consolidated workflow tools
+│   ├── commune.py       # Session start & status
+│   ├── consult.py       # Pre-action intelligence
+│   ├── inscribe.py      # Memory writing & linking
+│   ├── reflect.py       # Outcomes & verification
+│   ├── understand.py    # Code comprehension
+│   ├── govern.py        # Rules & triggers
+│   ├── explore.py       # Graph & discovery
+│   └── maintain.py      # Housekeeping & federation
+├── tools/               # MCP tool registrations
+│   ├── workflows.py     # 8 workflow tool definitions
+│   ├── cognitive_tools.py # simulate_decision, evolve_rule, debate_internal
+│   ├── memory.py        # Legacy memory tools (deprecated)
+│   ├── briefing.py      # Legacy briefing tools (deprecated)
+│   ├── code_tools.py    # Legacy code tools (deprecated)
+│   ├── context_tools.py # Legacy context tools (deprecated)
+│   ├── entity_tools.py  # Legacy entity tools (deprecated)
+│   ├── graph_tools.py   # Legacy graph tools (deprecated)
+│   ├── rules.py         # Legacy rule tools (deprecated)
+│   ├── temporal.py      # Legacy temporal tools (deprecated)
+│   ├── verification.py  # Legacy verification tools (deprecated)
+│   ├── federation.py    # Legacy federation tools (deprecated)
+│   ├── maintenance.py   # Legacy maintenance tools (deprecated)
+│   └── agency_tools.py  # Legacy agency tools (deprecated)
+├── cognitive/           # Cognitive tool implementations
+│   ├── simulate.py      # Temporal scrying (decision replay)
+│   ├── evolve.py        # Rule entropy analysis
+│   └── debate.py        # Adversarial council
+├── dreaming/            # Background dreaming system
+│   ├── scheduler.py     # IdleDreamScheduler (idle detection + dispatch)
+│   ├── strategies.py    # FailedDecisionReview strategy
+│   └── persistence.py   # Dream session/result models & persistence
+├── claude_hooks/        # Claude Code native hooks
+│   ├── install.py       # install/uninstall-claude-hooks CLI
+│   ├── session_start.py # Auto-briefing at session dawn
+│   ├── pre_edit.py      # Preflight enforcement + file recall
+│   ├── pre_bash.py      # Rule enforcement on commands
+│   ├── post_edit.py     # Significance detection
+│   ├── stop.py          # Auto-capture decisions
+│   └── _client.py       # Hook helper utilities
+├── compression/         # LLMLingua-2 context compression
+├── graph/               # Knowledge graph (NetworkX + Leiden)
+├── reflexion/           # Metacognitive architecture (LangGraph)
+├── agency/              # Dynamic agency (E2B sandboxing)
+├── transforms/          # FastMCP 3.0 middleware
+│   └── covenant.py      # CovenantMiddleware & CovenantTransform
+├── ui/                  # MCP Apps visual interfaces (D3.js)
+├── channels/            # Notification channels (desktop, log, editor-poll)
+├── migrations/          # Database schema & embedding migrations
+├── code_indexer.py      # Code understanding via tree-sitter
+├── watcher.py           # Proactive file watcher daemon
+├── tracing.py           # OpenTelemetry integration (optional)
+├── prompt_templates.py  # AutoPDL-inspired modular prompts
+└── tool_search.py       # Dynamic tool discovery index
 
-Summon_Daem0n.md   # Installation & upgrade instructions (ritual theme)
-Banish_Daem0n.md   # Uninstallation instructions
-start_server.py    # HTTP server launcher (Windows)
+.claude/
+└── skills/
+    └── daem0nmcp-protocol/
+        └── SKILL.md       # Protocol enforcement skill
+
+Summon_Daem0n.md     # Installation instructions (ritual theme)
+Banish_Daem0n.md     # Uninstallation instructions
+start_server.py      # HTTP server launcher (streamable-http transport)
 ```
 
 ## CLI Commands
 
 ```bash
-# Check a file against memories and rules
-python -m daem0nmcp.cli check <filepath>
-
-# Get session briefing/statistics
+# Session briefing/statistics
 python -m daem0nmcp.cli briefing
+
+# Index code entities
+python -m daem0nmcp.cli index [--path PATH] [--patterns **/*.py **/*.ts ...]
 
 # Scan for TODO/FIXME/HACK comments
 python -m daem0nmcp.cli scan-todos [--auto-remember] [--path PATH]
 
-# Index code entities (Phase 2)
-python -m daem0nmcp.cli index [--path PATH] [--patterns **/*.py **/*.ts ...]
+# Check a file against memories and rules
+python -m daem0nmcp.cli check <filepath>
 
 # Run database migrations (usually automatic)
 python -m daem0nmcp.cli migrate [--backfill-vectors]
 ```
 
-### Enforcement Commands
+### Hook & Enforcement Commands
 
 ```bash
-# Check staged files (used by pre-commit hook)
-python -m daem0nmcp.cli pre-commit [--interactive]
+# Install Claude Code hooks (user-level, all projects)
+python -m daem0nmcp.cli install-claude-hooks [--dry-run]
+
+# Remove Claude Code hooks
+python -m daem0nmcp.cli uninstall-claude-hooks [--dry-run]
+
+# Install git pre-commit hooks
+python -m daem0nmcp.cli install-hooks [--force]
+
+# Remove git pre-commit hooks
+python -m daem0nmcp.cli uninstall-hooks
 
 # Show pending decisions and blocking issues
 python -m daem0nmcp.cli status
 
 # Record outcome for a decision
 python -m daem0nmcp.cli record-outcome <id> "<outcome>" --worked|--failed
-
-# Install git hooks
-python -m daem0nmcp.cli install-hooks [--force]
-
-# Remove git hooks
-python -m daem0nmcp.cli uninstall-hooks
 ```
 
 All commands support `--json` for machine-readable output and `--project-path` to specify the project root.
 
 ## Upgrading
-
-Upgrading Daem0n-MCP is straightforward:
 
 ### 1. Update the Code
 
@@ -1027,45 +850,41 @@ Upgrading Daem0n-MCP is straightforward:
 # If installed from source (recommended)
 cd ~/Daem0nMCP && git pull && pip install -e .
 
-# If installed via pip
-pip install --upgrade daem0nmcp
+# Optional: ONNX acceleration
+pip install -e ~/Daem0nMCP[onnx]
 ```
 
-**Important:** The `pip install -e .` step is required to install all dependencies:
-- `qdrant-client` - Vector database for semantic search
-- `watchdog` - File watching for proactive notifications
-- `plyer` - Desktop notifications
-- `tree-sitter-language-pack` - Multi-language code parsing (Python 3.14 compatible)
+### 2. Re-encode Embeddings (v6.6.6+ — REQUIRED for existing data)
 
-All dependencies are required for full functionality.
+The embedding model changed from `all-MiniLM-L6-v2` (384-dim) to `nomic-ai/modernbert-embed-base` (256-dim). Existing embeddings must be re-encoded:
 
-### 2. Restart Claude Code
+```bash
+python -m daem0nmcp.migrations.migrate_embedding_model --project-path /path/to/.daem0nmcp
+```
+
+Qdrant collections are auto-recreated with the correct dimension on first startup.
+
+### 3. Install Claude Code Hooks
+
+```bash
+python -m daem0nmcp.cli install-claude-hooks
+```
+
+### 4. Restart Claude Code
 
 After updating, restart Claude Code to load the new MCP tools.
 
-### 3. Migrations Run Automatically
+### 5. Migrations Run Automatically
 
-Database migrations are applied automatically when any MCP tool runs. The first time you use `get_briefing()`, `remember()`, or any other tool after upgrading, the database schema is updated.
+Database schema migrations are applied automatically when any MCP tool runs. No manual migration step required.
 
-No manual migration step required.
-
-### 4. Install Enforcement Hooks
-
-Pre-commit hooks block commits when decisions lack outcomes:
-
-```bash
-python -m daem0nmcp.cli install-hooks
-```
-
-### 5. Index Your Codebase
-
-Enable code understanding by indexing your project:
+### 6. Index Your Codebase
 
 ```bash
 python -m daem0nmcp.cli index
 ```
 
-This parses your code with tree-sitter (supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP) and enables semantic code search via `find_code()` and impact analysis via `analyze_impact()`.
+Supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP via tree-sitter.
 
 ## Troubleshooting
 
@@ -1073,15 +892,12 @@ This parses your code with tree-sitter (supports Python, TypeScript, JavaScript,
 
 **Symptom:** `claude mcp list` shows daem0nmcp connected, but Claude can't use `mcp__daem0nmcp__*` tools.
 
-**Cause:** Known Claude Code bug ([#2682](https://github.com/anthropics/claude-code/issues/2682)) where MCP tools are discovered but not injected into Claude's toolbox.
-
 **Fixes:**
 
-1. **Start server before Claude Code:**
+1. **Start server before Claude Code (Windows):**
    ```bash
    # Terminal 1: Start Daem0n server first
    python ~/Daem0nMCP/start_server.py --port 9876
-
    # Wait for "Uvicorn running on http://localhost:9876"
 
    # Terminal 2: Then start Claude Code
@@ -1094,32 +910,27 @@ This parses your code with tree-sitter (supports Python, TypeScript, JavaScript,
    claude mcp add daem0nmcp http://localhost:9876/mcp -s user
    ```
 
-3. **Verify tools are available:**
-   - Claude should show `mcp__daem0nmcp__*` tools in its toolbox
-   - If Claude tries `claude mcp call` bash commands instead, the tools aren't injected
-
 ### Hooks Not Firing
 
-**Symptom:** Pre-edit hooks don't show Daem0n context.
-
-**Check:**
 1. MCP server running: `curl http://localhost:9876/mcp` should respond
-2. Hooks configured in `.claude/settings.json`
+2. Hooks configured: check `~/.claude/settings.json` or `.claude/settings.json`
 3. Project has `.daem0nmcp/` directory
+
+### Communion/Counsel Errors
+
+- `COMMUNION_REQUIRED` → Call `commune(action="briefing", project_path="...")` first
+- `COUNSEL_REQUIRED` → Call `consult(action="preflight", description="...", project_path="...")` first
 
 ## Development
 
 ```bash
 # Install in development mode
-pip install -e .
+pip install -e .[dev]
 
-# Run tests (740+ tests)
+# Run tests (500+ tests)
 pytest tests/ -v --asyncio-mode=auto
 
-# Lint
-ruff check daem0nmcp/ tests/
-
-# Run server directly
+# Run server directly (stdio)
 python -m daem0nmcp.server
 
 # Run HTTP server (Windows)
@@ -1137,6 +948,9 @@ If Daem0nMCP has been useful to you, consider supporting its development:
 See `Banish_Daem0n.md` for complete removal instructions, or quick version:
 
 ```bash
+# Remove Claude Code hooks
+python -m daem0nmcp.cli uninstall-claude-hooks
+
 # Remove MCP registration
 claude mcp remove daem0nmcp --scope user
 
@@ -1158,4 +972,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v6.0.0: The Thinking Daemon — Auto-Zoom retrieval routing, JIT compression, background dreaming, and 3 cognitive tools (temporal scrying, rule evolution, adversarial debate). Server decomposed from 6,467 lines to 149-line composition root + 15 modules. 11 MCP tools (8 workflows + 3 cognitive), 63 actions. 740+ tests. The daemon now thinks while you rest.*
+*Daem0nMCP v6.6.6: ModernBERT Deep Sight (256-dim Matryoshka, ONNX quantized, asymmetric encoding). 8 workflow tools with 59 actions + 3 cognitive tools (simulate_decision, evolve_rule, debate_internal). Background Dreaming, Auto-Zoom Retrieval Routing, Active Context, Visual Portals (MCP Apps), GraphRAG, bi-temporal knowledge, LLMLingua-2 compression, Claude Code native hooks. 500+ tests. The daemon sees deeper and speaks with greater precision.*

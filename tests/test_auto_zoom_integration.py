@@ -398,6 +398,10 @@ class TestPipelineResilienceClassifierFailure:
             # The router catches classifier errors and falls back to hybrid
             result = await router.route_search("query that breaks classifier")
 
+        # Router catches classifier exception and falls back to hybrid
+        assert result["strategy_used"] == "hybrid"
+        assert result["results"] == [(20, 0.6)]
+        assert result["classification"] is None
         # Verify classifier was called
         clf.classify.assert_called_once_with("query that breaks classifier")
         # Router fell back to hybrid search
@@ -407,7 +411,7 @@ class TestPipelineResilienceClassifierFailure:
 
     @pytest.mark.asyncio
     async def test_recall_level_classifier_resilience(self):
-        """At the MemoryManager.recall() level, classifier failures fall back to hybrid.
+        """At the router level, classifier failures fall back to hybrid.
 
         The router catches classifier exceptions internally and falls back to
         hybrid search, so recall() never needs its own fallback for this case.
