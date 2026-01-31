@@ -102,3 +102,64 @@ class TestGlobalVectorIndex:
         vectors.reset_vector_index()
         index2 = vectors.get_vector_index()
         assert index1 is not index2
+
+
+import struct
+from unittest.mock import MagicMock, patch
+from daem0nmcp.config import settings
+
+
+class TestEncodeQueryDocument:
+    """Test encode_query and encode_document use correct prefixes."""
+
+    @patch("daem0nmcp.vectors._get_model")
+    def test_encode_document_prepends_document_prefix(self, mock_get_model):
+        import numpy as np
+        from daem0nmcp import vectors
+
+        fake_model = MagicMock()
+        fake_model.encode.return_value = np.array([0.1] * 256, dtype=np.float32)
+        mock_get_model.return_value = fake_model
+
+        result = vectors.encode_document("hello world")
+        assert result is not None
+
+        # Verify document prefix was prepended
+        fake_model.encode.assert_called_once()
+        call_text = fake_model.encode.call_args[0][0]
+        assert call_text == f"{settings.embedding_document_prefix}hello world"
+
+    @patch("daem0nmcp.vectors._get_model")
+    def test_encode_query_prepends_query_prefix(self, mock_get_model):
+        import numpy as np
+        from daem0nmcp import vectors
+
+        fake_model = MagicMock()
+        fake_model.encode.return_value = np.array([0.1] * 256, dtype=np.float32)
+        mock_get_model.return_value = fake_model
+
+        result = vectors.encode_query("hello world")
+        assert result is not None
+
+        call_text = fake_model.encode.call_args[0][0]
+        assert call_text == f"{settings.embedding_query_prefix}hello world"
+
+    @patch("daem0nmcp.vectors._get_model")
+    def test_encode_returns_correct_byte_length(self, mock_get_model):
+        import numpy as np
+        from daem0nmcp import vectors
+
+        fake_model = MagicMock()
+        fake_model.encode.return_value = np.array([0.1] * 256, dtype=np.float32)
+        mock_get_model.return_value = fake_model
+
+        result = vectors.encode_document("test")
+        assert result is not None
+        # 256 floats * 4 bytes each = 1024 bytes
+        assert len(result) == 256 * 4
+
+
+class TestGetDimension:
+    def test_returns_configured_dimension(self):
+        from daem0nmcp.vectors import get_dimension
+        assert get_dimension() == settings.embedding_dimension
