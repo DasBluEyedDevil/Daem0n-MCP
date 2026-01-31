@@ -16,7 +16,6 @@ from daem0nmcp.reflexion.claims import (
     ClaimType,
     VerificationLevel,
     is_code_verifiable,
-    extract_claims,
 )
 from daem0nmcp.reflexion.code_gen import generate_verification_code
 from daem0nmcp.reflexion.code_exec import (
@@ -32,7 +31,6 @@ from daem0nmcp.agency.sandbox import StructuredExecutionResult
 from daem0nmcp.reflexion.nodes import (
     create_actor_node,
     create_evaluator_node,
-    MAX_ITERATIONS,
 )
 from daem0nmcp.reflexion.graph import (
     build_reflexion_graph,
@@ -542,7 +540,7 @@ class TestCodeExecutionBudget:
     @pytest.mark.asyncio
     async def test_code_budget_separate_from_max_iterations(self, mock_memory_manager):
         """Code budget does not affect iteration-based loop control."""
-        mock_code_result = CodeExecutionResult(
+        _mock_code_result = CodeExecutionResult(  # noqa: F841
             failure_type=CodeFailureType.SUCCESS,
             output="ALL_ASSERTIONS_PASSED",
             assertions_passed=True,

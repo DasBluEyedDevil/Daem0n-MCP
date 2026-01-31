@@ -15,15 +15,14 @@ This module does NOT import from mcp_instance, server, or any tools module.
 It sits between the MCP instance and the tool implementations in the DAG.
 """
 
-import sys
 import os
 import asyncio
 import contextlib
 import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple, Set
-from datetime import datetime, timezone, timedelta
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
 try:
@@ -32,7 +31,7 @@ try:
     from .memory import MemoryManager
     from .rules import RulesEngine
     from .rwlock import RWLock
-    from .logging_config import with_request_id, request_id_var, set_release_callback
+    from .logging_config import request_id_var, set_release_callback
     from .covenant import set_context_callback
 except ImportError:
     from daem0nmcp.config import settings
@@ -40,7 +39,7 @@ except ImportError:
     from daem0nmcp.memory import MemoryManager
     from daem0nmcp.rules import RulesEngine
     from daem0nmcp.rwlock import RWLock
-    from daem0nmcp.logging_config import with_request_id, request_id_var, set_release_callback
+    from daem0nmcp.logging_config import request_id_var, set_release_callback
     from daem0nmcp.covenant import set_context_callback
 
 logger = logging.getLogger(__name__)
@@ -338,7 +337,6 @@ async def get_project_context(project_path: Optional[str] = None) -> ProjectCont
     Returns:
         ProjectContext with initialized managers for that project.
     """
-    import time
 
     # Use default if not specified
     if not project_path:
@@ -434,7 +432,6 @@ async def evict_stale_contexts() -> int:
     1. Collect candidates under contexts_lock (no nested locks)
     2. Process each candidate individually with proper lock ordering
     """
-    import time
 
     evicted = 0
     now = time.time()

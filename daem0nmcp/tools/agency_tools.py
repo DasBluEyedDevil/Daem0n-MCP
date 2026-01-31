@@ -1,6 +1,5 @@
 """Agency tools: execute_python, compress_context, ingest_doc."""
 
-import os
 import re
 import sys
 import logging

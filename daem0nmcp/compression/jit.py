@@ -13,10 +13,15 @@ Tiers:
 Dynamic rates increase proportionally to overshoot using square root dampening.
 Code syntax and entity names are preserved via AdaptiveCompressor + CodeEntityPreserver.
 """
+from __future__ import annotations
+
 import logging
 import math
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, List
+from typing import TYPE_CHECKING, Dict, Any, Optional, List
+
+if TYPE_CHECKING:
+    from daem0nmcp.compression import AdaptiveCompressor
 
 logger = logging.getLogger(__name__)
 

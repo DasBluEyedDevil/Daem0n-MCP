@@ -1,7 +1,5 @@
 """Briefing and session tools: get_briefing, context_check, health, etc."""
 
-import os
-import re
 import json
 import logging
 import subprocess
@@ -16,7 +14,6 @@ try:
         _missing_project_path_error, _project_contexts,
     )
     from ..logging_config import with_request_id
-    from ..config import settings
     from ..models import Memory, Rule, CodeEntity
     from .. import __version__
     from .. import vectors
@@ -27,7 +24,6 @@ except ImportError:
         _missing_project_path_error, _project_contexts,
     )
     from daem0nmcp.logging_config import with_request_id
-    from daem0nmcp.config import settings
     from daem0nmcp.models import Memory, Rule, CodeEntity
     from daem0nmcp import __version__
     from daem0nmcp import vectors
