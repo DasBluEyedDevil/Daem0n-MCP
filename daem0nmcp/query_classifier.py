@@ -9,8 +9,8 @@ semantically complex (e.g. "authentication cascade" is complex despite
 being 2 words).
 
 Key design choices:
-- Reuses the shared all-MiniLM-L6-v2 model via vectors._get_model()
-  instead of loading a second instance (~200 MB memory saved).
+- Reuses the shared embedding model via vectors._get_model()
+  instead of loading a second instance.
 - Exemplar embeddings are computed lazily on first classify() call,
   not at import time (no startup penalty).
 - Falls back to MEDIUM when confidence is below threshold.
@@ -87,7 +87,7 @@ class ExemplarQueryClassifier:
 
         embeddings: Dict[QueryComplexity, np.ndarray] = {}
         for level, texts in self.EXEMPLARS.items():
-            prefixed_texts = [f"{settings.embedding_document_prefix}{t}" for t in texts]
+            prefixed_texts = [f"{settings.embedding_query_prefix}{t}" for t in texts]
             embeddings[level] = self._model.encode(prefixed_texts, convert_to_numpy=True)
 
         self._exemplar_embeddings = embeddings

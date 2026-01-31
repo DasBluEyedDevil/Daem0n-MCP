@@ -32,7 +32,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=100, help="Commit batch size")
     args = parser.parse_args()
 
-    db_path = os.path.join(args.project_path, "storage", "daem0n.db")
+    db_path = os.path.join(args.project_path, "storage", "daem0nmcp.db")
     if not os.path.exists(db_path):
         logger.error(f"Database not found: {db_path}")
         sys.exit(1)
