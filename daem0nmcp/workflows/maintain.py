@@ -13,11 +13,17 @@ Actions:
 - unlink_project: Remove project link
 - list_projects: List all linked projects
 - consolidate: Merge memories from all linked projects
+- purge_dream_spam: Deduplicate dream re-evaluation and summary memories
 """
 
+import logging
+from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from .errors import InvalidActionError, MissingParamError
+
+logger = logging.getLogger(__name__)
 
 VALID_ACTIONS = frozenset({
     "prune",
@@ -31,6 +37,7 @@ VALID_ACTIONS = frozenset({
     "unlink_project",
     "list_projects",
     "consolidate",
+    "purge_dream_spam",
 })
 
 
@@ -119,6 +126,9 @@ async def dispatch(
 
     elif action == "consolidate":
         return await _do_consolidate(project_path, archive_sources)
+
+    elif action == "purge_dream_spam":
+        return await _do_purge_dream_spam(project_path, dry_run)
 
     raise InvalidActionError(action, sorted(VALID_ACTIONS))
 
@@ -260,3 +270,117 @@ async def _do_consolidate(
     return await consolidate_linked_databases(
         archive_sources=archive_sources, project_path=project_path
     )
+
+
+async def _do_purge_dream_spam(
+    project_path: str, dry_run: bool
+) -> Dict[str, Any]:
+    """Deduplicate dream re-evaluation and summary memories.
+
+    For re-evaluations: groups by source decision ID, keeps only the
+    most recent per decision, deletes the rest.
+
+    For summaries: keeps only the most recent per calendar day, deletes
+    the rest.
+
+    Args:
+        project_path: Project root path.
+        dry_run: If True (default), preview what would be deleted without
+            actually deleting.
+
+    Returns:
+        Dict with counts of deleted/would-delete re-evaluations and summaries.
+    """
+    from sqlalchemy import select, delete
+
+    try:
+        from ..context_manager import get_project_context
+    except ImportError:
+        from daem0nmcp.context_manager import get_project_context
+
+    try:
+        from ..models import Memory
+    except ImportError:
+        from daem0nmcp.models import Memory
+
+    ctx = await get_project_context(project_path)
+
+    reeval_to_delete: List[int] = []
+    summary_to_delete: List[int] = []
+
+    async with ctx.db_manager.get_session() as db_session:
+        # Query all learning memories with dream-related tags
+        result = await db_session.execute(
+            select(Memory)
+            .where(Memory.category == "learning")
+            .order_by(Memory.created_at.desc())
+        )
+        all_learning = result.scalars().all()
+
+        # Separate re-evaluations and summaries
+        reeval_by_decision: Dict[int, List[Any]] = defaultdict(list)
+        summary_by_day: Dict[str, List[Any]] = defaultdict(list)
+
+        for mem in all_learning:
+            tags = mem.tags or []
+            if "dream" not in tags:
+                continue
+
+            if "re-evaluation" in tags:
+                # Extract source decision ID
+                for tag in tags:
+                    if tag.startswith("source-decision:"):
+                        try:
+                            decision_id = int(tag.split(":", 1)[1])
+                            reeval_by_decision[decision_id].append(mem)
+                        except (ValueError, IndexError):
+                            pass
+                        break
+            elif "dream-summary" in tags:
+                # Group by calendar day
+                day_key = mem.created_at.strftime("%Y-%m-%d") if mem.created_at else "unknown"
+                summary_by_day[day_key].append(mem)
+
+        # For each decision, keep only the most recent re-evaluation
+        for decision_id, mems in reeval_by_decision.items():
+            # Already sorted desc by created_at from query
+            if len(mems) > 1:
+                reeval_to_delete.extend(m.id for m in mems[1:])
+
+        # For each day, keep only the most recent summary
+        for day, mems in summary_by_day.items():
+            if len(mems) > 1:
+                summary_to_delete.extend(m.id for m in mems[1:])
+
+        total_to_delete = reeval_to_delete + summary_to_delete
+
+        if not dry_run and total_to_delete:
+            await db_session.execute(
+                delete(Memory).where(Memory.id.in_(total_to_delete))
+            )
+
+    # Rebuild index after deletion
+    if not dry_run and total_to_delete:
+        try:
+            await ctx.memory_manager.rebuild_index()
+        except Exception as e:
+            logger.warning("Failed to rebuild index after purge: %s", e)
+
+    return {
+        "action": "purge_dream_spam",
+        "dry_run": dry_run,
+        "reeval_duplicates": len(reeval_to_delete),
+        "summary_duplicates": len(summary_to_delete),
+        "total_deleted" if not dry_run else "total_would_delete": len(total_to_delete),
+        "unique_decisions_with_duplicates": sum(
+            1 for mems in reeval_by_decision.values() if len(mems) > 1
+        ),
+        "unique_days_with_duplicate_summaries": sum(
+            1 for mems in summary_by_day.values() if len(mems) > 1
+        ),
+        "message": (
+            f"{'Would delete' if dry_run else 'Deleted'} "
+            f"{len(reeval_to_delete)} duplicate re-evaluations and "
+            f"{len(summary_to_delete)} duplicate summaries"
+        ),
+    }

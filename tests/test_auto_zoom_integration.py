@@ -38,7 +38,7 @@ def _make_mock_mm(hybrid_results=None, qdrant=None):
     mm = MagicMock()
     mm._hybrid_search.return_value = hybrid_results or [(1, 0.9), (2, 0.7)]
     mm._qdrant = qdrant
-    mm._knowledge_graph = None
+    mm._knowledge_graph = None  # Prevent MagicMock auto-attribute from shadowing router's self._kg
     mm.db = MagicMock()
     mm.db.storage_path = "/tmp/test"
     return mm
@@ -395,6 +395,7 @@ class TestPipelineResilienceClassifierFailure:
         router = RetrievalRouter(memory_manager=mm, classifier=clf)
 
         with patch("daem0nmcp.retrieval_router.settings", _settings_context(enabled=True)):
+            # The router catches classifier errors and falls back to hybrid
             result = await router.route_search("query that breaks classifier")
 
         # Router catches classifier exception and falls back to hybrid
@@ -403,13 +404,17 @@ class TestPipelineResilienceClassifierFailure:
         assert result["classification"] is None
         # Verify classifier was called
         clf.classify.assert_called_once_with("query that breaks classifier")
+        # Router fell back to hybrid search
+        assert result["strategy_used"] == "hybrid"
+        assert result["results"] == [(20, 0.6)]
+        assert result["classification"] is None
 
     @pytest.mark.asyncio
     async def test_recall_level_classifier_resilience(self):
         """At the router level, classifier failures fall back to hybrid.
 
-        The router catches classifier exceptions internally and falls back
-        to hybrid search, so recall() never sees the exception.
+        The router catches classifier exceptions internally and falls back to
+        hybrid search, so recall() never needs its own fallback for this case.
         """
         mm = _make_mock_mm(hybrid_results=[(20, 0.6)])
         clf = MagicMock()
@@ -419,9 +424,10 @@ class TestPipelineResilienceClassifierFailure:
         with patch("daem0nmcp.retrieval_router.settings", _settings_context(enabled=True)):
             result = await router.route_search("broken query")
 
-        # Router handles the exception internally, returns hybrid results
+        # Router caught the classifier error and fell back to hybrid
         assert result["strategy_used"] == "hybrid"
         assert result["results"] == [(20, 0.6)]
+        assert result["classification"] is None
 
 
 # ---------------------------------------------------------------------------

@@ -110,6 +110,16 @@ class Settings(BaseSettings):
     dream_max_decisions_per_session: int = 5        # Max failed decisions to re-evaluate per session
     dream_yield_check_interval: float = 0.0         # Seconds between yield checks (0 = every step)
     dream_min_decision_age_hours: int = 1           # Min age of decision before re-evaluation eligible
+    dream_review_cooldown_hours: int = 72            # Skip decisions reviewed within this window
+
+    # ConnectionDiscovery strategy
+    dream_connection_lookback_hours: int = 168        # 7-day lookback for entity sharing
+    dream_connection_max_per_session: int = 20         # Max connections per dream session
+    dream_connection_min_shared_entities: int = 2      # Min shared entities to create link
+    dream_connection_confidence: float = 0.7           # Confidence for inferred relationships
+
+    # CommunityRefresh strategy
+    dream_community_staleness_threshold: int = 10      # New memories before community rebuild
 
     # Cognitive Tools
     cognitive_debate_max_rounds: int = 5

@@ -39,6 +39,7 @@ class DreamSession:
     insights_generated: int = 0
     results: List[DreamResult] = field(default_factory=list)
     interrupted: bool = False  # True if user returned before completion
+    strategies_run: List[str] = field(default_factory=list)
 
 
 async def persist_dream_result(
@@ -115,6 +116,7 @@ async def persist_session_summary(
             content=(
                 f"Dream session summary: Reviewed {session.decisions_reviewed} "
                 f"decisions, generated {session.insights_generated} insights"
+                f" (strategies: {', '.join(session.strategies_run) or 'none'})"
             ),
             rationale=f"Dream session {session.session_id} summary",
             tags=[
@@ -126,6 +128,7 @@ async def persist_session_summary(
                 "dream_session_id": session.session_id,
                 "decisions_reviewed": session.decisions_reviewed,
                 "insights_generated": session.insights_generated,
+                "strategies_run": session.strategies_run,
                 "interrupted": session.interrupted,
                 "started_at": session.started_at.isoformat(),
                 "ended_at": (

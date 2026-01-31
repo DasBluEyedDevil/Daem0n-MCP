@@ -32,6 +32,7 @@ def main():
     # Import after setting environment
     from daem0nmcp.server import mcp
 
+
     print(f"=" * 60)
     print(f"Daem0nMCP HTTP Server")
     print(f"=" * 60)
