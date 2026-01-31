@@ -21,7 +21,7 @@ from typing import Callable, Optional
 from sqlalchemy import select
 
 from daem0nmcp import vectors
-from daem0nmcp.config import Settings
+from daem0nmcp.config import Settings, settings
 from daem0nmcp.database import DatabaseManager
 from daem0nmcp.models import Memory
 from daem0nmcp.qdrant_store import QdrantVectorStore
@@ -96,8 +96,8 @@ async def migrate_vectors_to_qdrant(
                     continue
 
                 # Validate embedding dimensions
-                if len(embedding) != QdrantVectorStore.EMBEDDING_DIMENSION:
-                    error_msg = f"Memory {mem.id}: Invalid embedding dimension {len(embedding)}, expected {QdrantVectorStore.EMBEDDING_DIMENSION}"
+                if len(embedding) != settings.embedding_dimension:
+                    error_msg = f"Memory {mem.id}: Invalid embedding dimension {len(embedding)}, expected {settings.embedding_dimension}"
                     logger.warning(error_msg)
                     result["failed"] += 1
                     result["errors"].append(error_msg)
