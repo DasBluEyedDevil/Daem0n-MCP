@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from ..vectors import cosine_similarity, decode, encode
+from ..vectors import cosine_similarity, decode, encode_query, encode_document
 from ..graph.contradiction import has_negation_mismatch
 from .claims import VerificationLevel
 
@@ -112,7 +112,7 @@ async def verify_claim(
             query_time = as_of_time
 
     # Encode claim for similarity comparison
-    claim_embedding_bytes = encode(claim.text)
+    claim_embedding_bytes = encode_query(claim.text)
     claim_embedding = decode(claim_embedding_bytes) if claim_embedding_bytes else None
 
     # 1. Memory recall verification
@@ -138,7 +138,7 @@ async def verify_claim(
             # Calculate similarity if we have embeddings
             similarity = 0.0
             if claim_embedding is not None:
-                memory_embedding_bytes = encode(content)
+                memory_embedding_bytes = encode_document(content)
                 if memory_embedding_bytes:
                     memory_embedding = decode(memory_embedding_bytes)
                     if memory_embedding is not None:
