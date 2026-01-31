@@ -683,16 +683,18 @@ As of v6.0, all capabilities are accessed through 8 workflow tools plus 3 cognit
 | `evolve_rule` | Rule entropy analysis — detect staleness, code drift, and suggest evolution |
 | `debate_internal` | Adversarial council — evidence-grounded debate with convergence detection |
 
-### Visual Tools (MCP Apps)
+### Visual Tools (MCP Apps — accessed via workflow tools)
 
-| Tool | Purpose |
-|------|---------|
-| `recall_visual` | Search results with UI resource hint for card-based display |
-| `get_briefing_visual` | Briefing dashboard with collapsible accordion UI |
-| `get_covenant_status_visual` | Covenant status with visual state machine diagram |
-| `list_communities_visual` | Community clusters with treemap visualization |
-| `get_graph_visual` | Memory relationships with force-directed graph viewer |
-| `check_for_updates` | Polling for real-time update notifications |
+As of v5.1, these are no longer standalone MCP tools. Visual mode is accessed by passing `visual=True` to the `commune`, `consult`, or `explore` workflow tools. The table below lists the visual capabilities and which workflow action enables them:
+
+| Visual Capability | Access Via |
+|-------------------|------------|
+| Search results with card-based display | `consult(action="recall", visual=True)` |
+| Briefing dashboard with collapsible accordion | `commune(action="briefing", visual=True)` |
+| Covenant status with visual state machine | `commune(action="covenant", visual=True)` |
+| Community clusters with treemap visualization | `explore(action="communities", visual=True)` |
+| Memory graph with force-directed viewer | `explore(action="graph", visual=True)` |
+| Real-time update notifications | `commune(action="updates")` |
 
 ## Usage Examples
 
@@ -896,6 +898,13 @@ Environment variables (prefix: `DAEM0NMCP_`):
 | `DAEM0NMCP_PROJECT_ROOT` | `.` | Project root path |
 | `DAEM0NMCP_STORAGE_PATH` | auto | Override storage location |
 | `DAEM0NMCP_LOG_LEVEL` | `INFO` | Logging level |
+| `DAEM0NMCP_EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence-transformer model for embeddings |
+| `DAEM0NMCP_HYBRID_VECTOR_WEIGHT` | `0.3` | Vector vs BM25 weight (0.0–1.0) |
+| `DAEM0NMCP_QDRANT_PATH` | auto | Path for local Qdrant storage |
+| `DAEM0NMCP_QDRANT_URL` | — | Remote Qdrant URL (overrides local path) |
+| `DAEM0NMCP_WATCHER_ENABLED` | `false` | Enable file watcher daemon |
+
+Version-specific configuration options are listed in the [v6.0.0](#new-configuration-options-v600) and [v3.1.0](#new-configuration-options-v310) sections above. See `daem0nmcp/config.py` for the full list of settings.
 
 ## Architecture
 
@@ -950,6 +959,10 @@ daem0nmcp/
 ├── covenant.py         # Sacred Covenant enforcement
 ├── transforms/         # FastMCP 3.0 transforms
 │   └── covenant.py     # CovenantMiddleware
+├── channels/           # Notification channels (file watcher)
+│   ├── system_notify.py  # Desktop notifications via plyer
+│   ├── log_notify.py     # JSON-lines log file channel
+│   └── editor_poll.py    # JSON poll file for IDE plugins
 ├── code_indexer.py     # Code understanding via tree-sitter
 ├── database.py         # SQLite async database
 ├── models.py           # 10+ tables
