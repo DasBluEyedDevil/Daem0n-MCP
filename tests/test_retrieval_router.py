@@ -24,6 +24,7 @@ def _make_mock_mm(hybrid_results=None, qdrant=None):
     mm = MagicMock()
     mm._hybrid_search.return_value = hybrid_results or [(1, 0.9), (2, 0.7)]
     mm._qdrant = qdrant
+    mm._knowledge_graph = None  # Prevent MagicMock auto-attribute from shadowing router's self._kg
     mm.db = MagicMock()
     mm.db.storage_path = "/tmp/test"
     return mm
