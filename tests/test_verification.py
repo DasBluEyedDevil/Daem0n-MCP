@@ -89,12 +89,14 @@ class TestVerifyClaim:
             ]
         }
 
-        with patch("daem0nmcp.reflexion.verification.encode") as mock_encode:
+        with patch("daem0nmcp.reflexion.verification.encode_query") as mock_encode, \
+             patch("daem0nmcp.reflexion.verification.encode_document") as mock_encode_doc:
             with patch("daem0nmcp.reflexion.verification.decode") as mock_decode:
                 with patch("daem0nmcp.reflexion.verification.cosine_similarity") as mock_sim:
                     # Mock embedding operations
                     mock_encode.return_value = b"fake_embedding"
-                    mock_decode.return_value = [0.1] * 384
+                    mock_encode_doc.return_value = b"fake_embedding"
+                    mock_decode.return_value = [0.1] * 256
                     mock_sim.return_value = 0.85  # High similarity
 
                     result = await verify_claim(
@@ -140,11 +142,13 @@ class TestVerifyClaim:
             ]
         }
 
-        with patch("daem0nmcp.reflexion.verification.encode") as mock_encode:
+        with patch("daem0nmcp.reflexion.verification.encode_query") as mock_encode, \
+             patch("daem0nmcp.reflexion.verification.encode_document") as mock_encode_doc:
             with patch("daem0nmcp.reflexion.verification.decode") as mock_decode:
                 with patch("daem0nmcp.reflexion.verification.cosine_similarity") as mock_sim:
                     mock_encode.return_value = b"fake_embedding"
-                    mock_decode.return_value = [0.1] * 384
+                    mock_encode_doc.return_value = b"fake_embedding"
+                    mock_decode.return_value = [0.1] * 256
                     mock_sim.return_value = 0.8  # High similarity
 
                     result = await verify_claim(
@@ -220,11 +224,13 @@ class TestVerifyClaim:
             ]
         }
 
-        with patch("daem0nmcp.reflexion.verification.encode") as mock_encode:
+        with patch("daem0nmcp.reflexion.verification.encode_query") as mock_encode, \
+             patch("daem0nmcp.reflexion.verification.encode_document") as mock_encode_doc:
             with patch("daem0nmcp.reflexion.verification.decode") as mock_decode:
                 with patch("daem0nmcp.reflexion.verification.cosine_similarity") as mock_sim:
                     mock_encode.return_value = b"fake_embedding"
-                    mock_decode.return_value = [0.1] * 384
+                    mock_encode_doc.return_value = b"fake_embedding"
+                    mock_decode.return_value = [0.1] * 256
                     mock_sim.return_value = 0.3  # Low similarity
 
                     result = await verify_claim(
@@ -467,11 +473,13 @@ class TestVerificationIntegration:
         )
         mock_knowledge_graph._graph.predecessors = MagicMock(return_value=["memory:1"])
 
-        with patch("daem0nmcp.reflexion.verification.encode") as mock_encode:
+        with patch("daem0nmcp.reflexion.verification.encode_query") as mock_encode, \
+             patch("daem0nmcp.reflexion.verification.encode_document") as mock_encode_doc:
             with patch("daem0nmcp.reflexion.verification.decode") as mock_decode:
                 with patch("daem0nmcp.reflexion.verification.cosine_similarity") as mock_sim:
                     mock_encode.return_value = b"embedding"
-                    mock_decode.return_value = [0.1] * 384
+                    mock_encode_doc.return_value = b"embedding"
+                    mock_decode.return_value = [0.1] * 256
                     mock_sim.return_value = 0.85
 
                     result = await verify_claim(

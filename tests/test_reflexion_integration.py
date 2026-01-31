@@ -88,13 +88,15 @@ class TestClaimExtractionToVerification:
         assert len(claims) >= 1
 
         # Verify claims
-        with patch("daem0nmcp.reflexion.verification.encode") as mock_encode:
+        with patch("daem0nmcp.reflexion.verification.encode_query") as mock_encode, \
+             patch("daem0nmcp.reflexion.verification.encode_document") as mock_encode_doc:
             with patch("daem0nmcp.reflexion.verification.decode") as mock_decode:
                 with patch(
                     "daem0nmcp.reflexion.verification.cosine_similarity"
                 ) as mock_sim:
                     mock_encode.return_value = b"embedding"
-                    mock_decode.return_value = [0.1] * 384
+                    mock_encode_doc.return_value = b"embedding"
+                    mock_decode.return_value = [0.1] * 256
                     mock_sim.return_value = 0.85
 
                     results = await verify_claims(
@@ -139,13 +141,15 @@ class TestClaimExtractionToVerification:
 
         claims = extract_claims(text)
 
-        with patch("daem0nmcp.reflexion.verification.encode") as mock_encode:
+        with patch("daem0nmcp.reflexion.verification.encode_query") as mock_encode, \
+             patch("daem0nmcp.reflexion.verification.encode_document") as mock_encode_doc:
             with patch("daem0nmcp.reflexion.verification.decode") as mock_decode:
                 with patch(
                     "daem0nmcp.reflexion.verification.cosine_similarity"
                 ) as mock_sim:
                     mock_encode.return_value = b"embedding"
-                    mock_decode.return_value = [0.1] * 384
+                    mock_encode_doc.return_value = b"embedding"
+                    mock_decode.return_value = [0.1] * 256
                     mock_sim.return_value = 0.85
 
                     results = await verify_claims(
@@ -524,13 +528,15 @@ class TestVerifyFactsToolIntegration:
         assert len(claims) >= 1, "Should extract at least one claim"
 
         # Step 2: Verify claims
-        with patch("daem0nmcp.reflexion.verification.encode") as mock_encode:
+        with patch("daem0nmcp.reflexion.verification.encode_query") as mock_encode, \
+             patch("daem0nmcp.reflexion.verification.encode_document") as mock_encode_doc:
             with patch("daem0nmcp.reflexion.verification.decode") as mock_decode:
                 with patch(
                     "daem0nmcp.reflexion.verification.cosine_similarity"
                 ) as mock_sim:
                     mock_encode.return_value = b"embedding"
-                    mock_decode.return_value = [0.1] * 384
+                    mock_encode_doc.return_value = b"embedding"
+                    mock_decode.return_value = [0.1] * 256
                     mock_sim.return_value = 0.75
 
                     results = await verify_claims(
