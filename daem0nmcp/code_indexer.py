@@ -790,7 +790,7 @@ class CodeIndexManager:
                 delete(CodeEntity).where(CodeEntity.project_path == project_path)
             )
 
-            # Insert new entities
+            # Upsert entities (merge handles stale rows that survive deletion)
             for entity_dict in entities:
                 entity = CodeEntity(
                     id=entity_dict['id'],
@@ -809,7 +809,7 @@ class CodeIndexManager:
                     inherits=entity_dict.get('inherits', []),
                     indexed_at=entity_dict.get('indexed_at'),
                 )
-                session.add(entity)
+                await session.merge(entity)
 
             await session.commit()
 
@@ -1199,7 +1199,7 @@ class CodeIndexManager:
                 )
             )
 
-            # Insert new entities
+            # Upsert entities (merge handles stale rows that survive deletion)
             for entity_dict in entities:
                 entity = CodeEntity(
                     id=entity_dict['id'],
@@ -1218,7 +1218,7 @@ class CodeIndexManager:
                     inherits=entity_dict.get('inherits', []),
                     indexed_at=entity_dict.get('indexed_at'),
                 )
-                session.add(entity)
+                await session.merge(entity)
 
             # Upsert file hash
             existing = await session.execute(
