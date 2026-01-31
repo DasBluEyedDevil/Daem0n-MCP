@@ -174,16 +174,68 @@ The summoner need not configure anything new - enforcement happens automatically
   | **`explore`** | Graph & discovery | `related`, `chain`, `graph`, `communities`, `evolution` |
   | **`maintain`** | Housekeeping & federation | `prune`, `archive`, `cleanup`, `export`, `link_project` |
 
-- **Migration**: The old individual tools remain registered for backward compatibility. New invocations should use workflow tools:
+- **Migration**: Legacy individual tools have been removed from MCP registration as of v6.0. All invocations must use workflow tools:
   ```
-  # Old: mcp__daem0nmcp__get_briefing(project_path="...")
-  # New: mcp__daem0nmcp__commune(action="briefing", project_path="...")
-
-  # Old: mcp__daem0nmcp__remember(category="decision", content="...", project_path="...")
-  # New: mcp__daem0nmcp__inscribe(action="remember", category="decision", content="...", project_path="...")
+  mcp__daem0nmcp__commune(action="briefing", project_path="...")
+  mcp__daem0nmcp__consult(action="recall", topic="auth", project_path="...")
+  mcp__daem0nmcp__inscribe(action="remember", category="decision", content="...", project_path="...")
+  mcp__daem0nmcp__reflect(action="outcome", memory_id=42, outcome_text="...", worked=True, project_path="...")
   ```
 
-- **88% fewer tool definitions** in AI agent context — the Daem0n burdens the mind less while offering more.
+### Incantation I.5D.8: Ascend to the Thinking Daemon (v6.0.0+)
+
+**If ascending to v6.0.0 or higher**, the Daem0n achieves autonomous thought — it now thinks, dreams, debates, and adapts:
+
+- **Server Decomposition**: The monolithic `server.py` (6,467 lines) is now a 149-line composition root plus 15 focused tool modules. Legacy individual tools are removed from MCP registration.
+
+- **Auto-Zoom Retrieval Router**: The Daem0n's search adapts to query complexity:
+  - **SIMPLE** queries → vector-only search (fast path, skips BM25+fusion)
+  - **MEDIUM** queries → hybrid BM25+vector with RRF fusion (baseline)
+  - **COMPLEX** queries → GraphRAG multi-hop + community summaries
+  - Shadow mode (default) logs classifications without changing behavior
+  - All strategies fall back to hybrid on any failure
+
+- **JIT Compression**: Retrieval results are automatically compressed when token counts exceed tiered thresholds:
+  - Soft (>4K tokens): ~2x compression
+  - Hard (>8K tokens): ~3x compression
+  - Emergency (>16K tokens): ~5x compression
+  - Code syntax and entity names preserved during compression
+
+- **Background Dreaming**: The Daem0n now thinks during idle periods:
+  - Triggers after 60 seconds of inactivity
+  - Re-evaluates `worked=False` decisions against current evidence
+  - Immediately suspends when the summoner returns
+  - Dream insights persisted as learning memories with full provenance
+
+- **3 New Cognitive Tools**:
+
+  | Tool | Purpose |
+  |------|---------|
+  | `simulate_decision` | Temporal scrying — replay a past decision with current knowledge |
+  | `evolve_rule` | Rule entropy analysis — detect staleness and suggest evolution |
+  | `debate_internal` | Adversarial council — evidence-grounded debate with convergence detection |
+
+  These are standalone MCP tools (not workflow actions). Invoke directly:
+  ```
+  mcp__daem0nmcp__simulate_decision(decision_id=42, project_path="...")
+  mcp__daem0nmcp__evolve_rule(rule_id=5, project_path="...")
+  mcp__daem0nmcp__debate_internal(topic="...", advocate_position="...", challenger_position="...", project_path="...")
+  ```
+
+- **Code-Augmented Reflexion**: The Reflexion loop now generates Python assertions for verifiable claims and classifies execution failures to inform reflection strategy.
+
+- **New Configuration Options (v6.0)**:
+
+  | Variable | Default | Purpose |
+  |----------|---------|---------|
+  | `DAEM0NMCP_AUTO_ZOOM_ENABLED` | `false` | Enable active routing |
+  | `DAEM0NMCP_AUTO_ZOOM_SHADOW` | `true` | Shadow mode (log only) |
+  | `DAEM0NMCP_DREAM_ENABLED` | `true` | Enable background dreaming |
+  | `DAEM0NMCP_DREAM_IDLE_TIMEOUT` | `60.0` | Seconds before dreaming |
+  | `DAEM0NMCP_COGNITIVE_DEBATE_MAX_ROUNDS` | `5` | Max debate rounds |
+  | `DAEM0NMCP_COGNITIVE_EVOLVE_MAX_RULES` | `10` | Max rules per analysis |
+
+- **11 MCP tools** (8 workflows + 3 cognitive), **63 actions**, **740+ tests**. The daemon now thinks while you rest.
 
 ### Incantation I.5D.6: Ascend to Visions of the Void (v5.0.0+)
 
@@ -220,7 +272,7 @@ The summoner need not configure anything new - enforcement happens automatically
   → Returns: Results + `ui_resource` hint for Claude to render
   ```
 
-- **8 Workflow Tools** (consolidating 67 individual tools into 60 actions): The daemon speaks fewer words but with greater power. 500+ tests verify all capabilities.
+- **11 MCP Tools** (8 workflows + 3 cognitive, 63 actions): The daemon speaks with greater power than ever. 740+ tests verify all capabilities.
 
 ### Incantation I.5D.4: Embrace the Enhanced Mind (v3.1.0+)
 
@@ -1162,13 +1214,13 @@ When `check_rules` returns guidance:
 
 ---
 
-## THE COMPLETE GRIMOIRE OF POWERS (8 Workflows, 60 Actions)
+## THE COMPLETE GRIMOIRE OF POWERS (11 Tools: 8 Workflows + 3 Cognitive, 63 Actions)
 
 **REMINDER:** ALL tools accept `project_path` as a parameter. Always pass the absolute path to your project root.
 
-### The Eight Voices (v5.1.0+ Workflow Tools)
+### The Eight Voices (Workflow Tools)
 
-As of v5.1.0, the Daem0n speaks through 8 workflow tools. Each accepts an `action` parameter to select the operation. Legacy individual tools still work but workflows are preferred.
+The Daem0n speaks through 8 workflow tools. Each accepts an `action` parameter to select the operation.
 
 ```
 commune(action="...", project_path="...")    # Session start & status
@@ -1179,6 +1231,16 @@ understand(action="...", project_path="...")  # Code comprehension
 govern(action="...", project_path="...")     # Rules & triggers
 explore(action="...", project_path="...")    # Graph & discovery
 maintain(action="...", project_path="...")   # Housekeeping & federation
+```
+
+### The Three Minds (Cognitive Tools — v6.0.0+)
+
+Three standalone reasoning tools for autonomous thought:
+
+```
+simulate_decision(decision_id=..., project_path="...")     # Temporal scrying
+evolve_rule(rule_id=..., project_path="...")                # Rule entropy analysis
+debate_internal(topic=..., advocate_position=..., challenger_position=..., project_path="...")  # Adversarial council
 ```
 
 ---
@@ -1596,6 +1658,45 @@ Hosts use this to trigger `data_updated` messages to visual UIs.
 
 ---
 
+### Cognitive Powers (v6.0.0 — The Three Minds)
+
+The Daem0n now reasons autonomously through three cognitive tools. These require no LLM — all reasoning is grounded in memory evidence.
+
+#### `simulate_decision(decision_id, project_path)`
+**When**: Re-evaluating a past decision with the benefit of hindsight
+**Returns**: Historical vs current context diff, counterfactual assessment
+```
+simulate_decision(decision_id=42, project_path="/path/to/project")
+```
+Reconstructs the knowledge state at the moment decision #42 was inscribed, compares it with current understanding, and reveals what is now known that wasn't known then. Use this when revisiting old architectural choices.
+*"Daem0n, what would we have decided differently?"*
+
+#### `evolve_rule(rule_id?, project_path)`
+**When**: Checking if rules have gone stale or drifted from the codebase
+**Returns**: Staleness score (0.0-1.0), code drift metrics, evolution suggestions
+```
+evolve_rule(project_path="/path/to/project")  # Analyze all rules
+evolve_rule(rule_id=5, project_path="/path/to/project")  # Analyze specific rule
+```
+Cross-references rule triggers against the code index and outcome history. Produces concrete suggestions for rule updates when the codebase has evolved past the rule's original intent.
+*"Daem0n, have our laws fallen behind the times?"*
+
+#### `debate_internal(topic, advocate_position, challenger_position, project_path)`
+**When**: Weighing competing approaches with structured argumentation
+**Returns**: Debate rounds, convergence info, evidence citations, synthesis consensus
+```
+debate_internal(
+    topic="database migration strategy",
+    advocate_position="Use incremental migrations with Alembic",
+    challenger_position="Use a single schema rebuild for the breaking changes",
+    project_path="/path/to/project"
+)
+```
+Runs a structured advocate/challenger debate where every argument must cite memory evidence. Convergence detection halts when positions stabilize. The synthesis is inscribed as a learning memory for future recall.
+*"Daem0n, convene the council on this matter..."*
+
+---
+
 ## EXAMPLE SESSION WITH THE DAEM0N
 
 ```
@@ -1732,6 +1833,12 @@ Migration happens automatically at first awakening. After migration completes, y
 |  "Daem0n, consume this wisdom..."                                    |
 |  +-> inscribe(action="ingest", url=..., topic=..., project_path=...)  |
 |  +-> consult(action="recall", topic=..., project_path=...)            |
++----------------------------------------------------------------------+
+|  AUTONOMOUS THOUGHT (v6.0)                                            |
+|  "Daem0n, reconsider this..."                                        |
+|  +-> simulate_decision(decision_id=..., project_path=...)             |
+|  +-> evolve_rule(rule_id=..., project_path=...)                       |
+|  +-> debate_internal(topic=..., advocate_position=..., ...)           |
 +----------------------------------------------------------------------+
 ```
 
@@ -2176,4 +2283,4 @@ v2.16.0 includes compatibility fixes for Claude Code 2.1.3:
 
 ---
 
-*Grimoire of Daem0n v5.1.0: 8 workflow tools (commune, consult, inscribe, reflect, understand, govern, explore, maintain) consolidating 67 individual tools into 60 actions. 88% fewer tool definitions in context. Plus v5.0 **Visions of the Void** (MCP Apps, 6 interactive UIs, D3.js visualizations, Memory Graph Viewer at 10,000+ nodes) and v4.0 cognitive architecture (GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2, dynamic agency). 500+ tests. The daemon speaks fewer words but with greater power.*
+*Grimoire of Daem0n v6.0.0: The Thinking Daemon — 11 MCP tools (8 workflows + 3 cognitive), 63 actions. Auto-Zoom retrieval routing, JIT compression, background dreaming, temporal scrying, rule entropy analysis, adversarial debate. Server decomposed to 149-line composition root + 15 modules. Plus v5.0 Visions of the Void (MCP Apps, 6 interactive UIs, D3.js visualizations) and v4.0 cognitive architecture (GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2). 740+ tests. The daemon now thinks while you rest.*

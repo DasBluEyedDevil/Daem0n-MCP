@@ -13,51 +13,86 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v6.0.0
+
+### The Thinking Daemon
+The daemon awakens to autonomous thought. v6.0 adds four major cognitive capabilities: **Auto-Zoom retrieval routing**, **JIT compression**, **background dreaming**, and three **cognitive tools** for temporal scrying, rule evolution, and adversarial debate — all grounded purely in memory evidence with no LLM dependency.
+
+#### Server Decomposition
+The monolithic `server.py` (6,467 lines) has been decomposed into a 149-line composition root plus 15 focused tool modules under `daem0nmcp/tools/`. Legacy individual tools are removed from MCP registration — all capabilities flow through 8 workflow tools plus 3 new cognitive tools.
+
+#### Auto-Zoom Retrieval Router
+Query-aware search dispatch routes queries to the optimal retrieval strategy:
+- **SIMPLE queries** (e.g., "auth") → vector-only search via Qdrant (fast path)
+- **MEDIUM queries** → hybrid BM25+vector with RRF fusion (baseline)
+- **COMPLEX queries** (e.g., "trace auth flow through all components") → GraphRAG multi-hop + community summaries
+- **Shadow mode** (default): logs classifications without changing behavior
+- **Safety guarantees**: all strategies fall back to hybrid on any failure
+
+#### JIT Compression
+Automatic compression of retrieval results when token counts exceed tiered thresholds:
+- **Soft (>4K tokens)**: ~2x compression
+- **Hard (>8K tokens)**: ~3x compression
+- **Emergency (>16K tokens)**: ~5x compression
+- Code syntax and entity names preserved during compression
+- Compression metadata returned for observability
+
+#### Background Dreaming
+The daemon thinks during idle periods:
+- **Idle detection**: triggers after 60 seconds of inactivity
+- **FailedDecisionReview**: re-evaluates `worked=False` decisions against current evidence
+- **Cooperative yielding**: immediately suspends when user returns
+- **Dream insights**: persisted as learning memories with full provenance
+- **Configurable**: `DAEM0NMCP_DREAM_ENABLED`, `DAEM0NMCP_DREAM_IDLE_TIMEOUT`
+
+#### Cognitive Tools (3 New MCP Tools)
+Three standalone reasoning tools grounded entirely in memory evidence:
+
+| Tool | Purpose |
+|------|---------|
+| `simulate_decision` | Temporal scrying — replay a past decision with current knowledge, revealing what is now known that wasn't known then |
+| `evolve_rule` | Rule entropy analysis — detect rule drift by cross-referencing triggers against code index and outcome history |
+| `debate_internal` | Adversarial council — structured advocate/challenger debate with convergence detection, consensus inscribed as memory |
+
+#### Code-Augmented Reflexion
+The Reflexion loop now includes code verification:
+- Generates Python assertion code for verifiable claims
+- Classifies failures (assertion, syntax, import, timeout, sandbox)
+- Template fallback when LLM unavailable
+- Failure types inform reflection strategy
+
+### New Configuration Options (v6.0.0)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAEM0NMCP_AUTO_ZOOM_ENABLED` | `false` | Enable active query-aware routing |
+| `DAEM0NMCP_AUTO_ZOOM_SHADOW` | `true` | Log classifications without routing |
+| `DAEM0NMCP_AUTO_ZOOM_CONFIDENCE_THRESHOLD` | `0.25` | Confidence floor for classification |
+| `DAEM0NMCP_AUTO_ZOOM_GRAPH_EXPANSION_DEPTH` | `2` | Multi-hop depth for complex queries |
+| `DAEM0NMCP_DREAM_ENABLED` | `true` | Enable background dreaming |
+| `DAEM0NMCP_DREAM_IDLE_TIMEOUT` | `60.0` | Seconds before dreaming starts |
+| `DAEM0NMCP_DREAM_MAX_DECISIONS_PER_SESSION` | `5` | Max decisions to review per idle session |
+| `DAEM0NMCP_DREAM_MIN_DECISION_AGE_HOURS` | `1` | Min age before re-evaluation |
+| `DAEM0NMCP_COGNITIVE_DEBATE_MAX_ROUNDS` | `5` | Max debate rounds |
+| `DAEM0NMCP_COGNITIVE_DEBATE_CONVERGENCE_THRESHOLD` | `0.05` | Position stabilization threshold |
+| `DAEM0NMCP_COGNITIVE_EVOLVE_MAX_RULES` | `10` | Max rules analyzed per session |
+
+### Stats
+- **11 MCP tools** (8 workflows + 3 cognitive)
+- **63 total actions** across all tools
+- **740+ tests** passing
+- **Server decomposed** from 6,467 lines → 149-line root + 15 modules
+
+---
+
 ## What's New in v5.1.0
 
 ### Workflow Consolidation
 The daemon speaks fewer words but with greater power. v5.1 consolidates **67 individual MCP tools into 8 workflow-oriented tools**, dramatically reducing context overhead for AI agents while preserving all capabilities.
 
-#### 8 Workflow Tools
-
-| Workflow | Purpose | Actions |
-|----------|---------|---------|
-| **`commune`** | Session start & status | `briefing`, `active_context`, `triggers`, `health`, `covenant`, `updates` |
-| **`consult`** | Pre-action intelligence | `preflight`, `recall`, `recall_file`, `recall_entity`, `recall_hierarchical`, `search`, `check_rules`, `compress` |
-| **`inscribe`** | Memory writing & linking | `remember`, `remember_batch`, `link`, `unlink`, `pin`, `activate`, `deactivate`, `clear_active`, `ingest` |
-| **`reflect`** | Outcomes & verification | `outcome`, `verify`, `execute` |
-| **`understand`** | Code comprehension | `index`, `find`, `impact`, `todos`, `refactor` |
-| **`govern`** | Rules & triggers | `add_rule`, `update_rule`, `list_rules`, `add_trigger`, `list_triggers`, `remove_trigger` |
-| **`explore`** | Graph & discovery | `related`, `chain`, `graph`, `stats`, `communities`, `community_detail`, `rebuild_communities`, `entities`, `backfill_entities`, `evolution`, `versions`, `at_time` |
-| **`maintain`** | Housekeeping & federation | `prune`, `archive`, `cleanup`, `compact`, `rebuild_index`, `export`, `import_data`, `link_project`, `unlink_project`, `list_projects`, `consolidate` |
-
-#### How It Works
-Each workflow tool accepts an `action` parameter that selects the operation:
-```python
-# Old way (67 separate tools)
-mcp__daem0nmcp__get_briefing(project_path="...")
-mcp__daem0nmcp__recall(topic="auth", project_path="...")
-mcp__daem0nmcp__remember(category="decision", content="...", project_path="...")
-mcp__daem0nmcp__record_outcome(memory_id=42, outcome="...", worked=True, project_path="...")
-
-# New way (8 workflow tools)
-mcp__daem0nmcp__commune(action="briefing", project_path="...")
-mcp__daem0nmcp__consult(action="recall", topic="auth", project_path="...")
-mcp__daem0nmcp__inscribe(action="remember", category="decision", content="...", project_path="...")
-mcp__daem0nmcp__reflect(action="outcome", memory_id=42, outcome_text="...", worked=True, project_path="...")
-```
-
-#### Why Consolidate?
-- **88% fewer tool definitions** in context (8 vs 67)
-- **Lower token overhead** — AI agents load fewer tool schemas
-- **Logical grouping** — related operations live in one tool
-- **Backward compatible** — legacy individual tools still registered alongside workflows
-
 ### Stats
 - **8 workflow tools** (consolidating 67 individual tools)
 - **60 total actions** across all workflows
 - **500+ tests** passing
-- **51,929+ lines** of Python
 
 ---
 
@@ -536,9 +571,9 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Workflow Tools (8 Tools, 60 Actions)
+## MCP Tools (11 Tools, 63 Actions)
 
-As of v5.1, all capabilities are accessed through 8 workflow tools. Each tool accepts an `action` parameter to select the operation. Legacy individual tools remain registered for backward compatibility.
+As of v6.0, all capabilities are accessed through 8 workflow tools plus 3 cognitive tools. Each workflow tool accepts an `action` parameter to select the operation. Legacy individual tools have been removed from MCP registration.
 
 ### `commune` — Session Start & Status
 
@@ -639,6 +674,14 @@ As of v5.1, all capabilities are accessed through 8 workflow tools. Each tool ac
 | `unlink_project` | Remove a project link |
 | `list_projects` | List all linked projects |
 | `consolidate` | Merge memories from linked projects |
+
+### Cognitive Tools (3 Standalone MCP Tools)
+
+| Tool | Purpose |
+|------|---------|
+| `simulate_decision` | Temporal scrying — reconstruct past decision context vs current knowledge |
+| `evolve_rule` | Rule entropy analysis — detect staleness, code drift, and suggest evolution |
+| `debate_internal` | Adversarial council — evidence-grounded debate with convergence detection |
 
 ### Visual Tools (MCP Apps)
 
@@ -858,48 +901,65 @@ Environment variables (prefix: `DAEM0NMCP_`):
 
 ```
 daem0nmcp/
-├── server.py       # MCP server with 8 workflow tools + legacy tools (FastMCP)
-├── memory.py       # Memory storage & semantic retrieval
-├── rules.py        # Rule engine with BM25 matching
-├── similarity.py   # TF-IDF index, decay, conflict detection
-├── vectors.py      # Vector embeddings (sentence-transformers)
-├── bm25_index.py   # BM25 Okapi keyword retrieval
-├── fusion.py       # Reciprocal Rank Fusion for hybrid search
-├── surprise.py     # Titans-inspired novelty detection
-├── recall_planner.py # TiMem-style complexity classification
-├── prompt_templates.py # AutoPDL-inspired modular prompts
-├── tool_search.py  # Dynamic tool discovery index
-├── covenant.py     # Sacred Covenant enforcement decorators & preflight tokens
-├── workflows/      # 8 consolidated workflow tools (v5.1)
-│   ├── commune.py  # Session start & status
-│   ├── consult.py  # Pre-action intelligence
-│   ├── inscribe.py # Memory writing & linking
-│   ├── reflect.py  # Outcomes & verification
-│   ├── understand.py # Code comprehension
-│   ├── govern.py   # Rules & triggers
-│   ├── explore.py  # Graph & discovery
-│   └── maintain.py # Housekeeping & federation
-├── transforms/     # FastMCP 3.0 transforms
-│   └── covenant.py # CovenantMiddleware & CovenantTransform
-├── tracing.py      # OpenTelemetry integration (optional)
-├── code_indexer.py # Code understanding via tree-sitter (Phase 2)
-├── watcher.py      # Proactive file watcher daemon (Phase 1)
-├── database.py     # SQLite async database
-├── models.py       # 10+ tables: memories, rules, memory_relationships,
-│                   #             session_state, code_entities, memory_code_refs,
-│                   #             communities, context_triggers, memory_versions, etc.
-├── enforcement.py  # Pre-commit enforcement & session tracking
-├── hooks.py        # Git hook templates & installation
-├── cli.py          # Command-line interface
-├── migrations/     # Database schema migrations
-└── config.py       # Pydantic settings
+├── server.py           # Composition root (149 lines) — imports & wires 15 tool modules
+├── mcp_instance.py     # Shared FastMCP instance
+├── context_manager.py  # Multi-project context management
+├── memory.py           # Memory storage & semantic retrieval (with Auto-Zoom integration)
+├── tools/              # 15 decomposed tool modules (v6.0)
+│   ├── briefing.py     # Session start, health, covenant, active context
+│   ├── memory.py       # Remember, recall, search, link, pin, archive
+│   ├── context_tools.py # Preflight, recall_file, recall_entity, triggers
+│   ├── code_tools.py   # Index, find, impact, todos, refactor
+│   ├── graph_tools.py  # Related, chain, graph, communities, evolution
+│   ├── entity_tools.py # Entity listing, backfill
+│   ├── rules.py        # Rule CRUD, context triggers
+│   ├── verification.py # Outcome recording, fact verification
+│   ├── agency_tools.py # Sandboxed code execution
+│   ├── maintenance.py  # Prune, cleanup, compact, export/import
+│   ├── federation.py   # Link/unlink projects, consolidate
+│   ├── temporal.py     # Memory versions, point-in-time queries
+│   ├── workflows.py    # 8 workflow tool registrations
+│   ├── cognitive_tools.py # 3 cognitive tools (simulate, evolve, debate)
+│   └── resources.py    # MCP resource providers
+├── cognitive/          # Cognitive reasoning (v6.0 Phase 17)
+│   ├── simulate.py     # Temporal scrying — decision replay
+│   ├── evolve.py       # Rule entropy analysis
+│   └── debate.py       # Adversarial council
+├── retrieval_router.py # Auto-Zoom query-aware dispatch (v6.0 Phase 15)
+├── query_classifier.py # ExemplarQueryClassifier (SentenceTransformer-based)
+├── compression/        # Context compression
+│   ├── jit.py          # JIT compression with tiered thresholds (v6.0 Phase 15)
+│   └── hierarchical.py # Hierarchical context management
+├── dreaming/           # Background dreaming (v6.0 Phase 16)
+│   ├── scheduler.py    # IdleDreamScheduler (idle detection + cooperative yielding)
+│   ├── strategies.py   # FailedDecisionReview strategy
+│   └── persistence.py  # DreamResult/DreamSession provenance
+├── reflexion/          # Metacognitive architecture
+│   ├── nodes.py        # Actor, Evaluator, Reflector (LangGraph)
+│   ├── code_gen.py     # Verification code generation (v6.0 Phase 14)
+│   ├── code_exec.py    # Sandboxed execution with failure classification (v6.0 Phase 14)
+│   ├── claims.py       # Claim extraction and classification
+│   └── graph.py        # Reflexion graph construction
+├── rules.py            # Rule engine with BM25 matching
+├── similarity.py       # TF-IDF index, decay, conflict detection
+├── vectors.py          # Vector embeddings (sentence-transformers)
+├── bm25_index.py       # BM25 Okapi keyword retrieval
+├── fusion.py           # Reciprocal Rank Fusion for hybrid search
+├── surprise.py         # Titans-inspired novelty detection
+├── recall_planner.py   # TiMem-style complexity classification
+├── covenant.py         # Sacred Covenant enforcement
+├── transforms/         # FastMCP 3.0 transforms
+│   └── covenant.py     # CovenantMiddleware
+├── code_indexer.py     # Code understanding via tree-sitter
+├── database.py         # SQLite async database
+├── models.py           # 10+ tables
+├── config.py           # Pydantic settings (all v6.0 config options)
+└── ui/                 # MCP Apps visual interfaces
+    ├── build/          # D3.js bundle (105KB, no CDN)
+    ├── static/         # SecureMessenger, shared JS
+    └── templates/      # 6 HTML portals
 
-.claude/
-└── skills/
-    └── daem0nmcp-protocol/
-        └── SKILL.md   # Protocol enforcement skill
-
-Summon_Daem0n.md   # Installation instructions (ritual theme)
+Summon_Daem0n.md   # Installation & upgrade instructions (ritual theme)
 Banish_Daem0n.md   # Uninstallation instructions
 start_server.py    # HTTP server launcher (Windows)
 ```
@@ -1040,8 +1100,11 @@ This parses your code with tree-sitter (supports Python, TypeScript, JavaScript,
 # Install in development mode
 pip install -e .
 
-# Run tests (559 tests)
+# Run tests (740+ tests)
 pytest tests/ -v --asyncio-mode=auto
+
+# Lint
+ruff check daem0nmcp/ tests/
 
 # Run server directly
 python -m daem0nmcp.server
@@ -1082,4 +1145,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v5.1.0: Workflow Consolidation—67 tools into 8 workflow-oriented tools (commune, consult, inscribe, reflect, understand, govern, explore, maintain) with 60 actions. 88% fewer tool definitions in context. Plus v5.0 Visions of the Void (MCP Apps, D3.js visualizations) and v4.0 Cognitive Architecture (GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2, dynamic agency). 500+ tests. The daemon speaks fewer words but with greater power.*
+*Daem0nMCP v6.0.0: The Thinking Daemon — Auto-Zoom retrieval routing, JIT compression, background dreaming, and 3 cognitive tools (temporal scrying, rule evolution, adversarial debate). Server decomposed from 6,467 lines to 149-line composition root + 15 modules. 11 MCP tools (8 workflows + 3 cognitive), 63 actions. 740+ tests. The daemon now thinks while you rest.*
