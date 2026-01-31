@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -13,6 +14,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -22,7 +24,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def set_active_context(
     memory_id: int,
@@ -65,7 +67,7 @@ async def set_active_context(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_active_context(
     project_path: Optional[str] = None
@@ -90,7 +92,7 @@ async def get_active_context(
     return await acm.get_active_context(ctx.project_path)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remove_from_active_context(
     memory_id: int,
@@ -117,7 +119,7 @@ async def remove_from_active_context(
     return await acm.remove_from_context(ctx.project_path, memory_id)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def clear_active_context(
     project_path: Optional[str] = None
@@ -145,7 +147,7 @@ async def clear_active_context(
 # ============================================================================
 # CONTEXT TRIGGER TOOLS
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def add_context_trigger(
     trigger_type: str,
@@ -189,7 +191,7 @@ async def add_context_trigger(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_context_triggers(
     active_only: bool = True,
@@ -227,7 +229,7 @@ async def list_context_triggers(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remove_context_trigger(
     trigger_id: int,
@@ -259,7 +261,7 @@ async def remove_context_trigger(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def check_context_triggers(
     file_path: Optional[str] = None,

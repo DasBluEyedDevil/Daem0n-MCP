@@ -5,6 +5,7 @@ from typing import Dict, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -12,6 +13,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -21,7 +23,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def link_projects(
     linked_path: str,
@@ -57,7 +59,7 @@ async def link_projects(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def unlink_projects(
     linked_path: str,
@@ -87,7 +89,7 @@ async def unlink_projects(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_linked_projects(
     project_path: Optional[str] = None
@@ -113,7 +115,7 @@ async def list_linked_projects(
     return {"links": links}
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def consolidate_linked_databases(
     archive_sources: bool = False,

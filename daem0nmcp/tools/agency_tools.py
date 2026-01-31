@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -22,6 +23,7 @@ try:
     )
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -289,7 +291,7 @@ def _chunk_markdown_content(content: str, chunk_size: int, max_chunks: int) -> L
 # ============================================================================
 # Tool: COMPRESS_CONTEXT - Intelligent context compression
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def compress_context(
     context: str,
@@ -354,7 +356,7 @@ async def compress_context(
 # ============================================================================
 # Tool 45: EXECUTE_PYTHON - Sandboxed code execution
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def execute_python(
     code: str,
@@ -440,7 +442,7 @@ async def execute_python(
 # ============================================================================
 # Tool 14: INGEST_DOC - Import external documentation
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def ingest_doc(
     url: str,

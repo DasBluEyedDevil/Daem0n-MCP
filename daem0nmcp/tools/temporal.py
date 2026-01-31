@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -12,6 +13,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -21,7 +23,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def trace_causal_path(
     start_memory_id: int,
@@ -51,7 +53,7 @@ async def trace_causal_path(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def trace_evolution(
     entity_name: Optional[str] = None,

@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Tool 16: REBUILD_INDEX - Force rebuild of search indexes
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def rebuild_index(
     project_path: Optional[str] = None
@@ -61,7 +61,7 @@ async def rebuild_index(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def export_data(
     project_path: Optional[str] = None,
@@ -139,7 +139,7 @@ async def export_data(
     return add_deprecation(result, "export_data", "maintain(action='export')")
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def import_data(
     data: Dict[str, Any],
@@ -253,7 +253,7 @@ async def import_data(
     return add_deprecation(result, "import_data", "maintain(action='import_data')")
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def prune_memories(
     older_than_days: int = 90,

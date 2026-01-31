@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         _default_project_path,
         _missing_project_path_error,
@@ -12,6 +13,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         _default_project_path,
         _missing_project_path_error,
@@ -31,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Workflow 1: COMMUNE - Session start & status
 # Actions: briefing, active_context, triggers, health, covenant, updates
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def commune(
     action: str,
@@ -82,7 +84,7 @@ async def commune(
 # Actions: preflight, recall, recall_file, recall_entity,
 #          recall_hierarchical, search, check_rules, compress
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def consult(
     action: str,
@@ -175,7 +177,7 @@ async def consult(
 # Actions: remember, remember_batch, link, unlink, pin,
 #          activate, deactivate, clear_active, ingest
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def inscribe(
     action: str,
@@ -254,7 +256,7 @@ async def inscribe(
 # Workflow 4: REFLECT - Outcomes & verification
 # Actions: outcome, verify, execute
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def reflect(
     action: str,
@@ -305,7 +307,7 @@ async def reflect(
 # Workflow 5: UNDERSTAND - Code comprehension
 # Actions: index, find, impact, todos, refactor
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def understand(
     action: str,
@@ -359,7 +361,7 @@ async def understand(
 # Actions: add_rule, update_rule, list_rules,
 #          add_trigger, list_triggers, remove_trigger
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def govern(
     action: str,
@@ -432,7 +434,7 @@ async def govern(
 #          rebuild_communities, entities, backfill_entities, evolution,
 #          versions, at_time
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def explore(
     action: str,
@@ -521,7 +523,7 @@ async def explore(
 #          export, import_data, link_project, unlink_project,
 #          list_projects, consolidate
 # ----------------------------------------------------------------------------
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def maintain(
     action: str,

@@ -547,7 +547,7 @@ class TreeSitterIndexer:
     def _extract_name_from_node(self, node, source: bytes) -> Optional[str]:
         """Try to extract a name from a node by looking for identifier children."""
         name_types = {'identifier', 'type_identifier', 'field_identifier',
-                      'property_identifier', 'constant', 'name'}
+                      'property_identifier', 'constant', 'name', 'simple_identifier'}
 
         for child in node.children:
             if child.type in name_types:
@@ -587,6 +587,9 @@ class TreeSitterIndexer:
             elif lang == 'rust':
                 if current.type in ('impl_item', 'function_item'):
                     scope_name = self._extract_name_from_node(current, source)
+            elif lang in ('kotlin', 'java'):
+                if current.type in ('class_declaration', 'object_declaration', 'function_declaration'):
+                    scope_name = self._extract_name_from_node(current, source)
 
             if scope_name:
                 parts.insert(0, scope_name)
@@ -615,9 +618,11 @@ class TreeSitterIndexer:
 
     def _make_entity_dict(self, **kwargs) -> Dict[str, Any]:
         """Create a CodeEntity-compatible dictionary."""
-        # Use qualified_name for stable IDs that don't change when lines shift
+        # Use qualified_name + signature for stable IDs that handle overloaded functions
+        # Signature differs between overloads but doesn't change when lines shift
         identifier = kwargs.get('qualified_name') or kwargs['name']
-        id_string = f"{kwargs['project_path']}:{kwargs['file_path']}:{identifier}:{kwargs['entity_type']}"
+        signature = kwargs.get('signature', '')
+        id_string = f"{kwargs['project_path']}:{kwargs['file_path']}:{identifier}:{kwargs['entity_type']}:{signature}"
         entity_id = hashlib.sha256(id_string.encode()).hexdigest()[:16]
 
         return {

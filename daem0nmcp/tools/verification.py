@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error, hold_context,
@@ -12,6 +13,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error, hold_context,
@@ -51,7 +53,7 @@ def _build_verification_message(summary: Dict[str, Any]) -> str:
 # ============================================================================
 # Tool 11: VERIFY_FACTS - Verify factual claims against stored knowledge
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def verify_facts(
     text: str,

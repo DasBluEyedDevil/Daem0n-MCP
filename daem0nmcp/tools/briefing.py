@@ -1043,7 +1043,7 @@ def _build_briefing_message(
 # ============================================================================
 # Tool 6: GET_BRIEFING - Smart session start summary
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_briefing(
     project_path: Optional[str] = None,
@@ -1150,7 +1150,7 @@ async def get_briefing(
 # ============================================================================
 # Tool 6.5: GET_BRIEFING_VISUAL - Briefing with UI resource hint
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_briefing_visual(
     project_path: Optional[str] = None,
@@ -1198,7 +1198,7 @@ async def get_briefing_visual(
 # ============================================================================
 # Tool 6.6: GET_COVENANT_STATUS - Current covenant state for dashboard
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_covenant_status(
     project_path: Optional[str] = None
@@ -1288,7 +1288,7 @@ async def get_covenant_status(
 # ============================================================================
 # Tool 6.7: GET_COVENANT_STATUS_VISUAL - Covenant status with UI support
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_covenant_status_visual(
     project_path: Optional[str] = None
@@ -1334,7 +1334,7 @@ async def get_covenant_status_visual(
 # ============================================================================
 # Tool: CONTEXT_CHECK - Quick pre-flight check for current work
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def context_check(
     description: str,
@@ -1435,7 +1435,7 @@ async def context_check(
 # ============================================================================
 # Tool: CHECK_FOR_UPDATES - Real-time polling
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def check_for_updates(
     since: Optional[str] = None,
@@ -1479,7 +1479,7 @@ async def check_for_updates(
 # ============================================================================
 # Tool: HEALTH - Server health, version, and statistics
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def health(
     project_path: Optional[str] = None

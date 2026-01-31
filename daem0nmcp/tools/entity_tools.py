@@ -5,6 +5,7 @@ from typing import Dict, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -13,6 +14,7 @@ try:
     from ..models import Memory
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -25,7 +27,7 @@ from sqlalchemy import select, or_
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_entities(
     entity_type: Optional[str] = None,
@@ -64,7 +66,7 @@ async def list_entities(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def backfill_entities(
     project_path: Optional[str] = None

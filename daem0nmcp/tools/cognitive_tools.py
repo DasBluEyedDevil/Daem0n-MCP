@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -12,6 +13,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -21,7 +23,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def simulate_decision(
     decision_id: int,
@@ -52,7 +54,7 @@ async def simulate_decision(
     return result.to_dict()
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def evolve_rule(
     rule_id: Optional[int] = None,
@@ -83,7 +85,7 @@ async def evolve_rule(
     return {"reports": [r.to_dict() for r in results], "analyzed": len(results)}
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def debate_internal(
     topic: str,

@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error, _check_covenant_counsel,
@@ -15,6 +16,7 @@ try:
     from ..models import Memory
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error, _check_covenant_counsel,
@@ -33,7 +35,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Tool 1: REMEMBER - Store a memory with conflict detection
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remember(
     category: str,
@@ -99,7 +101,7 @@ async def remember(
 # ============================================================================
 # Tool 1b: REMEMBER_BATCH - Store multiple memories efficiently
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def remember_batch(
     memories: List[Dict[str, Any]],
@@ -144,7 +146,7 @@ async def remember_batch(
 # ============================================================================
 # Tool 2: RECALL - Semantic memory retrieval with decay
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall(
     topic: str,
@@ -233,7 +235,7 @@ async def recall(
 # ============================================================================
 # Tool 2.5: RECALL_VISUAL - Semantic recall with UI resource hint
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_visual(
     topic: str,
@@ -326,7 +328,7 @@ async def recall_visual(
 # ============================================================================
 # Tool 5: RECORD_OUTCOME - Track if a decision worked
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def record_outcome(
     memory_id: int,
@@ -364,7 +366,7 @@ async def record_outcome(
 # ============================================================================
 # Tool 12: RECALL_FOR_FILE - Get memories for a specific file
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_for_file(
     file_path: str,
@@ -390,7 +392,7 @@ async def recall_for_file(
 # ============================================================================
 # Tool: RECALL_BY_ENTITY - Get memories mentioning a specific entity
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_by_entity(
     entity_name: str,
@@ -427,7 +429,7 @@ async def recall_by_entity(
 # ============================================================================
 # Tool: RECALL_HIERARCHICAL - GraphRAG-style layered recall
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def recall_hierarchical(
     topic: str,
@@ -460,7 +462,7 @@ async def recall_hierarchical(
 # ============================================================================
 # Tool 7: SEARCH - Full text search across memories
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def search_memories(
     query: str,
@@ -531,7 +533,7 @@ async def search_memories(
 # ============================================================================
 # Tool 10: FIND_RELATED - Discover connected memories
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def find_related(
     memory_id: int,
@@ -557,7 +559,7 @@ async def find_related(
 # ============================================================================
 # Tool: GET_RELATED_MEMORIES - Graph-based related memories
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_related_memories(
     memory_id: int,
@@ -593,7 +595,7 @@ async def get_related_memories(
 # ============================================================================
 # TEMPORAL VERSIONING - Memory History Tools
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_memory_versions(
     memory_id: int,
@@ -621,7 +623,7 @@ async def get_memory_versions(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_memory_at_time(
     memory_id: int,
@@ -659,7 +661,7 @@ async def get_memory_at_time(
 # ============================================================================
 # Tool: COMPACT_MEMORIES - Consolidate episodic memories into summaries
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def compact_memories(
     summary: str,
@@ -694,7 +696,7 @@ async def compact_memories(
 # ============================================================================
 # Tool: CLEANUP_MEMORIES - Merge duplicate memories
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def cleanup_memories(
     dry_run: bool = True,
@@ -814,7 +816,7 @@ async def cleanup_memories(
 # ============================================================================
 # Tool: ARCHIVE_MEMORY - Archive/unarchive a memory
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def archive_memory(
     memory_id: int,
@@ -856,7 +858,7 @@ async def archive_memory(
 # ============================================================================
 # Tool: PIN_MEMORY - Pin/unpin a memory
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def pin_memory(
     memory_id: int,

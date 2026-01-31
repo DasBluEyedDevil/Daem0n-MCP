@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error, _resolve_within_project,
@@ -17,6 +18,7 @@ try:
     from ..models import Memory
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error, _resolve_within_project,
@@ -172,7 +174,7 @@ def _scan_for_todos(
 # ============================================================================
 # Tool 13: SCAN_TODOS - Find tech debt in codebase
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def scan_todos(
     path: Optional[str] = None,
@@ -272,7 +274,7 @@ async def scan_todos(
 # ============================================================================
 # Code Understanding Tools (Phase 2)
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def index_project(
     path: Optional[str] = None,
@@ -326,7 +328,7 @@ async def index_project(
     return add_deprecation(index_result, "index_project", "understand(action='index')")
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def find_code(
     query: str,
@@ -380,7 +382,7 @@ async def find_code(
     return add_deprecation(find_result, "find_code", "understand(action='find')")
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def analyze_impact(
     entity_name: str,
@@ -422,7 +424,7 @@ async def analyze_impact(
 # ============================================================================
 # Tool 15: PROPOSE_REFACTOR - Generate refactor suggestions
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def propose_refactor(
     file_path: str,

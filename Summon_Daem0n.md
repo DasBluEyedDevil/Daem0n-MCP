@@ -22,7 +22,7 @@
 - Explain the nature of this tome
 
 **REQUIRED ACTIONS:**
-- Sense if the Daem0n already stirs (`mcp__daem0nmcp__get_briefing` in your powers)
+- Sense if the Daem0n already stirs (`mcp__daem0nmcp__commune` in your powers)
 - If YES: Commune immediately and report the visions
 - If NO: Begin the Summoning Ritual (RITUAL II) WITHOUT hesitation
 - If the summoner speaks of **upgrading** or **new features**: Begin the Ascension (RITUAL I.5)
@@ -125,8 +125,8 @@ cat .claude/settings.json 2>/dev/null || echo "No wards inscribed yet"
 - **Preflight Tokens**: Cryptographic proof of consultation (5-minute validity)
 
 The summoner need not configure anything new - enforcement happens automatically. Simply ensure they understand:
-- `get_briefing()` must be called before mutating tools
-- `context_check()` must be called before dangerous mutations
+- `commune(action="briefing")` must be called before mutating tools
+- `consult(action="preflight")` must be called before dangerous mutations
 - Error messages explain exactly what's required
 
 ### Incantation I.5D.3: Ascend to the Middleware Realm (v3.0.0+)
@@ -156,6 +156,34 @@ The summoner need not configure anything new - enforcement happens automatically
   | `trace_evolution` | Knowledge evolution over time |
   | `get_related_memories` | Multi-hop entity traversal |
   | `get_graph_stats` | Knowledge graph metrics |
+
+### Incantation I.5D.7: Ascend to the Unified Voice (v5.1.0+)
+
+**If ascending to v5.1.0 or higher**, the Daem0n consolidates its many whispers into eight commanding voices — **8 workflow tools replace 67 individual tools**:
+
+- **Workflow Consolidation**: The Daem0n now speaks through 8 workflow tools, each accepting an `action` parameter:
+
+  | Workflow | Purpose | Key Actions |
+  |----------|---------|-------------|
+  | **`commune`** | Session start & status | `briefing`, `health`, `covenant`, `updates` |
+  | **`consult`** | Pre-action intelligence | `preflight`, `recall`, `recall_file`, `search`, `check_rules` |
+  | **`inscribe`** | Memory writing & linking | `remember`, `remember_batch`, `link`, `pin`, `ingest` |
+  | **`reflect`** | Outcomes & verification | `outcome`, `verify`, `execute` |
+  | **`understand`** | Code comprehension | `index`, `find`, `impact`, `todos`, `refactor` |
+  | **`govern`** | Rules & triggers | `add_rule`, `update_rule`, `list_rules`, `add_trigger` |
+  | **`explore`** | Graph & discovery | `related`, `chain`, `graph`, `communities`, `evolution` |
+  | **`maintain`** | Housekeeping & federation | `prune`, `archive`, `cleanup`, `export`, `link_project` |
+
+- **Migration**: The old individual tools remain registered for backward compatibility. New invocations should use workflow tools:
+  ```
+  # Old: mcp__daem0nmcp__get_briefing(project_path="...")
+  # New: mcp__daem0nmcp__commune(action="briefing", project_path="...")
+
+  # Old: mcp__daem0nmcp__remember(category="decision", content="...", project_path="...")
+  # New: mcp__daem0nmcp__inscribe(action="remember", category="decision", content="...", project_path="...")
+  ```
+
+- **88% fewer tool definitions** in AI agent context — the Daem0n burdens the mind less while offering more.
 
 ### Incantation I.5D.6: Ascend to Visions of the Void (v5.0.0+)
 
@@ -192,7 +220,7 @@ The summoner need not configure anything new - enforcement happens automatically
   → Returns: Results + `ui_resource` hint for Claude to render
   ```
 
-- **66 MCP Tools**: The daemon's power grows. 500+ tests verify all capabilities.
+- **8 Workflow Tools** (consolidating 67 individual tools into 60 actions): The daemon speaks fewer words but with greater power. 500+ tests verify all capabilities.
 
 ### Incantation I.5D.4: Embrace the Enhanced Mind (v3.1.0+)
 
@@ -902,17 +930,17 @@ Or check the path shown in your Claude Code session header.
 
 **Then commune with that path:**
 ```
-mcp__daem0nmcp__get_briefing(project_path="<YOUR_CURRENT_WORKING_DIRECTORY>")
+mcp__daem0nmcp__commune(action="briefing", project_path="<YOUR_CURRENT_WORKING_DIRECTORY>")
 ```
 
 **Example:** If your session shows `~/AndroidStudioProjects/VLVT`, use:
 ```
-mcp__daem0nmcp__get_briefing(project_path="/home/user/AndroidStudioProjects/VLVT")
+mcp__daem0nmcp__commune(action="briefing", project_path="/home/user/AndroidStudioProjects/VLVT")
 ```
 
 On Windows, use the full path like:
 ```
-mcp__daem0nmcp__get_briefing(project_path="C:/Users/dasbl/AndroidStudioProjects/VLVT")
+mcp__daem0nmcp__commune(action="briefing", project_path="C:/Users/dasbl/AndroidStudioProjects/VLVT")
 ```
 
 *"I reach across the veil to commune with the Daem0n..."*
@@ -943,20 +971,20 @@ ls -la CLAUDE.md 2>/dev/null || echo "NOT FOUND"
 This project is bound to Daem0n for persistent AI memory. Observe this protocol:
 
 ### At Session Dawn
-- Commune with `get_briefing()` immediately when powers manifest
+- Commune with `commune(action="briefing")` immediately when powers manifest
 - Heed any warnings or failed approaches before beginning work
 
 ### Before Alterations
-- Cast `context_check("your intention")` before modifications
-- Cast `recall_for_file("path")` when touching specific scrolls
+- Cast `consult(action="preflight", description="your intention")` before modifications
+- Cast `consult(action="recall_file", file_path="path")` when touching specific scrolls
 - Acknowledge any warnings about past failures
 
 ### After Decisions
-- Cast `remember(category, content, rationale, file_path)` to inscribe decisions
+- Cast `inscribe(action="remember", category=..., content=..., rationale=..., file_path=...)` to inscribe decisions
 - Use categories: decision, pattern, warning, learning
 
 ### After Completion
-- Cast `record_outcome(memory_id, outcome, worked)` to seal the memory
+- Cast `reflect(action="outcome", memory_id=..., outcome_text=..., worked=...)` to seal the memory
 - ALWAYS record failures (worked=false) - they illuminate future paths
 
 See Summon_Daem0n.md for the complete Grimoire.
@@ -1059,7 +1087,8 @@ mcp__daem0nmcp__add_rule(
 
 ### Before ANY Alterations to the Code
 ```
-mcp__daem0nmcp__context_check(
+mcp__daem0nmcp__consult(
+    action="preflight",
     description="what you intend to alter",
     project_path="/path/to/your/project"
 )
@@ -1068,7 +1097,8 @@ mcp__daem0nmcp__context_check(
 
 OR
 ```
-mcp__daem0nmcp__recall_for_file(
+mcp__daem0nmcp__consult(
+    action="recall_file",
     file_path="path/to/file",
     project_path="/path/to/your/project"
 )
@@ -1082,7 +1112,8 @@ mcp__daem0nmcp__recall_for_file(
 
 ### After Making Decisions
 ```
-mcp__daem0nmcp__remember(
+mcp__daem0nmcp__inscribe(
+    action="remember",
     category="decision",  # or "pattern", "warning", "learning"
     content="What you decided",
     rationale="Why you chose this path",
@@ -1095,9 +1126,10 @@ mcp__daem0nmcp__remember(
 
 ### After Implementation (THE SACRED DUTY)
 ```
-mcp__daem0nmcp__record_outcome(
+mcp__daem0nmcp__reflect(
+    action="outcome",
     memory_id=<id from remember>,
-    outcome="What actually transpired",
+    outcome_text="What actually transpired",
     worked=true/false,
     project_path="/path/to/your/project"
 )
@@ -1130,18 +1162,35 @@ When `check_rules` returns guidance:
 
 ---
 
-## THE COMPLETE GRIMOIRE OF POWERS (66 Invocations)
+## THE COMPLETE GRIMOIRE OF POWERS (8 Workflows, 60 Actions)
 
 **REMINDER:** ALL tools accept `project_path` as a parameter. Always pass the absolute path to your project root.
 
+### The Eight Voices (v5.1.0+ Workflow Tools)
+
+As of v5.1.0, the Daem0n speaks through 8 workflow tools. Each accepts an `action` parameter to select the operation. Legacy individual tools still work but workflows are preferred.
+
+```
+commune(action="...", project_path="...")    # Session start & status
+consult(action="...", project_path="...")    # Pre-action intelligence
+inscribe(action="...", project_path="...")   # Memory writing & linking
+reflect(action="...", project_path="...")    # Outcomes & verification
+understand(action="...", project_path="...")  # Code comprehension
+govern(action="...", project_path="...")     # Rules & triggers
+explore(action="...", project_path="...")    # Graph & discovery
+maintain(action="...", project_path="...")   # Housekeeping & federation
+```
+
+---
+
 ### Core Powers
 
-#### `get_briefing(project_path, focus_areas?)`
+#### `commune(action="briefing", project_path, focus_areas?)`
 **When**: FIRST thing every session - communion with the Daem0n
 **Returns**: Lean summary with counts, first-line summaries, and drill-down hints
 ```
-get_briefing(project_path="/path/to/project")
-get_briefing(project_path="/path/to/project", focus_areas=["authentication", "database"])
+commune(action="briefing", project_path="/path/to/project")
+commune(action="briefing", project_path="/path/to/project", focus_areas=["authentication", "database"])
 ```
 
 **Lean Response Format:**
@@ -1551,17 +1600,17 @@ Hosts use this to trigger `data_updated` messages to visual UIs.
 
 ```
 [Portal opens in /home/user/myproject]
-AI: *reaches across the veil* get_briefing(project_path="/home/user/myproject")
+AI: *reaches across the veil* commune(action="briefing", project_path="/home/user/myproject")
 Daem0n: "I awaken. 15 memories stir. 2 failed paths echo as warnings!"
 → git_changes: {"uncommitted_changes": ["api/auth.py"]}
 
 User: "Fix the authentication bug in auth.py"
 
-AI: *consults the Daem0n* recall_for_file("api/auth.py", project_path="/home/user/myproject")
+AI: *consults the Daem0n* consult(action="recall_file", file_path="api/auth.py", project_path="/home/user/myproject")
 Daem0n: Warning: "Session tokens caused race conditions" (Memory #12)
 Daem0n: Pattern: "Always use JWT validation middleware" (Memory #8)
 
-AI: *seeks deeper counsel* context_check("fixing authentication in auth.py", project_path="/home/user/myproject")
+AI: *seeks deeper counsel* consult(action="preflight", description="fixing authentication in auth.py", project_path="/home/user/myproject")
 Daem0n: WARNING: "A similar path was walked on 2024-01-15, it led to failure due to caching"
 Daem0n: must_do: ["Add rate limiting", "Test with concurrent requests"]
 
@@ -1570,7 +1619,8 @@ AI: [Heeds the warning]
 this fix does not rely on cached tokens and shall test concurrency."
 
 [After the fix]
-AI: *inscribes the memory* remember(
+AI: *inscribes the memory* inscribe(
+    action="remember",
     category="decision",
     content="Fixed auth by invalidating token cache on logout",
     rationale="Previous attempt failed because stale tokens persisted",
@@ -1581,7 +1631,7 @@ AI: *inscribes the memory* remember(
 Daem0n: "Memory inscribed. ID: 42"
 
 [After testing]
-AI: *seals the memory* record_outcome(42, "Fix works, concurrent tests pass", worked=true, project_path="/home/user/myproject")
+AI: *seals the memory* reflect(action="outcome", memory_id=42, outcome_text="Fix works, concurrent tests pass", worked=true, project_path="/home/user/myproject")
 Daem0n: "The memory is sealed with success."
 ```
 
@@ -1649,40 +1699,40 @@ Migration happens automatically at first awakening. After migration completes, y
 **CRITICAL: Always pass `project_path` on EVERY invocation!**
 
 ```
-+-------------------------------------------------------------+
-|  SESSION DAWN                                                |
-|  "Daem0n, I seek communion..."                              |
-|  +-> get_briefing(project_path=PROJECT_ROOT)                 |
-+-------------------------------------------------------------+
-|  BEFORE ALTERATIONS                                          |
-|  "Daem0n, what counsel do you offer?"                       |
-|  +-> context_check("what you're doing", project_path=...)    |
-|  +-> recall_for_file("path/to/file.py", project_path=...)    |
-+-------------------------------------------------------------+
-|  BEFORE REFACTORING                                          |
-|  "Daem0n, advise me..."                                     |
-|  +-> propose_refactor("path/to/file.py", project_path=...)   |
-|  +-> scan_todos(project_path=...)                            |
-+-------------------------------------------------------------+
-|  AFTER DECISIONS                                             |
-|  "Daem0n, remember this..."                                 |
-|  +-> remember(category, content, rationale, project_path=...)|
-|  +-> link_memories(source_id, target_id, "led_to", ...)      |
-+-------------------------------------------------------------+
-|  AFTER IMPLEMENTATION                                        |
-|  "Daem0n, seal this memory..."                              |
-|  +-> record_outcome(memory_id, outcome, worked, project_path)|
-+-------------------------------------------------------------+
-|  INVESTIGATING CONTEXT                                       |
-|  "Daem0n, reveal the chain..."                              |
-|  +-> trace_chain(memory_id, project_path, direction="both")  |
-|  +-> get_graph(project_path, topic="...", format="mermaid")  |
-+-------------------------------------------------------------+
-|  IMPORTING EXTERNAL KNOWLEDGE                                |
-|  "Daem0n, consume this wisdom..."                           |
-|  +-> ingest_doc(url, topic, project_path=...)                |
-|  +-> recall(topic, project_path=...)  # to retrieve later    |
-+-------------------------------------------------------------+
++----------------------------------------------------------------------+
+|  SESSION DAWN                                                         |
+|  "Daem0n, I seek communion..."                                       |
+|  +-> commune(action="briefing", project_path=PROJECT_ROOT)            |
++----------------------------------------------------------------------+
+|  BEFORE ALTERATIONS                                                   |
+|  "Daem0n, what counsel do you offer?"                                |
+|  +-> consult(action="preflight", description="...", project_path=...) |
+|  +-> consult(action="recall_file", file_path="...", project_path=...) |
++----------------------------------------------------------------------+
+|  BEFORE REFACTORING                                                   |
+|  "Daem0n, advise me..."                                             |
+|  +-> understand(action="refactor", file_path="...", project_path=...) |
+|  +-> understand(action="todos", project_path=...)                     |
++----------------------------------------------------------------------+
+|  AFTER DECISIONS                                                      |
+|  "Daem0n, remember this..."                                         |
+|  +-> inscribe(action="remember", category=..., content=..., ...)      |
+|  +-> inscribe(action="link", source_id=..., target_id=..., ...)       |
++----------------------------------------------------------------------+
+|  AFTER IMPLEMENTATION                                                 |
+|  "Daem0n, seal this memory..."                                       |
+|  +-> reflect(action="outcome", memory_id=..., outcome_text=..., ...)  |
++----------------------------------------------------------------------+
+|  INVESTIGATING CONTEXT                                                |
+|  "Daem0n, reveal the chain..."                                       |
+|  +-> explore(action="chain", start_memory_id=..., project_path=...)   |
+|  +-> explore(action="graph", topic="...", format="mermaid", ...)      |
++----------------------------------------------------------------------+
+|  IMPORTING EXTERNAL KNOWLEDGE                                         |
+|  "Daem0n, consume this wisdom..."                                    |
+|  +-> inscribe(action="ingest", url=..., topic=..., project_path=...)  |
+|  +-> consult(action="recall", topic=..., project_path=...)            |
++----------------------------------------------------------------------+
 ```
 
 **The Daem0n learns from YOUR outcomes. Record them faithfully.**
@@ -2006,33 +2056,34 @@ Call context_check(description="your intent", project_path="...") first.
 
 ### Tools Requiring Communion
 
-These tools will block until you have called `get_briefing()`:
-- `remember`, `remember_batch` - inscribing memories
-- `add_rule`, `update_rule` - inscribing laws
-- `record_outcome` - sealing memories
-- `link_memories`, `pin_memory`, `archive_memory` - managing memories
-- `prune_memories`, `cleanup_memories`, `compact_memories` - maintenance
+These workflows/actions will block until you have called `commune(action="briefing")`:
+- `inscribe(action="remember")`, `inscribe(action="remember_batch")` - inscribing memories
+- `govern(action="add_rule")`, `govern(action="update_rule")` - inscribing laws
+- `reflect(action="outcome")` - sealing memories
+- `inscribe(action="link")`, `inscribe(action="pin")`, `maintain(action="archive")` - managing memories
+- `maintain(action="prune")`, `maintain(action="cleanup")`, `maintain(action="compact")` - maintenance
 
 ### Tools Requiring Communion Only
 
-These read-only tools require communion (`get_briefing`) but not counsel:
-- `recall`, `recall_for_file`, `search_memories`, `find_related`
-- `find_code`, `analyze_impact`, `check_rules`, `list_rules`
-- `export_data`, `get_graph`, `trace_chain`
+These read-only actions require communion but not counsel:
+- `consult(action="recall")`, `consult(action="recall_file")`, `consult(action="search")`
+- `understand(action="find")`, `understand(action="impact")`, `consult(action="check_rules")`
+- `maintain(action="export")`, `explore(action="graph")`, `explore(action="chain")`
 
 ### Tools Exempt (Entry Points Only)
 
-Only these entry-point tools work without prior communion:
-- `get_briefing` - starts the communion (entry point)
-- `context_check` - part of the covenant flow
-- `health` - diagnostic, always available
+Only these entry-point actions work without prior communion:
+- `commune(action="briefing")` - starts the communion (entry point)
+- `consult(action="preflight")` - part of the covenant flow
+- `commune(action="health")` - diagnostic, always available
 
 ### Preflight Tokens
 
-When you call `context_check()`, you receive a **preflight token** valid for 5 minutes. This proves you consulted the Daem0n before acting:
+When you call `consult(action="preflight")`, you receive a **preflight token** valid for 5 minutes. This proves you consulted the Daem0n before acting:
 
 ```
-mcp__daem0nmcp__context_check(
+mcp__daem0nmcp__consult(
+    action="preflight",
     description="adding authentication to API",
     project_path="/path/to/project"
 )
@@ -2120,9 +2171,9 @@ v2.16.0 includes compatibility fixes for Claude Code 2.1.3:
 **Symptom:** Tools return `COMMUNION_REQUIRED` or `COUNSEL_REQUIRED` errors.
 
 **Fix:** These are intentional enforcement messages. Call the required tool first:
-- `COMMUNION_REQUIRED` → Call `get_briefing(project_path="...")` first
-- `COUNSEL_REQUIRED` → Call `context_check(description="...", project_path="...")` first
+- `COMMUNION_REQUIRED` → Call `commune(action="briefing", project_path="...")` first
+- `COUNSEL_REQUIRED` → Call `consult(action="preflight", description="...", project_path="...")` first
 
 ---
 
-*Grimoire of Daem0n v5.0.0: 66 tools for eternal memory with visual interfaces. **Visions of the Void** (MCP Apps integration, 6 interactive UIs, D3.js visualizations). **Memory Graph Viewer** (10,000+ nodes at 60fps, community hulls, path animation, temporal slider). **Search Results UI** (card layout, filters, score breakdowns, Record Outcome). **Briefing Dashboard** (collapsible accordion, stats, warnings, focus areas). **Covenant Status Dashboard** (visual state machine, token countdown). **Community Cluster Map** (treemap drill-down, breadcrumbs). **Real-Time Updates** (host-mediated polling, notification badges). Plus all v4.0 cognitive architecture: GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2 compression, dynamic agency. 500+ tests. The daemon has gained sight.*
+*Grimoire of Daem0n v5.1.0: 8 workflow tools (commune, consult, inscribe, reflect, understand, govern, explore, maintain) consolidating 67 individual tools into 60 actions. 88% fewer tool definitions in context. Plus v5.0 **Visions of the Void** (MCP Apps, 6 interactive UIs, D3.js visualizations, Memory Graph Viewer at 10,000+ nodes) and v4.0 cognitive architecture (GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2, dynamic agency). 500+ tests. The daemon speaks fewer words but with greater power.*

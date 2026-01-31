@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -12,6 +13,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -21,7 +23,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def link_memories(
     source_id: int,
@@ -52,7 +54,7 @@ async def link_memories(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def unlink_memories(
     source_id: int,
@@ -80,7 +82,7 @@ async def unlink_memories(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def trace_chain(
     memory_id: int,
@@ -111,7 +113,7 @@ async def trace_chain(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_graph(
     memory_ids: Optional[List[int]] = None,
@@ -139,7 +141,7 @@ async def get_graph(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_graph_visual(
     memory_ids: Optional[List[int]] = None,
@@ -198,7 +200,7 @@ async def get_graph_visual(
     return format_with_ui_hint(result, ui_resource, text)
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_graph_stats(
     project_path: Optional[str] = None
@@ -221,7 +223,7 @@ async def get_graph_stats(
 # ============================================================================
 # COMMUNITY MANAGEMENT TOOLS
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def rebuild_communities(
     min_community_size: int = 2,
@@ -268,7 +270,7 @@ async def rebuild_communities(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_communities(
     level: Optional[int] = None,
@@ -300,7 +302,7 @@ async def list_communities(
     }
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_communities_visual(
     level: Optional[int] = None,
@@ -363,7 +365,7 @@ async def list_communities_visual(
     )
 
 
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def get_community_details(
     community_id: int,

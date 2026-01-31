@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 
 try:
     from ..mcp_instance import mcp
+    from .. import __version__
     from ..context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -12,6 +13,7 @@ try:
     from ..logging_config import with_request_id
 except ImportError:
     from daem0nmcp.mcp_instance import mcp
+    from daem0nmcp import __version__
     from daem0nmcp.context_manager import (
         get_project_context, _default_project_path,
         _missing_project_path_error,
@@ -26,7 +28,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Tool 3: ADD_RULE - Create a decision tree node
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def add_rule(
     trigger: str,
@@ -71,7 +73,7 @@ async def add_rule(
 # ============================================================================
 # Tool 4: CHECK_RULES - Validate an action against rules
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def check_rules(
     action: str,
@@ -100,7 +102,7 @@ async def check_rules(
 # ============================================================================
 # Tool 8: LIST_RULES - See all configured rules
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def list_rules(
     enabled_only: bool = True,
@@ -126,7 +128,7 @@ async def list_rules(
 # ============================================================================
 # Tool 9: UPDATE_RULE - Modify existing rules
 # ============================================================================
-@mcp.tool(version="3.0.0")
+@mcp.tool(version=__version__)
 @with_request_id
 async def update_rule(
     rule_id: int,

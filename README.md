@@ -13,6 +13,54 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
+## What's New in v5.1.0
+
+### Workflow Consolidation
+The daemon speaks fewer words but with greater power. v5.1 consolidates **67 individual MCP tools into 8 workflow-oriented tools**, dramatically reducing context overhead for AI agents while preserving all capabilities.
+
+#### 8 Workflow Tools
+
+| Workflow | Purpose | Actions |
+|----------|---------|---------|
+| **`commune`** | Session start & status | `briefing`, `active_context`, `triggers`, `health`, `covenant`, `updates` |
+| **`consult`** | Pre-action intelligence | `preflight`, `recall`, `recall_file`, `recall_entity`, `recall_hierarchical`, `search`, `check_rules`, `compress` |
+| **`inscribe`** | Memory writing & linking | `remember`, `remember_batch`, `link`, `unlink`, `pin`, `activate`, `deactivate`, `clear_active`, `ingest` |
+| **`reflect`** | Outcomes & verification | `outcome`, `verify`, `execute` |
+| **`understand`** | Code comprehension | `index`, `find`, `impact`, `todos`, `refactor` |
+| **`govern`** | Rules & triggers | `add_rule`, `update_rule`, `list_rules`, `add_trigger`, `list_triggers`, `remove_trigger` |
+| **`explore`** | Graph & discovery | `related`, `chain`, `graph`, `stats`, `communities`, `community_detail`, `rebuild_communities`, `entities`, `backfill_entities`, `evolution`, `versions`, `at_time` |
+| **`maintain`** | Housekeeping & federation | `prune`, `archive`, `cleanup`, `compact`, `rebuild_index`, `export`, `import_data`, `link_project`, `unlink_project`, `list_projects`, `consolidate` |
+
+#### How It Works
+Each workflow tool accepts an `action` parameter that selects the operation:
+```python
+# Old way (67 separate tools)
+mcp__daem0nmcp__get_briefing(project_path="...")
+mcp__daem0nmcp__recall(topic="auth", project_path="...")
+mcp__daem0nmcp__remember(category="decision", content="...", project_path="...")
+mcp__daem0nmcp__record_outcome(memory_id=42, outcome="...", worked=True, project_path="...")
+
+# New way (8 workflow tools)
+mcp__daem0nmcp__commune(action="briefing", project_path="...")
+mcp__daem0nmcp__consult(action="recall", topic="auth", project_path="...")
+mcp__daem0nmcp__inscribe(action="remember", category="decision", content="...", project_path="...")
+mcp__daem0nmcp__reflect(action="outcome", memory_id=42, outcome_text="...", worked=True, project_path="...")
+```
+
+#### Why Consolidate?
+- **88% fewer tool definitions** in context (8 vs 67)
+- **Lower token overhead** — AI agents load fewer tool schemas
+- **Logical grouping** — related operations live in one tool
+- **Backward compatible** — legacy individual tools still registered alongside workflows
+
+### Stats
+- **8 workflow tools** (consolidating 67 individual tools)
+- **60 total actions** across all workflows
+- **500+ tests** passing
+- **51,929+ lines** of Python
+
+---
+
 ## What's New in v5.0.0
 
 ### Visions of the Void
@@ -488,89 +536,109 @@ Or use `start_daem0nmcp_server.bat`
 
 3. **Start Claude Code** (after server is running)
 
-## Core Tools (66 Total)
+## Workflow Tools (8 Tools, 60 Actions)
 
-### Memory Tools
+As of v5.1, all capabilities are accessed through 8 workflow tools. Each tool accepts an `action` parameter to select the operation. Legacy individual tools remain registered for backward compatibility.
 
-| Tool | Purpose |
-|------|---------|
+### `commune` — Session Start & Status
+
+| Action | Purpose |
+|--------|---------|
+| `briefing` | Smart session start with git awareness (replaces `get_briefing`) |
+| `active_context` | Get all hot memories for current focus |
+| `triggers` | Check context triggers for auto-recalled memories |
+| `health` | Server health, version, and statistics |
+| `covenant` | Sacred Covenant status and phase |
+| `updates` | Poll for knowledge changes (real-time notifications) |
+
+### `consult` — Pre-Action Intelligence
+
+| Action | Purpose |
+|--------|---------|
+| `preflight` | Combined recall + rules check (replaces `context_check`) |
+| `recall` | Semantic memory retrieval by topic (supports `condensed`, `visual`) |
+| `recall_file` | Get memories linked to a specific file |
+| `recall_entity` | Get memories mentioning a code entity |
+| `recall_hierarchical` | GraphRAG-style layered retrieval |
+| `search` | Full-text search across all memories |
+| `check_rules` | Validate action against decision rules |
+| `compress` | LLMLingua-2 context compression |
+
+### `inscribe` — Memory Writing & Linking
+
+| Action | Purpose |
+|--------|---------|
 | `remember` | Store a memory with conflict detection |
-| `remember_batch` | Store multiple memories efficiently in one transaction |
-| `recall` | Semantic memory retrieval by topic (supports `condensed=True` for token savings) |
-| `recall_for_file` | Get memories linked to a specific file |
-| `search_memories` | Search across all memories |
-| `find_related` | Discover connected memories |
-| `record_outcome` | Track if a decision worked or failed |
-| `pin_memory` | Pin memories to prevent pruning and boost relevance |
-| `archive_memory` | Hide memories from recall while preserving history |
-| `compact_memories` | Consolidate old episodic memories into summaries |
-| `get_memory_versions` | Get full version history for a memory |
-| `get_memory_at_time` | Query historical state of a memory at a specific time |
+| `remember_batch` | Store multiple memories in one transaction |
+| `link` | Create causal relationships between memories |
+| `unlink` | Remove relationships between memories |
+| `pin` | Pin/unpin memories to prevent pruning |
+| `activate` | Add memory to always-hot working context |
+| `deactivate` | Remove memory from active context |
+| `clear_active` | Clear all active context |
+| `ingest` | Import external documentation from URL |
 
-### Rule Tools
+### `reflect` — Outcomes & Verification
 
-| Tool | Purpose |
-|------|---------|
-| `add_rule` | Create decision tree nodes |
-| `check_rules` | Semantic rule matching |
+| Action | Purpose |
+|--------|---------|
+| `outcome` | Record whether a decision worked or failed |
+| `verify` | Validate factual claims against stored knowledge |
+| `execute` | Sandboxed Python execution (E2B) |
+
+### `understand` — Code Comprehension
+
+| Action | Purpose |
+|--------|---------|
+| `index` | Index code entities via tree-sitter |
+| `find` | Semantic search across code entities |
+| `impact` | Analyze blast radius of code changes |
+| `todos` | Scan for TODO/FIXME/HACK comments |
+| `refactor` | Generate refactor suggestions with causal history |
+
+### `govern` — Rules & Triggers
+
+| Action | Purpose |
+|--------|---------|
+| `add_rule` | Create decision tree rules |
 | `update_rule` | Modify existing rules |
 | `list_rules` | Show all configured rules |
+| `add_trigger` | Create auto-recall context triggers |
+| `list_triggers` | List all context triggers |
+| `remove_trigger` | Remove a context trigger |
 
-### Session & Context Tools
+### `explore` — Graph & Discovery
 
-| Tool | Purpose |
-|------|---------|
-| `get_briefing` | Smart session start with git awareness |
-| `context_check` | Combined recall + rules in one call |
-| `set_active_context` | Pin memory to active working context |
-| `get_active_context` | Get all hot memories for current focus |
-| `remove_from_active_context` | Remove memory from active context |
-| `clear_active_context` | Clear all hot memories |
+| Action | Purpose |
+|--------|---------|
+| `related` | Find related memories via graph traversal |
+| `chain` | Find causal paths between memories |
+| `graph` | Visualize memory relationships (JSON/Mermaid, supports `visual`) |
+| `stats` | Knowledge graph metrics |
+| `communities` | List Leiden community clusters (supports `visual`) |
+| `community_detail` | Drill down into a community |
+| `rebuild_communities` | Detect communities via Leiden algorithm |
+| `entities` | List most frequently mentioned entities |
+| `backfill_entities` | Extract entities from existing memories |
+| `evolution` | Trace knowledge evolution over time |
+| `versions` | Get version history for a memory |
+| `at_time` | Query memory state at a point in time |
 
-### Graph Memory Tools
+### `maintain` — Housekeeping & Federation
 
-| Tool | Purpose |
-|------|---------|
-| `link_memories` | Create causal relationships between memories |
-| `unlink_memories` | Remove relationships between memories |
-| `trace_chain` | Traverse memory graph (forward/backward) |
-| `get_graph` | Visualize memory relationships (JSON or Mermaid) |
-
-### Hierarchical Summarization Tools
-
-| Tool | Purpose |
-|------|---------|
-| `rebuild_communities` | Detect memory clusters by tag co-occurrence |
-| `list_communities` | Get community summaries for high-level overview |
-| `get_community_details` | Drill down to member memories in a community |
-| `recall_hierarchical` | Layered retrieval: community summaries then details |
-
-### Code Understanding Tools
-
-| Tool | Purpose |
-|------|---------|
-| `index_project` | Index code entities (classes, functions, methods) |
-| `find_code` | Semantic search across code entities |
-| `analyze_impact` | Analyze what changing an entity would affect |
-
-### Utility Tools
-
-| Tool | Purpose |
-|------|---------|
-| `scan_todos` | Find TODO/FIXME/HACK comments |
-| `propose_refactor` | Get refactoring context for a file |
-| `ingest_doc` | Import external documentation |
-
-### Maintenance Tools
-
-| Tool | Purpose |
-|------|---------|
+| Action | Purpose |
+|--------|---------|
+| `prune` | Remove old, low-value memories (with protection) |
+| `archive` | Archive/restore memories |
+| `cleanup` | Find and merge duplicate memories |
+| `compact` | Consolidate episodic memories into summaries |
 | `rebuild_index` | Force rebuild TF-IDF and vector indexes |
-| `export_data` | Export all memories and rules as JSON |
+| `export` | Export all memories and rules as JSON |
 | `import_data` | Import memories and rules from JSON |
-| `prune_memories` | Remove old, low-value memories (with protection) |
-| `cleanup_memories` | Find and merge duplicate memories |
-| `health` | Get server health, version, and statistics |
+| `link_project` | Link to another project for cross-repo awareness |
+| `unlink_project` | Remove a project link |
+| `list_projects` | List all linked projects |
+| `consolidate` | Merge memories from linked projects |
 
 ### Visual Tools (MCP Apps)
 
@@ -587,7 +655,8 @@ Or use `start_daem0nmcp_server.bat`
 
 ### Store a Memory
 ```python
-remember(
+inscribe(
+    action="remember",
     category="decision",  # decision, pattern, warning, or learning
     content="Use JWT tokens instead of sessions",
     rationale="Need stateless auth for horizontal scaling",
@@ -598,17 +667,18 @@ remember(
 
 ### Retrieve Memories
 ```python
-recall("authentication")
+consult(action="recall", topic="authentication")
 # Returns: decisions, patterns, warnings, learnings about auth
 # Sorted by: semantic relevance × recency × importance
 
-recall_for_file("src/auth/jwt.py")
+consult(action="recall_file", file_path="src/auth/jwt.py")
 # Returns: all memories linked to this file
 ```
 
 ### Create Rules
 ```python
-add_rule(
+govern(
+    action="add_rule",
     trigger="adding new API endpoint",
     must_do=["Add rate limiting", "Write integration test"],
     must_not=["Use synchronous database calls"],
@@ -618,14 +688,14 @@ add_rule(
 
 ### Track Outcomes
 ```python
-record_outcome(memory_id=42, outcome="JWT auth works great", worked=True)
-record_outcome(memory_id=43, outcome="Caching caused stale data", worked=False)
+reflect(action="outcome", memory_id=42, outcome_text="JWT auth works great", worked=True)
+reflect(action="outcome", memory_id=43, outcome_text="Caching caused stale data", worked=False)
 # Failed decisions get 1.5x boost in future recalls
 ```
 
 ### Session Start
 ```python
-get_briefing(focus_areas=["authentication", "API"])
+commune(action="briefing", focus_areas=["authentication", "API"])
 # First run: Creates 6-7 memories from project structure, README, manifests, etc.
 # Returns: stats, recent decisions, warnings, failed approaches,
 # git changes, bootstrap summary, plus pre-fetched context for focus areas
@@ -634,40 +704,40 @@ get_briefing(focus_areas=["authentication", "API"])
 ### Endless Mode (Token Compression)
 ```python
 # Full recall (default) - ~40KB response
-recall("authentication")
+consult(action="recall", topic="authentication")
 
 # Condensed recall - ~10KB response (75% smaller)
-recall("authentication", condensed=True)
+consult(action="recall", topic="authentication", condensed=True)
 # Returns: truncated content, no rationale/context, minimal fields
 
 # Briefings automatically use condensed mode for focus areas
-get_briefing(focus_areas=["auth", "database", "api"])
+commune(action="briefing", focus_areas=["auth", "database", "api"])
 # Focus area results are pre-compressed
 ```
 
 ### Import External Docs
 ```python
-ingest_doc("https://stripe.com/docs/api/charges", "stripe")
-# Later: recall("stripe") to retrieve
+inscribe(action="ingest", url="https://stripe.com/docs/api/charges", topic="stripe")
+# Later: consult(action="recall", topic="stripe") to retrieve
 ```
 
 ## AI Agent Protocol
 
-The recommended workflow for AI agents:
+The recommended workflow for AI agents using the 8 workflow tools:
 
 ```
 SESSION START
-    └─> get_briefing()
+    └─> commune(action="briefing")
 
 BEFORE CHANGES
-    └─> context_check("what you're doing")
-    └─> recall_for_file("path/to/file.py")
+    └─> consult(action="preflight", description="what you're doing")
+    └─> consult(action="recall_file", file_path="path/to/file.py")
 
 AFTER DECISIONS
-    └─> remember(category, content, rationale, file_path)
+    └─> inscribe(action="remember", category=..., content=..., rationale=..., file_path=...)
 
 AFTER IMPLEMENTATION
-    └─> record_outcome(memory_id, outcome, worked)
+    └─> reflect(action="outcome", memory_id=..., outcome_text=..., worked=...)
 ```
 
 See `Summon_Daem0n.md` for the complete protocol (with ritual theme for fun).
@@ -788,7 +858,7 @@ Environment variables (prefix: `DAEM0NMCP_`):
 
 ```
 daem0nmcp/
-├── server.py       # MCP server with 53+ tools (FastMCP)
+├── server.py       # MCP server with 8 workflow tools + legacy tools (FastMCP)
 ├── memory.py       # Memory storage & semantic retrieval
 ├── rules.py        # Rule engine with BM25 matching
 ├── similarity.py   # TF-IDF index, decay, conflict detection
@@ -800,6 +870,15 @@ daem0nmcp/
 ├── prompt_templates.py # AutoPDL-inspired modular prompts
 ├── tool_search.py  # Dynamic tool discovery index
 ├── covenant.py     # Sacred Covenant enforcement decorators & preflight tokens
+├── workflows/      # 8 consolidated workflow tools (v5.1)
+│   ├── commune.py  # Session start & status
+│   ├── consult.py  # Pre-action intelligence
+│   ├── inscribe.py # Memory writing & linking
+│   ├── reflect.py  # Outcomes & verification
+│   ├── understand.py # Code comprehension
+│   ├── govern.py   # Rules & triggers
+│   ├── explore.py  # Graph & discovery
+│   └── maintain.py # Housekeeping & federation
 ├── transforms/     # FastMCP 3.0 transforms
 │   └── covenant.py # CovenantMiddleware & CovenantTransform
 ├── tracing.py      # OpenTelemetry integration (optional)
@@ -1003,4 +1082,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v5.0.0: Visions of the Void—MCP Apps visual interfaces (Memory Graph Viewer, Search Results UI, Briefing Dashboard, Covenant Status, Community Cluster Map, Real-Time Updates). D3.js force-directed graphs at 10,000+ nodes, treemap drill-down, canvas rendering. Plus v4.0 Cognitive Architecture: GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2, dynamic agency. 66 MCP tools, 500+ tests. The daemon has gained sight.*
+*Daem0nMCP v5.1.0: Workflow Consolidation—67 tools into 8 workflow-oriented tools (commune, consult, inscribe, reflect, understand, govern, explore, maintain) with 60 actions. 88% fewer tool definitions in context. Plus v5.0 Visions of the Void (MCP Apps, D3.js visualizations) and v4.0 Cognitive Architecture (GraphRAG, bi-temporal memory, Reflexion, LLMLingua-2, dynamic agency). 500+ tests. The daemon speaks fewer words but with greater power.*
