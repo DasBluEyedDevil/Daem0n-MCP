@@ -248,7 +248,7 @@ class RetrievalRouter:
                 )
                 return self._hybrid_search(query, top_k, **kwargs)
 
-            query_embedding_bytes = vectors.encode(query)
+            query_embedding_bytes = vectors.encode_query(query)
             if not query_embedding_bytes:
                 logger.debug(
                     "[AUTO-ZOOM] Vector encoding failed, falling back to hybrid"
