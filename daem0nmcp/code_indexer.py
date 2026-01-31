@@ -828,7 +828,7 @@ class CodeIndexManager:
             if not text:
                 continue
 
-            embedding = vectors.encode(text)
+            embedding = vectors.encode_document(text)
             if embedding is None:
                 continue
 
@@ -993,7 +993,7 @@ class CodeIndexManager:
             return []
 
         # Encode query
-        embedding = vectors.encode(query)
+        embedding = vectors.encode_query(query)
         if embedding is None:
             return []
 
