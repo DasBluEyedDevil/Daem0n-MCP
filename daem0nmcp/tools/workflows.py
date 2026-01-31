@@ -20,6 +20,8 @@ except ImportError:
     )
     from daem0nmcp.logging_config import with_request_id
 
+from ._deprecation import workflow_call
+
 # Import workflow error types
 try:
     from ..workflows.errors import WorkflowError
@@ -62,19 +64,20 @@ async def commune(
             from ..workflows import commune as commune_mod
         except ImportError:
             from daem0nmcp.workflows import commune as commune_mod
-        return await commune_mod.dispatch(
-            action=action,
-            project_path=pp,
-            focus_areas=focus_areas,
-            visual=visual,
-            file_path=file_path,
-            tags=tags,
-            entities=entities,
-            limit=limit,
-            since=since,
-            interval_seconds=interval_seconds,
-            parent_community_id=parent_community_id,
-        )
+        with workflow_call():
+            return await commune_mod.dispatch(
+                action=action,
+                project_path=pp,
+                focus_areas=focus_areas,
+                visual=visual,
+                file_path=file_path,
+                tags=tags,
+                entities=entities,
+                limit=limit,
+                since=since,
+                interval_seconds=interval_seconds,
+                parent_community_id=parent_community_id,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
 
@@ -138,36 +141,37 @@ async def consult(
             from ..workflows import consult as consult_mod
         except ImportError:
             from daem0nmcp.workflows import consult as consult_mod
-        return await consult_mod.dispatch(
-            action=action,
-            project_path=pp,
-            description=description,
-            topic=topic,
-            categories=categories,
-            tags=tags,
-            file_path=file_path,
-            offset=offset,
-            limit=limit,
-            since=since,
-            until=until,
-            include_linked=include_linked,
-            visual=visual,
-            condensed=condensed,
-            entity_name=entity_name,
-            entity_type=entity_type,
-            include_members=include_members,
-            query=query,
-            include_meta=include_meta,
-            highlight=highlight,
-            highlight_start=highlight_start,
-            highlight_end=highlight_end,
-            action_desc=action_desc,
-            context=context,
-            compress_text=compress_text,
-            rate=rate,
-            content_type=content_type,
-            preserve_code=preserve_code,
-        )
+        with workflow_call():
+            return await consult_mod.dispatch(
+                action=action,
+                project_path=pp,
+                description=description,
+                topic=topic,
+                categories=categories,
+                tags=tags,
+                file_path=file_path,
+                offset=offset,
+                limit=limit,
+                since=since,
+                until=until,
+                include_linked=include_linked,
+                visual=visual,
+                condensed=condensed,
+                entity_name=entity_name,
+                entity_type=entity_type,
+                include_members=include_members,
+                query=query,
+                include_meta=include_meta,
+                highlight=highlight,
+                highlight_start=highlight_start,
+                highlight_end=highlight_end,
+                action_desc=action_desc,
+                context=context,
+                compress_text=compress_text,
+                rate=rate,
+                content_type=content_type,
+                preserve_code=preserve_code,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
 
@@ -224,30 +228,31 @@ async def inscribe(
             from ..workflows import inscribe as inscribe_mod
         except ImportError:
             from daem0nmcp.workflows import inscribe as inscribe_mod
-        return await inscribe_mod.dispatch(
-            action=action,
-            project_path=pp,
-            category=category,
-            content=content,
-            rationale=rationale,
-            context=context,
-            tags=tags,
-            file_path=file_path,
-            happened_at=happened_at,
-            memories=memories,
-            source_id=source_id,
-            target_id=target_id,
-            relationship=relationship,
-            description=description,
-            memory_id=memory_id,
-            pinned=pinned,
-            reason=reason,
-            priority=priority,
-            expires_in_hours=expires_in_hours,
-            url=url,
-            topic=topic,
-            chunk_size=chunk_size,
-        )
+        with workflow_call():
+            return await inscribe_mod.dispatch(
+                action=action,
+                project_path=pp,
+                category=category,
+                content=content,
+                rationale=rationale,
+                context=context,
+                tags=tags,
+                file_path=file_path,
+                happened_at=happened_at,
+                memories=memories,
+                source_id=source_id,
+                target_id=target_id,
+                relationship=relationship,
+                description=description,
+                memory_id=memory_id,
+                pinned=pinned,
+                reason=reason,
+                priority=priority,
+                expires_in_hours=expires_in_hours,
+                url=url,
+                topic=topic,
+                chunk_size=chunk_size,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
 
@@ -287,18 +292,19 @@ async def reflect(
             from ..workflows import reflect as reflect_mod
         except ImportError:
             from daem0nmcp.workflows import reflect as reflect_mod
-        return await reflect_mod.dispatch(
-            action=action,
-            project_path=pp,
-            memory_id=memory_id,
-            outcome_text=outcome_text,
-            worked=worked,
-            text=text,
-            categories=categories,
-            as_of_time=as_of_time,
-            code=code,
-            timeout_seconds=timeout_seconds,
-        )
+        with workflow_call():
+            return await reflect_mod.dispatch(
+                action=action,
+                project_path=pp,
+                memory_id=memory_id,
+                outcome_text=outcome_text,
+                worked=worked,
+                text=text,
+                categories=categories,
+                as_of_time=as_of_time,
+                code=code,
+                timeout_seconds=timeout_seconds,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
 
@@ -340,18 +346,19 @@ async def understand(
             from ..workflows import understand as understand_mod
         except ImportError:
             from daem0nmcp.workflows import understand as understand_mod
-        return await understand_mod.dispatch(
-            action=action,
-            project_path=pp,
-            path=path,
-            patterns=patterns,
-            query=query,
-            limit=limit,
-            entity_name=entity_name,
-            auto_remember=auto_remember,
-            types=types,
-            file_path=file_path,
-        )
+        with workflow_call():
+            return await understand_mod.dispatch(
+                action=action,
+                project_path=pp,
+                path=path,
+                patterns=patterns,
+                query=query,
+                limit=limit,
+                entity_name=entity_name,
+                auto_remember=auto_remember,
+                types=types,
+                file_path=file_path,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
 
@@ -404,26 +411,27 @@ async def govern(
             from ..workflows import govern as govern_mod
         except ImportError:
             from daem0nmcp.workflows import govern as govern_mod
-        return await govern_mod.dispatch(
-            action=action,
-            project_path=pp,
-            trigger=trigger,
-            must_do=must_do,
-            must_not=must_not,
-            ask_first=ask_first,
-            warnings=warnings,
-            priority=priority,
-            rule_id=rule_id,
-            enabled=enabled,
-            enabled_only=enabled_only,
-            limit=limit,
-            trigger_type=trigger_type,
-            pattern=pattern,
-            recall_topic=recall_topic,
-            recall_categories=recall_categories,
-            active_only=active_only,
-            trigger_id=trigger_id,
-        )
+        with workflow_call():
+            return await govern_mod.dispatch(
+                action=action,
+                project_path=pp,
+                trigger=trigger,
+                must_do=must_do,
+                must_not=must_not,
+                ask_first=ask_first,
+                warnings=warnings,
+                priority=priority,
+                rule_id=rule_id,
+                enabled=enabled,
+                enabled_only=enabled_only,
+                limit=limit,
+                trigger_type=trigger_type,
+                pattern=pattern,
+                recall_topic=recall_topic,
+                recall_categories=recall_categories,
+                active_only=active_only,
+                trigger_id=trigger_id,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
 
@@ -487,32 +495,33 @@ async def explore(
             from ..workflows import explore as explore_mod
         except ImportError:
             from daem0nmcp.workflows import explore as explore_mod
-        return await explore_mod.dispatch(
-            action=action,
-            project_path=pp,
-            memory_id=memory_id,
-            relationship_types=relationship_types,
-            direction=direction,
-            max_depth=max_depth,
-            start_memory_id=start_memory_id,
-            end_memory_id=end_memory_id,
-            memory_ids=memory_ids,
-            topic=topic,
-            format=format,
-            visual=visual,
-            include_orphans=include_orphans,
-            level=level,
-            parent_community_id=parent_community_id,
-            community_id=community_id,
-            min_community_size=min_community_size,
-            resolution=resolution,
-            entity_type=entity_type,
-            limit=limit,
-            entity_name=entity_name,
-            include_invalidated=include_invalidated,
-            entity_id=entity_id,
-            timestamp=timestamp,
-        )
+        with workflow_call():
+            return await explore_mod.dispatch(
+                action=action,
+                project_path=pp,
+                memory_id=memory_id,
+                relationship_types=relationship_types,
+                direction=direction,
+                max_depth=max_depth,
+                start_memory_id=start_memory_id,
+                end_memory_id=end_memory_id,
+                memory_ids=memory_ids,
+                topic=topic,
+                format=format,
+                visual=visual,
+                include_orphans=include_orphans,
+                level=level,
+                parent_community_id=parent_community_id,
+                community_id=community_id,
+                min_community_size=min_community_size,
+                resolution=resolution,
+                entity_type=entity_type,
+                limit=limit,
+                entity_name=entity_name,
+                include_invalidated=include_invalidated,
+                entity_id=entity_id,
+                timestamp=timestamp,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
 
@@ -571,27 +580,28 @@ async def maintain(
             from ..workflows import maintain as maintain_mod
         except ImportError:
             from daem0nmcp.workflows import maintain as maintain_mod
-        return await maintain_mod.dispatch(
-            action=action,
-            project_path=pp,
-            older_than_days=older_than_days,
-            categories=categories,
-            min_recall_count=min_recall_count,
-            protect_successful=protect_successful,
-            dry_run=dry_run,
-            memory_id=memory_id,
-            archived=archived,
-            merge_duplicates=merge_duplicates,
-            summary=summary,
-            limit=limit,
-            topic=topic,
-            include_vectors=include_vectors,
-            data=data,
-            merge=merge,
-            linked_path=linked_path,
-            relationship=relationship,
-            label=label,
-            archive_sources=archive_sources,
-        )
+        with workflow_call():
+            return await maintain_mod.dispatch(
+                action=action,
+                project_path=pp,
+                older_than_days=older_than_days,
+                categories=categories,
+                min_recall_count=min_recall_count,
+                protect_successful=protect_successful,
+                dry_run=dry_run,
+                memory_id=memory_id,
+                archived=archived,
+                merge_duplicates=merge_duplicates,
+                summary=summary,
+                limit=limit,
+                topic=topic,
+                include_vectors=include_vectors,
+                data=data,
+                merge=merge,
+                linked_path=linked_path,
+                relationship=relationship,
+                label=label,
+                archive_sources=archive_sources,
+            )
     except WorkflowError as e:
         return {"error": str(e), "recovery_hint": e.recovery_hint}
