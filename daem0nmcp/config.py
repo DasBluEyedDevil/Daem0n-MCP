@@ -5,11 +5,15 @@ All settings are loaded from environment variables with DAEM0NMCP_ prefix.
 Example: DAEM0NMCP_LOG_LEVEL=DEBUG
 """
 
+import importlib.util
 import shutil
 from pathlib import Path
 from typing import Optional, List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ONNX_AVAILABLE = importlib.util.find_spec("onnxruntime") is not None
+_DEFAULT_EMBEDDING_BACKEND = "onnx" if _ONNX_AVAILABLE else "torch"
 
 
 class Settings(BaseSettings):
@@ -71,7 +75,7 @@ class Settings(BaseSettings):
     # Embedding Model
     embedding_model: str = "nomic-ai/modernbert-embed-base"
     embedding_dimension: int = 256
-    embedding_backend: str = "onnx"
+    embedding_backend: str = _DEFAULT_EMBEDDING_BACKEND
     embedding_query_prefix: str = "search_query: "
     embedding_document_prefix: str = "search_document: "
 

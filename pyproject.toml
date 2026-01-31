@@ -34,7 +34,6 @@ dependencies = [
     # Vector embeddings
     "sentence-transformers>=3.0.0",
     "numpy>=1.24.0",
-    "onnxruntime>=1.16.0",
     # Vector database
     "qdrant-client>=1.7.0",
     # Phase 1: File watching + notifications
@@ -62,6 +61,9 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+]
+onnx = [
+    "onnxruntime>=1.16.0",
 ]
 tracing = [
     "opentelemetry-api>=1.20.0",

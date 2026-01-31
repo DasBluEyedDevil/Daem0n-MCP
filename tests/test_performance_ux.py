@@ -53,7 +53,7 @@ class TestExtendedConfig:
         settings = Settings()
         assert settings.embedding_model == "nomic-ai/modernbert-embed-base"
         assert settings.embedding_dimension == 256
-        assert settings.embedding_backend == "onnx"
+        assert settings.embedding_backend in ("onnx", "torch")
         assert settings.embedding_query_prefix == "search_query: "
         assert settings.embedding_document_prefix == "search_document: "
 
