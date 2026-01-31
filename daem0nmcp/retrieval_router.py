@@ -91,7 +91,20 @@ class RetrievalRouter:
             }
 
         # ----- Classify the query ----- #
-        level, confidence, scores = self._classifier.classify(query)
+        try:
+            level, confidence, scores = self._classifier.classify(query)
+        except Exception:
+            logger.warning(
+                "[AUTO-ZOOM] Classifier failed, falling back to hybrid",
+                exc_info=True,
+            )
+            results = self._hybrid_search(query, top_k, **kwargs)
+            return {
+                "results": results,
+                "strategy_used": "hybrid",
+                "classification": None,
+                "community_context": None,
+            }
         classification_info: Dict[str, Any] = {
             "level": level.value,
             "confidence": confidence,
@@ -293,11 +306,12 @@ class RetrievalRouter:
         # Step 2: graph expansion (if KnowledgeGraph available)
         expanded_results = list(seeds)  # copy
         try:
-            if self._kg is not None:
-                await self._kg.ensure_loaded()
+            kg = getattr(self._mm, '_knowledge_graph', None) or self._kg
+            if kg is not None:
+                await kg.ensure_loaded()
 
                 # Check graph is non-empty
-                graph = self._kg._graph
+                graph = kg._graph
                 if graph.number_of_nodes() > 0:
                     from .graph.traversal import find_related_memories
 
