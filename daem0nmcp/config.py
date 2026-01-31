@@ -90,6 +90,26 @@ class Settings(BaseSettings):
     # Fact promotion
     fact_promotion_threshold: int = Field(default=3, ge=1)  # Successful outcomes to promote
 
+    # Auto-Zoom retrieval routing
+    auto_zoom_enabled: bool = False  # Master switch (shadow mode when False)
+    auto_zoom_shadow: bool = True    # Log classifications without routing
+    auto_zoom_confidence_threshold: float = 0.25  # Below this -> hybrid fallback
+    auto_zoom_graph_expansion_depth: int = 2  # Multi-hop depth for complex queries
+
+    # Background Dreaming
+    dream_enabled: bool = True                     # Master switch for dreaming
+    dream_idle_timeout: float = 60.0               # Seconds of idle before dreaming starts
+    dream_max_decisions_per_session: int = 5        # Max failed decisions to re-evaluate per session
+    dream_yield_check_interval: float = 0.0         # Seconds between yield checks (0 = every step)
+    dream_min_decision_age_hours: int = 1           # Min age of decision before re-evaluation eligible
+
+    # Cognitive Tools
+    cognitive_debate_max_rounds: int = 5
+    cognitive_debate_convergence_threshold: float = 0.05
+    cognitive_debate_min_evidence: int = 2
+    cognitive_evolve_max_rules: int = 10
+    cognitive_staleness_age_weight: float = 0.3
+
     # Code Indexing
     parse_tree_cache_maxsize: int = 200
     index_languages: List[str] = []  # Empty = all supported

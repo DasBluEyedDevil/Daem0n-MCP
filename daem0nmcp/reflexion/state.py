@@ -62,3 +62,9 @@ class ReflexionState(TypedDict):
     # Values: "briefing" | "exploration" | "action" | "reflection"
     # Optional with default "briefing" - existing code that doesn't set it still works
     ritual_phase: Optional[str]
+
+    # Code-augmented verification (Phase 14)
+    code_executions_used: int            # Counter: how many code executions consumed this run
+    max_code_executions: int             # Budget: default 2, separate from MAX_ITERATIONS
+    code_verification_results: Annotated[List[dict], operator.add]  # Accumulated code execution results
+    verification_code: Optional[str]     # Latest generated verification code from Actor

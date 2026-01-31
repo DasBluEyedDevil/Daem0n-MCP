@@ -640,6 +640,17 @@ As of v5.1, all capabilities are accessed through 8 workflow tools. Each tool ac
 | `list_projects` | List all linked projects |
 | `consolidate` | Merge memories from linked projects |
 
+### Visual Tools (MCP Apps)
+
+| Tool | Purpose |
+|------|---------|
+| `recall_visual` | Search results with UI resource hint for card-based display |
+| `get_briefing_visual` | Briefing dashboard with collapsible accordion UI |
+| `get_covenant_status_visual` | Covenant status with visual state machine diagram |
+| `list_communities_visual` | Community clusters with treemap visualization |
+| `get_graph_visual` | Memory relationships with force-directed graph viewer |
+| `check_for_updates` | Polling for real-time update notifications |
+
 ## Usage Examples
 
 ### Store a Memory

@@ -129,6 +129,56 @@ FACTUAL_PATTERNS = [
 ]
 
 
+# Patterns indicating a claim can be verified by running Python code
+CODE_VERIFIABLE_PATTERNS = [
+    # Numeric claims: "X is 42", "there are N items", "the result is 3.14"
+    r"\b(?:is|are|equals?|returns?|gives?|produces?|yields?)\s+\d+(?:\.\d+)?",
+    # Date/time claims: "released in 2023", "started on January", "6 months ago"
+    r"\b(?:in|on|since|from|before|after)\s+(?:\d{4}|January|February|March|April|May|June|July|August|September|October|November|December)",
+    # Code behavior claims: "returns None", "raises ValueError", "is O(n)"
+    r"\b(?:returns?|raises?|throws?|produces?)\s+(?:None|True|False|[A-Z][a-zA-Z]*Error)",
+    # Mathematical claims: "sum of", "average is", "maximum is"
+    r"\b(?:sum|average|mean|median|maximum|minimum|count|total)\s+(?:of|is|are|equals?)",
+    # Python-specific: "list.sort()", "len() returns", "range() produces"
+    r"\b(?:list|dict|set|tuple|str|int|float|len|range|sorted|zip|map|filter)\b.*(?:returns?|is|produces?)",
+]
+
+
+def is_code_verifiable(claim: "Claim") -> bool:
+    """Check if a claim can be verified by executing Python code.
+
+    Code-verifiable claims include:
+    - Numeric assertions (e.g., "Python 3.12 was released in October 2023")
+    - Date calculations (e.g., "The project started 6 months ago")
+    - Code behavior claims (e.g., "list.sort() returns None")
+    - Mathematical assertions (e.g., "the sum of 1 to 100 is 5050")
+
+    Memory references and outcome references are NOT code-verifiable --
+    they require memory store verification (existing flow).
+
+    Args:
+        claim: The Claim object to evaluate
+
+    Returns:
+        True if the claim is suitable for code verification
+    """
+    # Memory references and outcome references are verified against memory, not code
+    if claim.claim_type in (ClaimType.MEMORY_REFERENCE, ClaimType.OUTCOME_REFERENCE):
+        return False
+
+    # Only factual assertions might be code-verifiable
+    if claim.claim_type != ClaimType.FACTUAL_ASSERTION:
+        return False
+
+    # Check text against code-verifiable patterns
+    text = claim.text.lower()
+    for pattern in CODE_VERIFIABLE_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+
+    return False
+
+
 def is_opinion(text: str) -> bool:
     """Check if text contains opinion/hypothetical markers.
 
@@ -289,4 +339,12 @@ def extract_claims(text: str) -> List[Claim]:
     return claims
 
 
-__all__ = ["Claim", "ClaimType", "VerificationLevel", "extract_claims", "is_opinion"]
+__all__ = [
+    "Claim",
+    "ClaimType",
+    "VerificationLevel",
+    "extract_claims",
+    "is_opinion",
+    "is_code_verifiable",
+    "CODE_VERIFIABLE_PATTERNS",
+]

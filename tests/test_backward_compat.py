@@ -1,37 +1,37 @@
-"""Tests for backward compatibility of deprecated tools."""
+"""Tests for backward compatibility — deprecated tools removed from MCP, accessible as Python functions."""
 
 import pytest
 
 
-class TestDeprecatedToolsExist:
-    """Verify old tool names still work as aliases."""
+class TestDeprecatedToolsRemovedFromMCP:
+    """Verify deprecated individual tools are NOT exposed as MCP tools (v6.0+).
+
+    Individual tools (get_briefing, remember, recall, etc.) are replaced by
+    workflow tools (commune, consult, inscribe, etc.). The old functions remain
+    importable as Python for use by workflow dispatchers, but are not MCP tools.
+    """
 
     @pytest.mark.asyncio
-    async def test_get_briefing_still_exists(self):
+    async def test_workflow_tools_exposed(self):
         from daem0nmcp.server import mcp
         tools = {t.name for t in await mcp.list_tools()}
-        assert "get_briefing" in tools
+        for wf in ("commune", "consult", "inscribe", "reflect",
+                    "understand", "govern", "explore", "maintain"):
+            assert wf in tools, f"Workflow tool '{wf}' missing from MCP registry"
 
     @pytest.mark.asyncio
-    async def test_remember_still_exists(self):
+    async def test_deprecated_tools_not_in_mcp(self):
         from daem0nmcp.server import mcp
         tools = {t.name for t in await mcp.list_tools()}
-        assert "remember" in tools
+        deprecated = ["get_briefing", "remember", "recall", "context_check", "record_outcome"]
+        for name in deprecated:
+            assert name not in tools, f"Deprecated tool '{name}' should not be in MCP registry"
 
-    @pytest.mark.asyncio
-    async def test_recall_still_exists(self):
-        from daem0nmcp.server import mcp
-        tools = {t.name for t in await mcp.list_tools()}
-        assert "recall" in tools
-
-    @pytest.mark.asyncio
-    async def test_context_check_still_exists(self):
-        from daem0nmcp.server import mcp
-        tools = {t.name for t in await mcp.list_tools()}
-        assert "context_check" in tools
-
-    @pytest.mark.asyncio
-    async def test_record_outcome_still_exists(self):
-        from daem0nmcp.server import mcp
-        tools = {t.name for t in await mcp.list_tools()}
-        assert "record_outcome" in tools
+    def test_deprecated_functions_still_importable(self):
+        """Old functions remain importable for workflow dispatchers."""
+        from daem0nmcp.server import get_briefing, remember, recall, context_check, record_outcome
+        assert callable(get_briefing)
+        assert callable(remember)
+        assert callable(recall)
+        assert callable(context_check)
+        assert callable(record_outcome)

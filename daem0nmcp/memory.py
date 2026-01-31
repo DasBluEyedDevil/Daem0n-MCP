@@ -187,6 +187,9 @@ class MemoryManager:
         # GraphRAG: Knowledge graph instance (lazy-loaded)
         self._knowledge_graph: Optional[KnowledgeGraph] = None
 
+        # Auto-Zoom: Retrieval router (lazy-loaded)
+        self._retrieval_router = None
+
         # Phase 4: Context compression (lazy initialized)
         self._compressor: Optional["AdaptiveCompressor"] = None
         self._hierarchical_context: Optional["HierarchicalContextManager"] = None
@@ -252,6 +255,16 @@ class MemoryManager:
         if self._knowledge_graph is not None:
             self._knowledge_graph._loaded = False
             logger.debug("Knowledge graph cache invalidated")
+
+    def _get_retrieval_router(self):
+        """Lazy-load the Auto-Zoom retrieval router."""
+        if self._retrieval_router is None:
+            from .retrieval_router import RetrievalRouter
+            self._retrieval_router = RetrievalRouter(
+                memory_manager=self,
+                knowledge_graph=getattr(self, '_knowledge_graph', None),
+            )
+        return self._retrieval_router
 
     @property
     def compressor(self) -> "AdaptiveCompressor":
@@ -1038,8 +1051,13 @@ class MemoryManager:
         await self._check_index_freshness()
         await self._ensure_index()
 
-        # Use hybrid search (TF-IDF + Qdrant vectors if available)
-        search_results = self._hybrid_search(topic, top_k=limit * 4, tfidf_threshold=0.05)
+        # Auto-Zoom: use retrieval router if enabled or in shadow mode
+        if settings.auto_zoom_enabled or settings.auto_zoom_shadow:
+            router = self._get_retrieval_router()
+            route_result = await router.route_search(topic, top_k=limit * 4)
+            search_results = route_result["results"]
+        else:
+            search_results = self._hybrid_search(topic, top_k=limit * 4, tfidf_threshold=0.05)
 
         if not search_results and not include_linked:
             return {"memories": [], "message": "No relevant memories found", "topic": topic}
@@ -1298,6 +1316,42 @@ class MemoryManager:
                         logger.warning(f"Could not recall from linked project {linked_path}: {e}")
             except Exception as e:
                 logger.warning(f"Could not get linked projects: {e}")
+
+        # JIT compression metadata: check if assembled result text exceeds
+        # token thresholds and add informational metadata to the result dict.
+        # Individual memory objects remain uncompressed (structured data).
+        # The metadata tells callers "this result set has X tokens, would
+        # compress to Y".  JIT is an enhancement, never a gate.
+        if settings.auto_zoom_enabled or settings.auto_zoom_shadow:
+            try:
+                all_content = "\n\n".join(
+                    m.get("content", "")
+                    for cat in ["decisions", "patterns", "warnings", "learnings"]
+                    for m in result.get(cat, [])
+                )
+                if all_content:
+                    from .compression.jit import get_jit_compressor
+
+                    jit = get_jit_compressor()
+                    jit_result = jit.compress_if_needed(all_content)
+                    if jit_result.get("threshold_triggered") is not None:
+                        result["compression_metadata"] = {
+                            "original_tokens": jit_result["original_tokens"],
+                            "compressed_tokens": jit_result["compressed_tokens"],
+                            "compression_rate": jit_result["compression_rate"],
+                            "threshold_triggered": jit_result["threshold_triggered"],
+                        }
+                        logger.debug(
+                            "[AUTO-ZOOM] JIT metadata: %s tier, %d -> %d tokens",
+                            jit_result["threshold_triggered"],
+                            jit_result["original_tokens"],
+                            jit_result["compressed_tokens"],
+                        )
+            except Exception:
+                logger.warning(
+                    "[AUTO-ZOOM] JIT compression metadata failed, continuing without",
+                    exc_info=True,
+                )
 
         # Cache the result
         cache.set(cache_key, result)

@@ -60,6 +60,10 @@ COVENANT_EXEMPT_TOOLS: Set[str] = {
     "check_context_triggers",  # Read-only query
     "get_active_context",   # Read-only query
     "list_linked_projects",  # Read-only query
+    # Cognitive tools (Phase 17) -- analytical, read-only instruments
+    "simulate_decision",
+    "evolve_rule",
+    "debate_internal",
 }
 
 # Tools that REQUIRE communion (must call get_briefing first)
@@ -452,6 +456,7 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
         exempt_tools: Optional[Set[str]] = None,
         communion_required_tools: Optional[Set[str]] = None,
         counsel_required_tools: Optional[Set[str]] = None,
+        dream_scheduler: Optional[Any] = None,  # IdleDreamScheduler, typed as Any to avoid circular import
     ):
         """
         Initialize the CovenantMiddleware.
@@ -465,17 +470,31 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
             exempt_tools: Override the default exempt tools set
             communion_required_tools: Override the default communion tools set
             counsel_required_tools: Override the default counsel tools set
+            dream_scheduler: Optional IdleDreamScheduler for idle timer notifications.
+                            Typed as Any to avoid circular imports.
         """
         if _FASTMCP_MIDDLEWARE_AVAILABLE:
             super().__init__()
 
         self._get_state = get_state
+        self._dream_scheduler = dream_scheduler
         self._transform = CovenantTransform(
             counsel_ttl_seconds=counsel_ttl_seconds,
             exempt_tools=exempt_tools,
             communion_required_tools=communion_required_tools,
             counsel_required_tools=counsel_required_tools,
         )
+
+    def set_dream_scheduler(self, scheduler) -> None:
+        """Set the dream scheduler for idle timer notifications.
+
+        Supports late binding when the scheduler is created after
+        middleware registration.
+
+        Args:
+            scheduler: IdleDreamScheduler instance (or None to clear).
+        """
+        self._dream_scheduler = scheduler
 
     async def on_call_tool(
         self,
@@ -497,6 +516,12 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
         Returns:
             ToolResult - either the violation response or the actual tool result
         """
+        # Reset idle timer FIRST -- before any blocking checks.
+        # This ensures the dream scheduler knows a tool call arrived,
+        # even if the call ends up blocked by covenant enforcement.
+        if self._dream_scheduler is not None:
+            self._dream_scheduler.notify_tool_call()
+
         # Extract tool name and arguments from the request
         tool_name = context.message.name
         arguments = context.message.arguments or {}

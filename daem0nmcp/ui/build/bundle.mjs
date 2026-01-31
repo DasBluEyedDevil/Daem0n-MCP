@@ -12,7 +12,7 @@ const result = await esbuild.build({
   platform: 'browser',
   target: ['es2020'],
   format: 'iife',
-  globalName: 'D3',  // Exposes as window.D3
+  globalName: 'd3',  // Exposes as window.d3
   outfile: join(__dirname, '..', 'static', 'd3.bundle.js'),
   sourcemap: isDev ? 'inline' : false,
   treeShaking: true,

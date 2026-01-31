@@ -9,7 +9,7 @@ Consolidates similar episodic reflections into semantic pattern memories.
 
 from .state import ReflexionState
 from .state import VerificationResult as StateVerificationResult
-from .claims import Claim, ClaimType, VerificationLevel, extract_claims, is_opinion
+from .claims import Claim, ClaimType, VerificationLevel, extract_claims, is_opinion, is_code_verifiable
 from .verification import (
     verify_claim,
     verify_claims,
@@ -41,6 +41,16 @@ from .persistence import (
     has_seen_error_before,
     create_reflection_from_evaluation,
 )
+from .code_gen import generate_verification_code
+from .code_exec import (
+    CodeFailureType,
+    CodeExecutionResult,
+    classify_failure,
+    execute_verification_code,
+    FIXABLE_FAILURES,
+    INFRASTRUCTURE_FAILURES,
+    VERIFICATION_FAILURES,
+)
 from .consolidation import (
     consolidate_reflections,
     check_and_consolidate,
@@ -59,6 +69,7 @@ __all__ = [
     "VerificationLevel",
     "extract_claims",
     "is_opinion",
+    "is_code_verifiable",
     # Claim verification
     "verify_claim",
     "verify_claims",
@@ -79,6 +90,16 @@ __all__ = [
     "create_reflexion_app",
     "run_reflexion",
     "should_continue",
+    # Code generation
+    "generate_verification_code",
+    # Code execution
+    "CodeFailureType",
+    "CodeExecutionResult",
+    "classify_failure",
+    "execute_verification_code",
+    "FIXABLE_FAILURES",
+    "INFRASTRUCTURE_FAILURES",
+    "VERIFICATION_FAILURES",
     # Persistence
     "Reflection",
     "compute_error_signature",

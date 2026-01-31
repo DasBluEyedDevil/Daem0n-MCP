@@ -43,6 +43,7 @@ def build_reflexion_graph(
     memory_manager: "MemoryManager",
     knowledge_graph: Optional["KnowledgeGraph"] = None,
     llm_func: Optional[Callable[[str], str]] = None,
+    sandbox_executor: Optional[Any] = None,
 ) -> StateGraph:
     """
     Build the Reflexion StateGraph.
@@ -60,6 +61,7 @@ def build_reflexion_graph(
     evaluator_node = create_evaluator_node(
         memory_manager=memory_manager,
         knowledge_graph=knowledge_graph,
+        sandbox_executor=sandbox_executor,
     )
     reflector_node = create_reflector_node()
 
@@ -91,6 +93,7 @@ async def create_reflexion_app(
     knowledge_graph: Optional["KnowledgeGraph"] = None,
     llm_func: Optional[Callable[[str], str]] = None,
     checkpoint_path: Optional[str] = None,
+    sandbox_executor: Optional[Any] = None,
 ):
     """
     Create a compiled Reflexion app with optional checkpointing.
@@ -108,6 +111,7 @@ async def create_reflexion_app(
         memory_manager=memory_manager,
         knowledge_graph=knowledge_graph,
         llm_func=llm_func,
+        sandbox_executor=sandbox_executor,
     )
 
     if checkpoint_path:
@@ -129,6 +133,7 @@ async def run_reflexion(
     knowledge_graph: Optional["KnowledgeGraph"] = None,
     llm_func: Optional[Callable[[str], str]] = None,
     thread_id: Optional[str] = None,
+    sandbox_executor: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Run the Reflexion loop on a query.
@@ -149,6 +154,7 @@ async def run_reflexion(
         memory_manager=memory_manager,
         knowledge_graph=knowledge_graph,
         llm_func=llm_func,
+        sandbox_executor=sandbox_executor,
     )
 
     initial_state = {
@@ -161,6 +167,10 @@ async def run_reflexion(
         "iteration": 0,
         "should_continue": True,
         "context_filter": None,
+        "code_executions_used": 0,
+        "max_code_executions": 2,
+        "code_verification_results": [],
+        "verification_code": None,
     }
 
     config: Dict[str, Any] = {}

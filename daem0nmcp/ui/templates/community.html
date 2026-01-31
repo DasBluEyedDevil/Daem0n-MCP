@@ -215,7 +215,7 @@
             // Emit drill-down event via SecureMessenger
             SecureMessenger.send('tool_request', {
                 tool: 'list_communities',
-                args: { parent_id: parseInt(communityId, 10) }
+                args: { parent_community_id: parseInt(communityId, 10) }
             });
         }
     }
@@ -242,7 +242,7 @@
                             // Navigate to specific parent
                             SecureMessenger.send('tool_request', {
                                 tool: 'list_communities',
-                                args: { parent_id: parseInt(id, 10) }
+                                args: { parent_community_id: parseInt(id, 10) }
                             });
                         }
                     }
