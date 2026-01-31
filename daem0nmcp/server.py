@@ -266,9 +266,7 @@ def main():
     logger.info(f"Starting Daem0nMCP ({args.transport} transport, storage: {storage_path})")
     try:
         if args.transport == "sse":
-            mcp.settings.host = args.host
-            mcp.settings.port = args.port
-            mcp.run(transport="sse")
+            mcp.run(transport="sse", host=args.host, port=args.port)
         else:
             mcp.run(transport="stdio")
     except KeyboardInterrupt:

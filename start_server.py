@@ -32,10 +32,6 @@ def main():
     # Import after setting environment
     from daem0nmcp.server import mcp
 
-    # Configure server
-    mcp.settings.host = args.host
-    mcp.settings.port = args.port
-
     print(f"=" * 60)
     print(f"Daem0nMCP HTTP Server")
     print(f"=" * 60)
@@ -51,7 +47,7 @@ def main():
     print(f"Press Ctrl+C to stop")
     print()
 
-    mcp.run(transport="streamable-http")
+    mcp.run(transport="streamable-http", host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

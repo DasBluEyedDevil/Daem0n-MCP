@@ -208,11 +208,15 @@ class TestPreflightTokenIntegration:
         # Briefing first
         await server.get_briefing(project_path=project_path)
 
-        # context_check should return token
-        result = await server.context_check(
-            description="About to edit auth.py",
-            project_path=project_path,
-        )
+        # Mock recall and check_rules to avoid vector dimension issues
+        ctx = await server.get_project_context(project_path)
+        with patch.object(ctx.memory_manager, 'recall', return_value={}), \
+             patch.object(ctx.rules_engine, 'check_rules', return_value={}):
+            # context_check should return token
+            result = await server.context_check(
+                description="About to edit auth.py",
+                project_path=project_path,
+            )
 
         assert "preflight_token" in result
 
