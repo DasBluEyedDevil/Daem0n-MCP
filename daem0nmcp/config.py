@@ -69,7 +69,11 @@ class Settings(BaseSettings):
     search_diversity_max_per_file: int = Field(default=3, ge=0)  # Max results from same source file (0=unlimited)
 
     # Embedding Model
-    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_model: str = "nomic-ai/modernbert-embed-base"
+    embedding_dimension: int = 256
+    embedding_backend: str = "onnx"
+    embedding_query_prefix: str = "search_query: "
+    embedding_document_prefix: str = "search_document: "
 
     # BM25 tuning parameters
     bm25_k1: float = Field(default=1.5, ge=0.0, le=3.0)  # Term frequency saturation

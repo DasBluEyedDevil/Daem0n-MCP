@@ -48,10 +48,14 @@ class TestExtendedConfig:
     """Test extended configuration options."""
 
     def test_default_embedding_model(self):
-        """Default embedding model is all-MiniLM-L6-v2."""
+        """Default embedding model is nomic-ai/modernbert-embed-base."""
         from daem0nmcp.config import Settings
         settings = Settings()
-        assert settings.embedding_model == "all-MiniLM-L6-v2"
+        assert settings.embedding_model == "nomic-ai/modernbert-embed-base"
+        assert settings.embedding_dimension == 256
+        assert settings.embedding_backend == "onnx"
+        assert settings.embedding_query_prefix == "search_query: "
+        assert settings.embedding_document_prefix == "search_document: "
 
     def test_default_parse_cache_maxsize(self):
         """Default parse cache maxsize is 200."""
