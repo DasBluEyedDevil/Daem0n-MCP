@@ -31,10 +31,11 @@ def main():
 
     # Import after setting environment
     from daem0nmcp.server import mcp
+    import fastmcp
 
     # Configure server
-    mcp.settings.host = args.host
-    mcp.settings.port = args.port
+    fastmcp.settings.host = args.host
+    fastmcp.settings.port = args.port
 
     print(f"=" * 60)
     print(f"Daem0nMCP HTTP Server")
