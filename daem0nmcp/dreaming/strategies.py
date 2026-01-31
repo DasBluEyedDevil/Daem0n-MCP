@@ -5,28 +5,36 @@ FailedDecisionReview is the concrete strategy that queries worked=False
 decisions, re-evaluates them against current evidence from memory, and
 produces structured DreamResult insights with full provenance.
 
+ConnectionDiscovery finds memories sharing extracted entities but lacking
+explicit relationship edges and creates ``related_to`` links.
+
+CommunityRefresh detects stale memory communities and rebuilds them via
+the Leiden algorithm.
+
 Design: Lightweight query-compare-insight approach (not full Reflexion).
 Each decision is evaluated independently with its own database session
 to avoid holding transactions across yield points.
 """
 
 import asyncio
+import itertools
 import logging
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 
 if TYPE_CHECKING:
     from ..context_manager import ProjectContext
     from .scheduler import IdleDreamScheduler
 
 try:
-    from ..models import Memory
+    from ..models import Memory, MemoryEntityRef, MemoryRelationship, MemoryCommunity
     from ..config import settings
 except ImportError:
-    from daem0nmcp.models import Memory
+    from daem0nmcp.models import Memory, MemoryEntityRef, MemoryRelationship, MemoryCommunity
     from daem0nmcp.config import settings
 
 from .persistence import DreamResult, DreamSession, persist_dream_result
@@ -39,6 +47,11 @@ class DreamStrategy(ABC):
     DreamResult entries. Strategies must check scheduler.user_active
     at yield points and break immediately if the user returns.
     """
+
+    @property
+    def name(self) -> str:
+        """Human-readable strategy name (defaults to class name)."""
+        return self.__class__.__name__
 
     @abstractmethod
     async def execute(
@@ -77,9 +90,11 @@ class FailedDecisionReview(DreamStrategy):
         self,
         max_decisions: Optional[int] = None,
         min_age_hours: Optional[int] = None,
+        review_cooldown_hours: Optional[int] = None,
     ):
         self._max_decisions = max_decisions or settings.dream_max_decisions_per_session
         self._min_age_hours = min_age_hours or settings.dream_min_decision_age_hours
+        self._review_cooldown_hours = review_cooldown_hours if review_cooldown_hours is not None else settings.dream_review_cooldown_hours
         self._logger = logging.getLogger(__name__)
 
     async def execute(
@@ -93,6 +108,7 @@ class FailedDecisionReview(DreamStrategy):
         Fetches failed decisions, re-evaluates each against current
         evidence, and persists actionable insights.
         """
+        session.strategies_run.append(self.name)
         self._logger.info(
             "Dream session %s: Starting FailedDecisionReview", session.session_id
         )
@@ -135,6 +151,7 @@ class FailedDecisionReview(DreamStrategy):
         - worked == False
         - archived == False
         - created_at < age_cutoff (skip too-recent decisions)
+        - Not reviewed within the cooldown window
         - Ordered by most recent first, limited to max_decisions
         """
         try:
@@ -150,10 +167,68 @@ class FailedDecisionReview(DreamStrategy):
                     .order_by(Memory.created_at.desc())
                     .limit(self._max_decisions)
                 )
-                return result.scalars().all()
+                decisions = result.scalars().all()
+
+                if not decisions or self._review_cooldown_hours <= 0:
+                    return decisions
+
+                # Find recently-reviewed decision IDs within cooldown window
+                recently_reviewed_ids = await self._get_recently_reviewed_ids(
+                    db_session
+                )
+
+                original_count = len(decisions)
+                decisions = [
+                    d for d in decisions
+                    if d.id not in recently_reviewed_ids
+                ]
+                skipped = original_count - len(decisions)
+                if skipped > 0:
+                    self._logger.info(
+                        "Skipped %d decisions reviewed within %dh cooldown",
+                        skipped,
+                        self._review_cooldown_hours,
+                    )
+
+                return decisions
         except Exception as e:
             self._logger.warning("Failed to query failed decisions: %s", e)
             return []
+
+    async def _get_recently_reviewed_ids(
+        self, db_session
+    ) -> set:
+        """Get IDs of decisions that were reviewed within the cooldown window.
+
+        Queries learning memories with dream+re-evaluation tags created
+        within the cooldown period, extracts source-decision:{id} tags
+        to build a set of recently-reviewed decision IDs.
+        """
+        cooldown_cutoff = datetime.now(timezone.utc) - timedelta(
+            hours=self._review_cooldown_hours
+        )
+        result = await db_session.execute(
+            select(Memory)
+            .where(Memory.category == "learning")
+            .where(Memory.created_at >= cooldown_cutoff)
+        )
+        review_memories = result.scalars().all()
+
+        reviewed_ids: set = set()
+        for mem in review_memories:
+            tags = mem.tags or []
+            has_dream = "dream" in tags
+            has_reeval = "re-evaluation" in tags
+            if not (has_dream and has_reeval):
+                continue
+            for tag in tags:
+                if tag.startswith("source-decision:"):
+                    try:
+                        decision_id = int(tag.split(":", 1)[1])
+                        reviewed_ids.add(decision_id)
+                    except (ValueError, IndexError):
+                        pass
+        return reviewed_ids
 
     async def _re_evaluate_decision(
         self, decision: Any, ctx: "ProjectContext"
@@ -249,3 +324,259 @@ class FailedDecisionReview(DreamStrategy):
                 result_type="needs_more_data",
                 evidence_ids=[],
             )
+
+
+class ConnectionDiscovery(DreamStrategy):
+    """Discover and create ``related_to`` edges between memories that share entities.
+
+    Scans ``MemoryEntityRef`` rows within a lookback window, groups by entity,
+    finds memory pairs sharing at least ``min_shared_entities`` entities, then
+    creates ``related_to`` relationship edges for pairs that are not yet linked.
+    """
+
+    def __init__(
+        self,
+        min_shared_entities: int = 2,
+        lookback_hours: int = 168,
+        max_connections: int = 20,
+        confidence: float = 0.7,
+    ):
+        self._min_shared_entities = min_shared_entities
+        self._lookback_hours = lookback_hours
+        self._max_connections = max_connections
+        self._confidence = confidence
+        self._logger = logging.getLogger(__name__)
+
+    async def execute(
+        self,
+        session: DreamSession,
+        ctx: "ProjectContext",
+        scheduler: "IdleDreamScheduler",
+    ) -> DreamSession:
+        session.strategies_run.append(self.name)
+        self._logger.info(
+            "Dream session %s: Starting ConnectionDiscovery", session.session_id
+        )
+
+        try:
+            unlinked_pairs = await self._find_unlinked_pairs(ctx)
+        except Exception as e:
+            self._logger.warning("ConnectionDiscovery query failed: %s", e)
+            return session
+
+        if not unlinked_pairs:
+            self._logger.info("No unlinked memory pairs found")
+            return session
+
+        created = 0
+        for source_id, target_id, shared_names in unlinked_pairs:
+            if scheduler.user_active.is_set():
+                session.interrupted = True
+                break
+            if created >= self._max_connections:
+                break
+
+            result = await ctx.memory_manager.link_memories(
+                source_id=source_id,
+                target_id=target_id,
+                relationship="related_to",
+                description=f"Shared entities: {', '.join(sorted(shared_names))}",
+                confidence=self._confidence,
+            )
+
+            if result.get("status") != "already_exists" and "error" not in result:
+                created += 1
+                session.insights_generated += 1
+
+            await asyncio.sleep(0)
+
+        if created > 0:
+            ctx.memory_manager.invalidate_graph_cache()
+            self._logger.info("ConnectionDiscovery created %d edges", created)
+
+        return session
+
+    async def _find_unlinked_pairs(
+        self, ctx: "ProjectContext"
+    ) -> List[Tuple[int, int, Set[str]]]:
+        """Find memory pairs sharing entities but lacking relationship edges.
+
+        Returns:
+            List of (source_id, target_id, shared_entity_names) tuples.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=self._lookback_hours)
+
+        async with ctx.db_manager.get_session() as db_session:
+            # Fetch entity refs within the lookback window joined to Memory
+            rows = await db_session.execute(
+                select(
+                    MemoryEntityRef.entity_id,
+                    MemoryEntityRef.memory_id,
+                )
+                .join(Memory, Memory.id == MemoryEntityRef.memory_id)
+                .where(Memory.created_at >= cutoff)
+            )
+            refs = rows.all()
+
+            if not refs:
+                return []
+
+            # Also load entity names for descriptions
+            entity_ids = {r[0] for r in refs}
+            try:
+                from daem0nmcp.models import ExtractedEntity
+            except ImportError:
+                from ..models import ExtractedEntity
+            name_rows = await db_session.execute(
+                select(ExtractedEntity.id, ExtractedEntity.name)
+                .where(ExtractedEntity.id.in_(entity_ids))
+            )
+            entity_names: Dict[int, str] = {r[0]: r[1] for r in name_rows.all()}
+
+            # Group memory_ids by entity_id
+            entity_to_memories: Dict[int, Set[int]] = defaultdict(set)
+            for entity_id, memory_id in refs:
+                entity_to_memories[entity_id].add(memory_id)
+
+            # Find pairs sharing >= min_shared_entities
+            pair_shared: Dict[Tuple[int, int], Set[str]] = defaultdict(set)
+            for entity_id, memory_ids in entity_to_memories.items():
+                if len(memory_ids) < 2:
+                    continue
+                ename = entity_names.get(entity_id, f"entity-{entity_id}")
+                for a, b in itertools.combinations(sorted(memory_ids), 2):
+                    pair_shared[(a, b)].add(ename)
+
+            candidates = [
+                (a, b, names)
+                for (a, b), names in pair_shared.items()
+                if len(names) >= self._min_shared_entities
+            ]
+
+            if not candidates:
+                return []
+
+            # Batch-check existing relationships
+            all_ids = set()
+            for a, b, _ in candidates:
+                all_ids.add(a)
+                all_ids.add(b)
+
+            existing_rows = await db_session.execute(
+                select(
+                    MemoryRelationship.source_id,
+                    MemoryRelationship.target_id,
+                ).where(
+                    MemoryRelationship.source_id.in_(all_ids),
+                    MemoryRelationship.target_id.in_(all_ids),
+                )
+            )
+            existing_edges: Set[Tuple[int, int]] = set()
+            for src, tgt in existing_rows.all():
+                existing_edges.add((src, tgt))
+                existing_edges.add((tgt, src))
+
+            return [
+                (a, b, names)
+                for a, b, names in candidates
+                if (a, b) not in existing_edges
+            ]
+
+
+class CommunityRefresh(DreamStrategy):
+    """Rebuild memory communities when the graph has grown stale.
+
+    Checks how many new memories have been created since the last community
+    detection run. If the count exceeds ``staleness_threshold``, triggers a
+    full Leiden-based community rebuild.
+    """
+
+    def __init__(self, staleness_threshold: int = 10):
+        self._staleness_threshold = staleness_threshold
+        self._logger = logging.getLogger(__name__)
+
+    async def execute(
+        self,
+        session: DreamSession,
+        ctx: "ProjectContext",
+        scheduler: "IdleDreamScheduler",
+    ) -> DreamSession:
+        session.strategies_run.append(self.name)
+        self._logger.info(
+            "Dream session %s: Starting CommunityRefresh", session.session_id
+        )
+
+        # Early return if leidenalg is not installed
+        try:
+            import leidenalg  # noqa: F401
+        except ImportError:
+            self._logger.warning(
+                "leidenalg not installed -- skipping CommunityRefresh"
+            )
+            return session
+
+        try:
+            is_stale = await self._check_staleness(ctx)
+        except Exception as e:
+            self._logger.warning("CommunityRefresh staleness check failed: %s", e)
+            return session
+
+        if not is_stale:
+            self._logger.info("Communities are fresh -- skipping rebuild")
+            return session
+
+        # YIELD CHECKPOINT before expensive rebuild
+        if scheduler.user_active.is_set():
+            session.interrupted = True
+            return session
+
+        try:
+            from daem0nmcp.communities import CommunityManager
+        except ImportError:
+            from ..communities import CommunityManager
+
+        try:
+            cm = CommunityManager(ctx.db_manager)
+            kg = await ctx.memory_manager.get_knowledge_graph()
+            communities = await cm.detect_communities_from_graph(
+                project_path=ctx.project_path,
+                knowledge_graph=kg,
+            )
+            await cm.save_communities(
+                project_path=ctx.project_path,
+                communities=communities,
+            )
+            session.insights_generated += 1
+            ctx.memory_manager.invalidate_graph_cache()
+            self._logger.info(
+                "CommunityRefresh rebuilt %d communities", len(communities)
+            )
+        except Exception as e:
+            self._logger.warning("CommunityRefresh rebuild failed: %s", e)
+
+        return session
+
+    async def _check_staleness(self, ctx: "ProjectContext") -> bool:
+        """Return True if communities are stale (enough new memories since last build)."""
+        async with ctx.db_manager.get_session() as db_session:
+            # Get the most recent community creation timestamp
+            result = await db_session.execute(
+                select(func.max(MemoryCommunity.created_at))
+            )
+            last_community_at = result.scalar()
+
+            if last_community_at is None:
+                # No communities exist yet -- check if there are enough memories
+                count_result = await db_session.execute(
+                    select(func.count(Memory.id))
+                )
+                total = count_result.scalar() or 0
+                return total >= self._staleness_threshold
+
+            # Count memories created since the last community build
+            count_result = await db_session.execute(
+                select(func.count(Memory.id))
+                .where(Memory.created_at > last_community_at)
+            )
+            new_count = count_result.scalar() or 0
+            return new_count >= self._staleness_threshold

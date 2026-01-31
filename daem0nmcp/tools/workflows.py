@@ -530,7 +530,7 @@ async def explore(
 # Workflow 8: MAINTAIN - Housekeeping & federation
 # Actions: prune, archive, cleanup, compact, rebuild_index,
 #          export, import_data, link_project, unlink_project,
-#          list_projects, consolidate
+#          list_projects, consolidate, purge_dream_spam
 # ----------------------------------------------------------------------------
 @mcp.tool(version=__version__)
 @with_request_id
@@ -569,7 +569,7 @@ async def maintain(
 
     Actions: prune, archive, cleanup, compact, rebuild_index,
              export, import_data, link_project, unlink_project,
-             list_projects, consolidate
+             list_projects, consolidate, purge_dream_spam
     """
     pp = project_path or _default_project_path
     if not pp:

@@ -154,10 +154,16 @@ logger.info(f"Daem0nMCP initialized (storage: {storage_path})")
 # --- Dream scheduler setup ---
 _dream_scheduler = None
 try:
-    from .dreaming import IdleDreamScheduler, FailedDecisionReview, DreamSession
+    from .dreaming import (
+        IdleDreamScheduler, DreamStrategy, FailedDecisionReview,
+        ConnectionDiscovery, CommunityRefresh, DreamSession,
+    )
     from .dreaming.persistence import persist_session_summary
 except ImportError:
-    from daem0nmcp.dreaming import IdleDreamScheduler, FailedDecisionReview, DreamSession
+    from daem0nmcp.dreaming import (
+        IdleDreamScheduler, DreamStrategy, FailedDecisionReview,
+        ConnectionDiscovery, CommunityRefresh, DreamSession,
+    )
     from daem0nmcp.dreaming.persistence import persist_session_summary
 
 if settings.dream_enabled:
@@ -204,19 +210,38 @@ if settings.dream_enabled:
         _dream_logger.info("Dream session %s started for %s", session.session_id, ctx.project_path)
 
         try:
-            # Execute the FailedDecisionReview strategy
-            strategy = FailedDecisionReview()
-            session = await strategy.execute(session, ctx, scheduler)
+            # Multi-strategy pipeline: review → discover connections → refresh communities
+            strategies: list[DreamStrategy] = [
+                FailedDecisionReview(),
+                ConnectionDiscovery(
+                    lookback_hours=settings.dream_connection_lookback_hours,
+                    max_connections=settings.dream_connection_max_per_session,
+                    min_shared_entities=settings.dream_connection_min_shared_entities,
+                    confidence=settings.dream_connection_confidence,
+                ),
+                CommunityRefresh(
+                    staleness_threshold=settings.dream_community_staleness_threshold,
+                ),
+            ]
+            for strategy in strategies:
+                if scheduler.user_active.is_set():
+                    session.interrupted = True
+                    break
+                session = await strategy.execute(session, ctx, scheduler)
+                if session.interrupted:
+                    break
+
             session.ended_at = _dt.now(_tz.utc)
 
             # Persist session summary if insights were generated
             await persist_session_summary(ctx.memory_manager, session)
 
             _dream_logger.info(
-                "Dream session %s complete: %d reviewed, %d insights, interrupted=%s",
+                "Dream session %s complete: %d reviewed, %d insights, strategies=%s, interrupted=%s",
                 session.session_id,
                 session.decisions_reviewed,
                 session.insights_generated,
+                session.strategies_run,
                 session.interrupted,
             )
         except Exception as e:
