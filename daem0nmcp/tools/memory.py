@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 try:
     from ..mcp_instance import mcp
@@ -27,7 +27,7 @@ except ImportError:
 
 from ._deprecation import add_deprecation
 
-from sqlalchemy import select, or_, func
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 

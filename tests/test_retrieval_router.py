@@ -148,7 +148,7 @@ class TestActiveMode:
                          "led_to": [{"memory_id": 99, "depth": 1, "confidence": 0.9}]
                      },
                  },
-             ) as mock_find:
+             ) as _mock_find:  # noqa: F841
             mock_settings.auto_zoom_enabled = True
             mock_settings.auto_zoom_shadow = False
             mock_settings.auto_zoom_confidence_threshold = 0.25

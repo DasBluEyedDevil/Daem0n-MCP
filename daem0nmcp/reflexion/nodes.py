@@ -203,7 +203,7 @@ def create_evaluator_node(
         if verification_code and sandbox_executor is not None:
             if code_used < max_code:
                 try:
-                    from .code_exec import execute_verification_code, CodeFailureType  # noqa: F811
+                    from .code_exec import execute_verification_code  # noqa: F811
 
                     code_result = await execute_verification_code(
                         code=verification_code,

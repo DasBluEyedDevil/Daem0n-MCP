@@ -21,12 +21,12 @@ Requirements validated:
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from daem0nmcp.recall_planner import QueryComplexity
 from daem0nmcp.retrieval_router import RetrievalRouter
-from daem0nmcp.compression.jit import JITCompressor, JITCompressionConfig
+from daem0nmcp.compression.jit import JITCompressor
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ def _make_mock_adaptive(token_count_fn=None):
     mock_adaptive = MagicMock()
 
     if token_count_fn is None:
-        token_count_fn = lambda text: len(text) // 4
+        def token_count_fn(text): return len(text) // 4
 
     mock_adaptive.compressor.count_tokens.side_effect = token_count_fn
 

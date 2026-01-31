@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from daem0nmcp.dreaming.persistence import DreamResult, DreamSession
+from daem0nmcp.dreaming.persistence import DreamSession
 from daem0nmcp.dreaming.strategies import FailedDecisionReview
 
 

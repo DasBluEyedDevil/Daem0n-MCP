@@ -4,9 +4,8 @@ Covers: basic simulation, version fallback, not-found error, no-changes scenario
 and new-evidence detection.
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

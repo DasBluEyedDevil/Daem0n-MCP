@@ -115,7 +115,7 @@ class TestMiddlewareOnCallToolNotify:
         context = _make_mock_context(tool_name="remember")
         call_next = AsyncMock()
 
-        result = await mw.on_call_tool(context, call_next)
+        await mw.on_call_tool(context, call_next)
 
         # Scheduler should have been notified even though tool was blocked
         mock_scheduler.notify_tool_call.assert_called_once()

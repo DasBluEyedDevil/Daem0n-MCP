@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Daem0nMCP Server -- Composition root, re-exports, lifecycle, and entry point."""
 import atexit, logging  # noqa: E401
 # --- Core imports and context manager re-exports ---
@@ -141,7 +142,7 @@ except ImportError:
     from daem0nmcp.workflows.errors import WorkflowError  # noqa: F401
 # --- Composition root setup ---
 if _FASTMCP_MIDDLEWARE_AVAILABLE:
-    _covenant_middleware = CovenantMiddleware(get_state=_get_context_state_for_middleware)
+    _covenant_middleware = CovenantMiddleware(get_state=_cm._get_context_state_for_middleware)
     mcp.add_middleware(_covenant_middleware)
     logger.info("CovenantMiddleware registered")
 else:
@@ -160,7 +161,6 @@ except ImportError:
     from daem0nmcp.dreaming.persistence import persist_session_summary
 
 if settings.dream_enabled:
-    import asyncio as _asyncio
     import uuid as _uuid
     from datetime import datetime as _dt, timezone as _tz
 
@@ -179,16 +179,16 @@ if settings.dream_enabled:
         _dream_logger = logging.getLogger("daem0nmcp.dreaming")
 
         # Find most recently accessed project context
-        if not _project_contexts:
+        if not _cm._project_contexts:
             _dream_logger.debug("No project contexts available for dreaming")
             return
 
         # Get the most recently accessed context
         most_recent_path = max(
-            _project_contexts.keys(),
-            key=lambda p: _project_contexts[p].last_accessed,
+            _cm._project_contexts.keys(),
+            key=lambda p: _cm._project_contexts[p].last_accessed,
         )
-        ctx = _project_contexts[most_recent_path]
+        ctx = _cm._project_contexts[most_recent_path]
 
         if not ctx.initialized:
             _dream_logger.debug("Project context not initialized: %s", most_recent_path)
@@ -227,7 +227,7 @@ if settings.dream_enabled:
 
 # --- Cleanup & lifecycle ---
 async def _cleanup_all_contexts():
-    for ctx in _project_contexts.values():
+    for ctx in _cm._project_contexts.values():
         try:
             await ctx.db_manager.close()
         except Exception:
@@ -247,7 +247,7 @@ def cleanup():
             loop = asyncio.get_running_loop()
             loop.create_task(_cleanup_all_contexts())
         except RuntimeError:
-            if any(c.db_manager._engine is not None for c in _project_contexts.values()):
+            if any(c.db_manager._engine is not None for c in _cm._project_contexts.values()):
                 asyncio.run(_cleanup_all_contexts())
     except Exception:
         pass

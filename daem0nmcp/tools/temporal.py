@@ -1,7 +1,7 @@
 """Temporal tools: trace_causal_path, trace_evolution."""
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
 try:
     from ..mcp_instance import mcp

@@ -4,7 +4,6 @@ Tests tiered thresholds, dynamic rates, metadata output,
 double-compression prevention, and custom configuration.
 Uses mocked AdaptiveCompressor to avoid loading LLMLingua-2 in CI.
 """
-import pytest
 from unittest.mock import MagicMock, patch
 
 from daem0nmcp.compression.jit import JITCompressor, JITCompressionConfig
@@ -23,7 +22,7 @@ def _make_mock_adaptive(token_count_fn=None):
 
     # Mock the inner ContextCompressor's count_tokens
     if token_count_fn is None:
-        token_count_fn = lambda text: len(text) // 4  # Rough approximation
+        def token_count_fn(text): return len(text) // 4  # Rough approximation
 
     mock_adaptive.compressor.count_tokens.side_effect = token_count_fn
 
@@ -145,7 +144,7 @@ class TestJITDynamicRates:
         mock = _make_mock_adaptive()
         jit = JITCompressor(adaptive_compressor=mock)
 
-        result = jit.compress_if_needed(text)
+        jit.compress_if_needed(text)
 
         call_kwargs = mock.compress.call_args
         rate = call_kwargs.kwargs.get("rate_override") or call_kwargs[1].get("rate_override")
@@ -158,7 +157,7 @@ class TestJITDynamicRates:
         mock = _make_mock_adaptive()
         jit = JITCompressor(adaptive_compressor=mock)
 
-        result = jit.compress_if_needed(text)
+        jit.compress_if_needed(text)
 
         call_kwargs = mock.compress.call_args
         rate = call_kwargs.kwargs.get("rate_override") or call_kwargs[1].get("rate_override")

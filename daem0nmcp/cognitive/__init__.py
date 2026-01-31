@@ -14,7 +14,7 @@ All result dataclasses are defined here as the shared foundation used
 by the individual cognitive modules (simulate.py, evolve.py, debate.py).
 """
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
 
 __all__ = [

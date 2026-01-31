@@ -1,7 +1,7 @@
 """Cognitive tools: simulate_decision, evolve_rule, debate_internal."""
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
 try:
     from ..mcp_instance import mcp

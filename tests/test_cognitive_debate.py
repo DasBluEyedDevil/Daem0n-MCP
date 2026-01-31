@@ -6,7 +6,6 @@ NO-LLM constraint.
 """
 
 import inspect
-from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -209,7 +208,7 @@ class TestDebateConsensusStored:
         ])
         ctx = _make_ctx(recall_result=recall)
 
-        result = await run_debate(
+        await run_debate(
             topic="persistence test",
             advocate_position="store it",
             challenger_position="skip it",
