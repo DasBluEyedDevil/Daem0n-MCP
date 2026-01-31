@@ -270,6 +270,16 @@ class SecureMessenger {
 
     /**
      * Send a notification (no response expected).
+     * Alias: send() — used by UI templates.
+     * @param {string} method - Method name
+     * @param {object} params - Method parameters
+     */
+    send(method, params = {}) {
+        return this.notify(method, params);
+    }
+
+    /**
+     * Send a notification (no response expected).
      * @param {string} method - Method name
      * @param {object} params - Method parameters
      */

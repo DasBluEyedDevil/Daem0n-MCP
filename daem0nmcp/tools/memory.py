@@ -244,7 +244,11 @@ async def recall_visual(
     file_path: Optional[str] = None,
     offset: int = 0,
     limit: int = 10,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
     include_linked: bool = False,
+    condensed: bool = False,
+    as_of_time: Optional[str] = None,
     project_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -262,7 +266,11 @@ async def recall_visual(
         file_path: Filter by associated file
         offset: Pagination offset
         limit: Results per page
+        since: Only memories created after this ISO datetime
+        until: Only memories created before this ISO datetime
         include_linked: Include results from linked projects
+        condensed: Return condensed output
+        as_of_time: View memories as they existed at this ISO datetime
         project_path: Project root
 
     Returns:
@@ -291,8 +299,12 @@ async def recall_visual(
         file_path=file_path,
         offset=offset,
         limit=limit,
+        since=since,
+        until=until,
         project_path=ctx.project_path,
         include_linked=include_linked,
+        condensed=condensed,
+        as_of_time=as_of_time,
     )
 
     # Add topic to result for UI rendering
