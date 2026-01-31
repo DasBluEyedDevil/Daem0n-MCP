@@ -353,7 +353,7 @@ class MemoryManager:
         # If Qdrant is available, get vector results
         if self._qdrant and self._qdrant.get_count() > 0:
             # Encode query to vector
-            query_embedding_bytes = vectors.encode(query)
+            query_embedding_bytes = vectors.encode_query(query)
             if query_embedding_bytes:
                 query_vector = vectors.decode(query_embedding_bytes)
                 if query_vector:
@@ -449,7 +449,7 @@ class MemoryManager:
         text_for_embedding = content
         if rationale:
             text_for_embedding += " " + rationale
-        vector_embedding = vectors.encode(text_for_embedding) if self._vectors_enabled else None
+        vector_embedding = vectors.encode_document(text_for_embedding) if self._vectors_enabled else None
 
         # Normalize file path if provided
         file_path_abs = file_path
@@ -660,7 +660,7 @@ class MemoryManager:
                     text_for_embedding = content
                     if rationale:
                         text_for_embedding += " " + rationale
-                    vector_embedding = vectors.encode(text_for_embedding) if self._vectors_enabled else None
+                    vector_embedding = vectors.encode_document(text_for_embedding) if self._vectors_enabled else None
 
                     # Normalize file path if provided
                     file_path_abs = file_path
@@ -2015,7 +2015,7 @@ class MemoryManager:
 
             # Create summary memory
             keywords = extract_keywords(summary, summary_tags)
-            vector_embedding = vectors.encode(summary) if self._vectors_enabled else None
+            vector_embedding = vectors.encode_document(summary) if self._vectors_enabled else None
 
             summary_memory = Memory(
                 category="learning",
