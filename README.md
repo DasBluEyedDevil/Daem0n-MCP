@@ -426,6 +426,38 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `evolve_rule` | Rule Entropy — examine rules for staleness and drift |
 | `debate_internal` | Adversarial Council — evidence-grounded debate with convergence detection |
 
+### Tool Names by Client
+
+Different MCP clients use different naming conventions for tools. Both formats resolve to the same server-side operations.
+
+**Workflow Tools:**
+
+| MCP Tool | Claude Code | OpenCode |
+|----------|-------------|----------|
+| commune | `mcp__daem0nmcp__commune` | `daem0nmcp_commune` |
+| consult | `mcp__daem0nmcp__consult` | `daem0nmcp_consult` |
+| inscribe | `mcp__daem0nmcp__inscribe` | `daem0nmcp_inscribe` |
+| reflect | `mcp__daem0nmcp__reflect` | `daem0nmcp_reflect` |
+| understand | `mcp__daem0nmcp__understand` | `daem0nmcp_understand` |
+| govern | `mcp__daem0nmcp__govern` | `daem0nmcp_govern` |
+| explore | `mcp__daem0nmcp__explore` | `daem0nmcp_explore` |
+| maintain | `mcp__daem0nmcp__maintain` | `daem0nmcp_maintain` |
+
+**Cognitive Tools:**
+
+| MCP Tool | Claude Code | OpenCode |
+|----------|-------------|----------|
+| simulate_decision | `mcp__daem0nmcp__simulate_decision` | `daem0nmcp_simulate_decision` |
+| evolve_rule | `mcp__daem0nmcp__evolve_rule` | `daem0nmcp_evolve_rule` |
+| debate_internal | `mcp__daem0nmcp__debate_internal` | `daem0nmcp_debate_internal` |
+
+**Format pattern:**
+
+| Client | Format | Separator |
+|--------|--------|-----------|
+| Claude Code | `mcp__servername__toolname` | Double underscore (`__`) |
+| OpenCode | `servername_toolname` | Single underscore (`_`) |
+
 ## Usage Examples
 
 ### Store a Memory
@@ -591,6 +623,62 @@ Add to `.claude/settings.json`:
 ### Protocol Skill
 
 A Claude Code skill is included at `.claude/skills/daem0nmcp-protocol/SKILL.md` that enforces the memory protocol automatically.
+
+## OpenCode Integration
+
+OpenCode connects to Daem0n-MCP via the same MCP server. No server changes required -- the daemon serves all clients equally.
+
+### Configuration
+
+Create `opencode.json` at your project root:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "daem0nmcp": {
+      "type": "local",
+      "command": ["python", "-m", "daem0nmcp"],
+      "enabled": true,
+      "environment": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+For Windows (where HTTP transport is required), use:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "daem0nmcp": {
+      "type": "remote",
+      "url": "http://localhost:9876/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+### System Instructions
+
+OpenCode reads `AGENTS.md` from the project root for system prompt injection. The Sacred Covenant protocol is included in `AGENTS.md` with OpenCode-compatible tool names.
+
+If both `AGENTS.md` and `CLAUDE.md` exist in a project, OpenCode uses only `AGENTS.md`.
+
+### Tool Names
+
+OpenCode uses a different tool name format than Claude Code:
+
+| Client | Format | Example |
+|--------|--------|---------|
+| Claude Code | `mcp__servername__toolname` | `mcp__daem0nmcp__commune` |
+| OpenCode | `servername_toolname` | `daem0nmcp_commune` |
+
+Both formats resolve to the same MCP server tools. Use the format matching your client. See the [Tool Names by Client](#tool-names-by-client) table in the Workflow Tools section for the complete mapping.
 
 ## How It Works
 
