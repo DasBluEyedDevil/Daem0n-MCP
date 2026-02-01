@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "daem0nmcp": {
+      "type": "local",
+      "command": ["python", "-m", "daem0nmcp"],
+      "enabled": true,
+      "environment": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
