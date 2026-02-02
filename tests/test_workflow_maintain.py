@@ -19,7 +19,7 @@ class TestMaintainImport:
             "prune", "archive", "cleanup", "compact",
             "rebuild_index", "export", "import_data",
             "link_project", "unlink_project", "list_projects",
-            "consolidate",
+            "consolidate", "purge_dream_spam",
         }
         assert VALID_ACTIONS == expected
 

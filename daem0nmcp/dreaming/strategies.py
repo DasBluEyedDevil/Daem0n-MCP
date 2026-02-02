@@ -24,7 +24,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 
 if TYPE_CHECKING:
     from ..context_manager import ProjectContext

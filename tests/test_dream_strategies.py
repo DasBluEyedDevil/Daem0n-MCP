@@ -771,7 +771,7 @@ class TestCommunityRefreshNoCommunities:
                 "leidenalg": MagicMock(),
                 "daem0nmcp.communities": mock_communities_module,
             }):
-                result = await strategy.execute(session, ctx, scheduler)
+                await strategy.execute(session, ctx, scheduler)
 
         mock_cm_instance.detect_communities_from_graph.assert_called_once()
 
