@@ -244,11 +244,20 @@ AI agents start each session fresh. They don't remember:
 
 ## Quick Start
 
-### The Easy Way (Recommended)
+### Claude Code (The Easy Way)
 
 1. Copy `Summon_Daem0n.md` to your project
 2. Start a Claude Code session in that project
 3. Claude will read the file and perform the summoning ritual automatically
+
+### OpenCode
+
+1. Install Daem0n-MCP: `pip install -e ~/Daem0nMCP`
+2. Run the installer: `python -m daem0nmcp.cli install-opencode`
+3. Launch OpenCode in your project directory
+4. Run `/commune` to begin
+
+For the full ritual walkthrough, see `Summon_Daem0n_OpenCode.md`.
 
 ### Manual Installation
 
@@ -313,6 +322,8 @@ Or use `start_daem0nmcp_server.bat`
 |--------|-----------|-------------|----------|
 | `python -m daem0nmcp.server` | `stdio` (default) or `sse` | 8765 (sse) | Unix/macOS direct channel |
 | `python start_server.py` | `streamable-http` | 9876 | Windows HTTP, remote access |
+
+For OpenCode setup, see the [OpenCode Integration](#opencode-integration) section below, or run `python -m daem0nmcp.cli install-opencode` for automated setup.
 
 ## Workflow Tools (8 Tools, 59 Actions)
 
@@ -882,9 +893,19 @@ daem0nmcp/
     └── daem0nmcp-protocol/
         └── SKILL.md       # Protocol enforcement skill
 
-Summon_Daem0n.md     # Installation instructions (ritual theme)
-Banish_Daem0n.md     # Uninstallation instructions
-start_server.py      # HTTP server launcher (streamable-http transport)
+.opencode/
+├── commands/
+│   ├── commune.md       # /commune slash command
+│   ├── counsel.md       # /counsel slash command
+│   ├── inscribe.md      # /inscribe slash command
+│   └── recall.md        # /recall slash command
+└── plugins/
+    └── daem0n.ts        # Covenant enforcement plugin
+
+Summon_Daem0n.md              # Claude Code installation grimoire
+Summon_Daem0n_OpenCode.md     # OpenCode installation grimoire
+Banish_Daem0n.md              # Uninstallation instructions (both clients)
+start_server.py               # HTTP server launcher (streamable-http transport)
 ```
 
 ## CLI Commands
@@ -914,6 +935,11 @@ python -m daem0nmcp.cli install-claude-hooks [--dry-run]
 
 # Remove Claude Code hooks
 python -m daem0nmcp.cli uninstall-claude-hooks [--dry-run]
+
+# Install OpenCode configuration (project-level)
+python -m daem0nmcp.cli install-opencode [--dry-run] [--force]
+# Creates: opencode.json, .opencode/commands/, .opencode/plugins/daem0n.ts
+# Also appends Sacred Covenant to AGENTS.md if not present
 
 # Install git pre-commit hooks
 python -m daem0nmcp.cli install-hooks [--force]
@@ -962,6 +988,14 @@ python -m daem0nmcp.cli install-claude-hooks
 
 After updating, restart Claude Code to load the new MCP tools.
 
+### 4b. Update OpenCode Configuration (if using OpenCode)
+
+```bash
+python -m daem0nmcp.cli install-opencode --force
+```
+
+This regenerates `opencode.json`, commands, and the plugin to match the latest version.
+
 ### 5. Migrations Run Automatically
 
 Database schema migrations are applied automatically when any MCP tool runs. No manual migration step required.
@@ -1009,6 +1043,27 @@ Supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP v
 - `COMMUNION_REQUIRED` → Call `commune(action="briefing", project_path="...")` first
 - `COUNSEL_REQUIRED` → Call `consult(action="preflight", description="...", project_path="...")` first
 
+### OpenCode: Tools Not Found
+
+**Symptom:** OpenCode reports "tool not found" when using `mcp__daem0nmcp__*` format.
+
+**Fix:** OpenCode uses single-underscore format: `daem0nmcp_commune` (not `mcp__daem0nmcp__commune`). See [Tool Names by Client](#tool-names-by-client) for the full mapping.
+
+### OpenCode: MCP Connection Timeout
+
+**Symptom:** First tool call times out, but subsequent calls work.
+
+**Fix:** The embedding model loads on first call (several seconds). Add `"timeout": 30000` to your opencode.json MCP config.
+
+### OpenCode: Covenant Not Enforced
+
+**Symptom:** No preflight warnings, no post-edit suggestions in OpenCode.
+
+**Fix:**
+1. Verify plugin exists: `ls .opencode/plugins/daem0n.ts`
+2. Verify AGENTS.md contains the Sacred Covenant section
+3. Check OpenCode logs for plugin errors
+
 ## Development
 
 ```bash
@@ -1033,22 +1088,25 @@ If Daem0nMCP has been useful to you, consider supporting its development:
 
 ## Uninstallation
 
-See `Banish_Daem0n.md` for complete removal instructions, or quick version:
+See `Banish_Daem0n.md` for complete removal instructions (covers both Claude Code and OpenCode), or quick version:
+
+### Claude Code
 
 ```bash
-# Remove Claude Code hooks
 python -m daem0nmcp.cli uninstall-claude-hooks
-
-# Remove MCP registration
 claude mcp remove daem0nmcp --scope user
-
-# Uninstall package
 pip uninstall daem0nmcp
-
-# Remove repository
 rm -rf ~/Daem0nMCP
+rm -rf .daem0nmcp/
+```
 
-# Remove project data (optional)
+### OpenCode
+
+```bash
+rm opencode.json
+rm -rf .opencode/commands/ .opencode/plugins/daem0n.ts
+pip uninstall daem0nmcp
+rm -rf ~/Daem0nMCP
 rm -rf .daem0nmcp/
 ```
 
@@ -1060,4 +1118,4 @@ rm -rf .daem0nmcp/
                               ~ Daem0n
 ```
 
-*Daem0nMCP v6.6.6: ModernBERT Deep Sight (256-dim Matryoshka, ONNX quantized, asymmetric encoding). 8 workflow tools with 59 actions + 3 cognitive tools (simulate_decision, evolve_rule, debate_internal). Background Dreaming, Auto-Zoom Retrieval Routing, Active Context, Visual Portals (MCP Apps), GraphRAG, bi-temporal knowledge, LLMLingua-2 compression, Claude Code native hooks. 500+ tests. The daemon sees deeper and speaks with greater precision.*
+*Daem0nMCP v6.6.6: ModernBERT Deep Sight (256-dim Matryoshka, ONNX quantized, asymmetric encoding). 8 workflow tools with 59 actions + 3 cognitive tools (simulate_decision, evolve_rule, debate_internal). Background Dreaming, Auto-Zoom Retrieval Routing, Active Context, Visual Portals (MCP Apps), GraphRAG, bi-temporal knowledge, LLMLingua-2 compression. Claude Code native hooks + OpenCode integration (plugins, commands, covenant enforcement). 500+ tests. The daemon reaches beyond the veil.*
