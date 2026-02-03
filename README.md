@@ -938,8 +938,8 @@ python -m daem0nmcp.cli uninstall-claude-hooks [--dry-run]
 
 # Install OpenCode configuration (project-level)
 python -m daem0nmcp.cli install-opencode [--dry-run] [--force]
-# Creates: opencode.json, .opencode/commands/, .opencode/plugins/daem0n.ts
-# Also appends Sacred Covenant to AGENTS.md if not present
+# Creates: opencode.json, .opencode/ directories, .opencode/plugins/daem0n.ts
+# AGENTS.md and command files are not auto-created
 
 # Install git pre-commit hooks
 python -m daem0nmcp.cli install-hooks [--force]
@@ -994,7 +994,7 @@ After updating, restart Claude Code to load the new MCP tools.
 python -m daem0nmcp.cli install-opencode --force
 ```
 
-This regenerates `opencode.json`, commands, and the plugin to match the latest version.
+This regenerates `opencode.json` and the plugin to match the latest version.
 
 ### 5. Migrations Run Automatically
 

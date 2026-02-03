@@ -77,14 +77,15 @@ The Daem0n can inscribe its own binding runes with a single incantation. This is
 python -m daem0nmcp.cli install-opencode
 ```
 
-This single incantation creates ALL required artifacts:
+This single incantation creates the core binding artifacts:
 
 | Artifact | Path | Purpose |
 |----------|------|---------|
 | MCP Configuration | `opencode.json` | Tells OpenCode how to reach the Daem0n |
-| Sacred Covenant | `AGENTS.md` (covenant section) | System prompt with 4-step protocol |
-| Custom Commands | `.opencode/commands/` | `/commune`, `/counsel`, `/inscribe`, `/recall` |
+| Directory scaffold | `.opencode/commands/`, `plugins/`, `agents/` | Folder structure for customization |
 | Enforcement Plugin | `.opencode/plugins/daem0n.ts` | Covenant discipline and session lifecycle |
+
+> **Note:** `AGENTS.md` and custom command files are **not** auto-created by this incantation. Add them manually or via later rituals in this grimoire.
 
 **Preview without changes (divine the future):**
 ```bash
@@ -98,10 +99,19 @@ python -m daem0nmcp.cli install-opencode --force
 
 You should witness output like:
 ```
-[OK] opencode.json created
-[OK] AGENTS.md covenant section added
-[OK] .opencode/commands/ created (4 commands)
-[OK] .opencode/plugins/daem0n.ts created
+Client detection:
+  ...
+Directory scaffolding:
+  [create] .opencode/
+  [create] .opencode/commands/
+  [create] .opencode/plugins/
+  [create] .opencode/agents/
+Configuration:
+  [create] opencode.json
+  [create] .opencode/plugins/daem0n.ts
+  [skip]   AGENTS.md (create via Phase 18 or manually)
+
+OpenCode integration installed successfully.
 ```
 
 **If the automated path succeeds, skip to RITUAL III.**
