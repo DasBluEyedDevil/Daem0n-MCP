@@ -1,6 +1,9 @@
 """Tests for the vector embeddings module."""
 
+from unittest.mock import MagicMock, patch
+
 from daem0nmcp import vectors
+from daem0nmcp.config import settings
 
 
 class TestVectorAvailability:
@@ -102,11 +105,6 @@ class TestGlobalVectorIndex:
         vectors.reset_vector_index()
         index2 = vectors.get_vector_index()
         assert index1 is not index2
-
-
-import struct
-from unittest.mock import MagicMock, patch
-from daem0nmcp.config import settings
 
 
 class TestEncodeQueryDocument:
