@@ -539,6 +539,8 @@ class MemoryManager:
                 "is_permanent": is_permanent,
                 "created_at": memory.created_at.isoformat(),
                 "valid_from": version.valid_from.isoformat() if version.valid_from else None,
+                "source_client": source_client,
+                "source_model": source_model,
             }
 
             # Add conflict warnings if any
