@@ -478,6 +478,8 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
 
         self._get_state = get_state
         self._dream_scheduler = dream_scheduler
+        self._client_name: Optional[str] = None
+        self._client_version: Optional[str] = None
         self._transform = CovenantTransform(
             counsel_ttl_seconds=counsel_ttl_seconds,
             exempt_tools=exempt_tools,
@@ -495,6 +497,26 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
             scheduler: IdleDreamScheduler instance (or None to clear).
         """
         self._dream_scheduler = scheduler
+
+    @property
+    def client_name(self) -> Optional[str]:
+        """MCP client name from the initialize handshake (e.g., 'opencode', 'claude-code')."""
+        return self._client_name
+
+    async def on_initialize(
+        self,
+        context: "MiddlewareContext[mt.InitializeRequest]",
+        call_next: "CallNext[mt.InitializeRequest, mt.InitializeResult | None]",
+    ) -> "mt.InitializeResult | None":
+        """Capture MCP client identity from the initialize handshake."""
+        try:
+            client_info = getattr(context.message, "clientInfo", None)
+            if client_info:
+                self._client_name = getattr(client_info, "name", None)
+                self._client_version = getattr(client_info, "version", None)
+        except Exception:
+            pass  # Never block initialization
+        return await call_next(context)
 
     async def on_call_tool(
         self,
