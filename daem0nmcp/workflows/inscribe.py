@@ -76,7 +76,10 @@ async def dispatch(
     if meta:
         try:
             source_client = meta.get("client")
-            source_model = f"{meta.get('providerID', 'unknown')}/{meta.get('modelID', 'unknown')}"
+            provider = meta.get("providerID")
+            model = meta.get("modelID")
+            if provider is not None or model is not None:
+                source_model = f"{provider or 'unknown'}/{model or 'unknown'}"
         except (AttributeError, TypeError):
             pass  # Malformed metadata is silently ignored
 

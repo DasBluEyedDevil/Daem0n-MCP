@@ -183,6 +183,34 @@ class TestInscribeDispatchClientMeta:
         assert result["source_client"] is None
         assert result["source_model"] is None
 
+    @pytest.mark.asyncio
+    async def test_inscribe_dispatch_null_provider_model(self, memory_manager):
+        """dispatch() with None providerID/modelID should not store 'None/None'."""
+        from daem0nmcp.workflows import inscribe
+
+        meta = {"client": "opencode", "providerID": None, "modelID": None}
+
+        mock_ctx = AsyncMock()
+        mock_ctx.memory_manager = memory_manager
+        mock_ctx.project_path = "/tmp/test-project"
+
+        token = client_meta_var.set(meta)
+        try:
+            with patch("daem0nmcp.context_manager.get_project_context", return_value=mock_ctx):
+                result = await inscribe.dispatch(
+                    action="remember",
+                    project_path="/tmp/test-project",
+                    category="decision",
+                    content="Test null provider handling",
+                    rationale="Test",
+                    tags=["test"],
+                )
+        finally:
+            client_meta_var.reset(token)
+
+        assert result["source_client"] == "opencode"
+        assert result["source_model"] is None
+
 
 class TestCovenantMiddleware:
     """Test CovenantMiddleware on_initialize, client_name, and _client_meta stripping."""
