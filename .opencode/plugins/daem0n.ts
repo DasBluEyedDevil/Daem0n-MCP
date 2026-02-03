@@ -18,7 +18,7 @@ import type { Plugin } from "@opencode-ai/plugin";
 // Covenant rules injected into every system prompt
 // ---------------------------------------------------------------------------
 
-const COVENANT_RULES = `<daem0n-covenant>
+const COVENANT_RULES_FULL = `<daem0n-covenant>
 ## The Daem0n's Covenant (Sacred Protocol)
 
 This project is bound to Daem0n for persistent AI memory. When daem0nmcp tools
@@ -47,6 +47,26 @@ Failures are valuable -- record worked=false with explanation.
 - Skip preflight: Mutating tools return COUNSEL_REQUIRED with remedy
 - Each block includes the exact tool call to fix it
 </daem0n-covenant>`;
+
+const COVENANT_RULES_SIMPLIFIED = `<daem0n-covenant mode="simplified">
+## Memory Protocol (Required Steps)
+
+This project uses Daem0n for persistent AI memory. Follow these 4 steps:
+
+1. START: Call daem0nmcp_commune(action="briefing") first
+2. BEFORE CHANGES: Call daem0nmcp_consult(action="preflight", description="<plan>")
+3. SAVE DECISIONS: Call daem0nmcp_inscribe(action="remember", category="decision", content="<what>", rationale="<why>", tags=["tag1","tag2"])
+4. RECORD RESULT: Call daem0nmcp_reflect(action="outcome", memory_id=<id>, outcome_text="<result>", worked=true|false)
+
+Rules:
+- Step 1 is required before any other steps
+- Step 2 is required before editing files
+- Step 3 requires: content (what happened), rationale (why it matters), tags (at least one)
+- Step 4 requires the memory_id returned from step 3
+</daem0n-covenant>`;
+
+// Module-level state tracking current LLM model (safe: one model per plugin session)
+let currentModel: { providerID: string; modelID: string } | null = null;
 
 // ---------------------------------------------------------------------------
 // Shell-out helper
@@ -114,8 +134,15 @@ export const Daem0nPlugin: Plugin = async ({ $, directory }) => {
     // HOOK 1: System prompt injection
     // Every LLM call sees the covenant rules.
     // -----------------------------------------------------------------------
-    "experimental.chat.system.transform": async (_input, output) => {
-      output.system.push(COVENANT_RULES);
+    "experimental.chat.system.transform": async (input, output) => {
+      const provider = input.model?.providerID ?? "unknown";
+      const modelId = input.model?.id ?? "unknown";
+      const isClaude = provider === "anthropic" || modelId.toLowerCase().includes("claude");
+
+      output.system.push(isClaude ? COVENANT_RULES_FULL : COVENANT_RULES_SIMPLIFIED);
+
+      // Track model for _client_meta injection in tool calls
+      currentModel = { providerID: provider, modelID: modelId };
     },
 
     // -----------------------------------------------------------------------
@@ -124,6 +151,18 @@ export const Daem0nPlugin: Plugin = async ({ $, directory }) => {
     // Blocks bash commands matching must_not rules (exit 2 from Python).
     // -----------------------------------------------------------------------
     "tool.execute.before": async (input, output) => {
+      // Inject client metadata for daem0nmcp tools (server-side provenance tracking)
+      const toolLower = input.tool?.toLowerCase() ?? "";
+      if (toolLower.startsWith("daem0nmcp_") || toolLower.includes("mcp__daem0nmcp__")) {
+        if (currentModel && output.args) {
+          output.args._client_meta = JSON.stringify({
+            client: "opencode",
+            providerID: currentModel.providerID,
+            modelID: currentModel.modelID,
+          });
+        }
+      }
+
       if (isEditTool(input.tool)) {
         const result = await runHook($, directory, "pre_edit", {
           TOOL_INPUT: JSON.stringify(output.args ?? {}),
@@ -178,6 +217,7 @@ export const Daem0nPlugin: Plugin = async ({ $, directory }) => {
     event: async ({ event }) => {
       try {
         if (event.type === "session.created") {
+          currentModel = null;
           await runHook($, directory, "session_start", {}, 5000);
         } else if (event.type === "session.idle") {
           await runHook(
