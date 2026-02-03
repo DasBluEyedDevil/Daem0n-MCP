@@ -57,9 +57,7 @@ class TestMemoryModelProvenance:
         """Memory model must have source_client and source_model as Column attributes."""
         assert hasattr(Memory, 'source_client')
         assert hasattr(Memory, 'source_model')
-        # Verify they are actual SQLAlchemy column descriptors
-        assert isinstance(Memory.__table__.columns['source_client'].type, type(Memory.__table__.columns['content'].type).__mro__[0]) or True
-        # Simpler check: column names are in the table
+        # Verify column names are in the table
         col_names = [c.name for c in Memory.__table__.columns]
         assert 'source_client' in col_names
         assert 'source_model' in col_names
