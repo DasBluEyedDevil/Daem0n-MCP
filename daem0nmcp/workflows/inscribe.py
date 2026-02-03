@@ -60,11 +60,28 @@ async def dispatch(
     url: Optional[str] = None,
     topic: Optional[str] = None,
     chunk_size: int = 2000,
-    **kwargs,
 ) -> Dict[str, Any]:
     """Dispatch action to appropriate handler."""
     if action not in VALID_ACTIONS:
         raise InvalidActionError(action, sorted(VALID_ACTIONS))
+
+    # Read client metadata from ContextVar (set by CovenantMiddleware).
+    # The middleware strips _client_meta from tool args before Pydantic
+    # validation and stashes the parsed dict in client_meta_var.
+    from ..transforms.covenant import client_meta_var
+
+    source_client = None
+    source_model = None
+    meta = client_meta_var.get()
+    if meta:
+        try:
+            source_client = meta.get("client")
+            provider = meta.get("providerID")
+            model = meta.get("modelID")
+            if provider is not None or model is not None:
+                source_model = f"{provider or 'unknown'}/{model or 'unknown'}"
+        except (AttributeError, TypeError):
+            pass  # Malformed metadata is silently ignored
 
     if action == "remember":
         if not category:
@@ -74,6 +91,7 @@ async def dispatch(
         return await _do_remember(
             project_path, category, content, rationale,
             context, tags, file_path, happened_at,
+            source_client=source_client, source_model=source_model,
         )
 
     elif action == "remember_batch":
@@ -140,19 +158,34 @@ async def _do_remember(
     tags: Optional[List[str]],
     file_path: Optional[str],
     happened_at: Optional[str],
+    source_client: Optional[str] = None,
+    source_model: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Store a single memory."""
-    from ..server import remember
+    """Store a single memory with optional provenance tracking."""
+    from datetime import datetime
+    from ..context_manager import get_project_context
 
-    return await remember(
+    ctx = await get_project_context(project_path)
+
+    # Parse happened_at datetime if provided as string
+    happened_at_dt = None
+    if happened_at:
+        try:
+            happened_at_dt = datetime.fromisoformat(happened_at.replace('Z', '+00:00'))
+        except ValueError:
+            return {"error": f"Invalid 'happened_at' date format: {happened_at}. Use ISO format (e.g., '2025-01-01T00:00:00Z')"}
+
+    return await ctx.memory_manager.remember(
         category=category,
         content=content,
         rationale=rationale,
         context=context,
         tags=tags,
         file_path=file_path,
-        project_path=project_path,
-        happened_at=happened_at,
+        project_path=ctx.project_path,
+        happened_at=happened_at_dt,
+        source_client=source_client,
+        source_model=source_model,
     )
 
 

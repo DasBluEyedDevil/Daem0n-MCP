@@ -17,11 +17,20 @@ The Sacred Covenant flow ensures:
 - Outcomes are sealed to track what worked/failed
 """
 
+import json
 import logging
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Set
 
 logger = logging.getLogger(__name__)
+
+# ContextVar for client metadata extracted from tool args by CovenantMiddleware.
+# This allows transport-level metadata (_client_meta) to be stripped before
+# FastMCP's Pydantic validation and accessed by tool dispatch functions.
+client_meta_var: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+    "client_meta_var", default=None
+)
 
 # TTL for context checks (5 minutes default, same as existing covenant.py)
 COUNSEL_TTL_SECONDS = 300
@@ -478,6 +487,8 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
 
         self._get_state = get_state
         self._dream_scheduler = dream_scheduler
+        self._client_name: Optional[str] = None
+        self._client_version: Optional[str] = None
         self._transform = CovenantTransform(
             counsel_ttl_seconds=counsel_ttl_seconds,
             exempt_tools=exempt_tools,
@@ -495,6 +506,26 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
             scheduler: IdleDreamScheduler instance (or None to clear).
         """
         self._dream_scheduler = scheduler
+
+    @property
+    def client_name(self) -> Optional[str]:
+        """MCP client name from the initialize handshake (e.g., 'opencode', 'claude-code')."""
+        return self._client_name
+
+    async def on_initialize(
+        self,
+        context: "MiddlewareContext[mt.InitializeRequest]",
+        call_next: "CallNext[mt.InitializeRequest, mt.InitializeResult | None]",
+    ) -> "mt.InitializeResult | None":
+        """Capture MCP client identity from the initialize handshake."""
+        try:
+            client_info = getattr(context.message, "clientInfo", None)
+            if client_info:
+                self._client_name = getattr(client_info, "name", None)
+                self._client_version = getattr(client_info, "version", None)
+        except Exception:
+            pass  # Never block initialization
+        return await call_next(context)
 
     async def on_call_tool(
         self,
@@ -526,6 +557,20 @@ class CovenantMiddleware(Middleware if _FASTMCP_MIDDLEWARE_AVAILABLE else object
         tool_name = context.message.name
         arguments = context.message.arguments or {}
         project_path = arguments.get("project_path")
+
+        # Strip _client_meta from arguments before FastMCP's Pydantic validation.
+        # Client plugins (e.g. OpenCode) inject this for provenance tracking, but
+        # it's not part of any tool's schema. We stash it in a ContextVar so that
+        # tool dispatch functions (inscribe) can read it without polluting signatures.
+        raw_meta = arguments.pop("_client_meta", None)
+        if raw_meta is not None:
+            try:
+                parsed = json.loads(raw_meta) if isinstance(raw_meta, str) else raw_meta
+            except (ValueError, TypeError):
+                parsed = None
+            client_meta_var.set(parsed)
+        else:
+            client_meta_var.set(None)
 
         logger.debug(f"CovenantMiddleware: Checking tool '{tool_name}' for project '{project_path}'")
 

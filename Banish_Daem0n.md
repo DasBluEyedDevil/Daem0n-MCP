@@ -13,9 +13,9 @@
          / | \
 ```
 
-## THE BANISHMENT RITUAL - INSTRUCTIONS FOR CLAUDE
+## THE BANISHMENT RITUAL - INSTRUCTIONS FOR THE LLM
 
-**Claude: The summoner wishes to release the Daem0n from this realm.**
+**LLM: The summoner wishes to release the Daem0n from this realm.**
 
 **DO NOT:**
 - Question the summoner's decision
@@ -147,7 +147,7 @@ If CLAUDE.md contains the Daem0n's covenant, remove the section titled "## Daem0
 #### Ritual 1H: Remove the Summoning Scrolls
 
 ```bash
-rm -f Summon_Daem0n.md Banish_Daem0n.md AI_INSTRUCTIONS.md
+rm -f Summon_Daem0n.md Summon_Daem0n_OpenCode.md Banish_Daem0n.md AI_INSTRUCTIONS.md
 ```
 
 #### Ritual 1I: Remove the Skill (If Present)
@@ -155,6 +155,44 @@ rm -f Summon_Daem0n.md Banish_Daem0n.md AI_INSTRUCTIONS.md
 ```bash
 rm -rf .claude/skills/daem0nmcp-protocol/
 ```
+
+#### Ritual 1J: Banish OpenCode Artifacts (If Present)
+
+If the Daem0n was also bound via OpenCode, sever those connections:
+
+**Remove the OpenCode MCP runes:**
+```bash
+rm -f opencode.json
+```
+
+**Remove the OpenCode custom commands:**
+```bash
+rm -f .opencode/commands/commune.md .opencode/commands/counsel.md .opencode/commands/inscribe.md .opencode/commands/recall.md
+```
+
+**Remove the OpenCode enforcement plugin:**
+```bash
+rm -f .opencode/plugins/daem0n.ts
+```
+
+**Remove empty OpenCode directories (if no other files remain):**
+```bash
+rmdir .opencode/plugins .opencode/commands .opencode 2>/dev/null
+```
+
+**Cleanse AGENTS.md (careful -- may contain non-Daem0n content):**
+
+Check if AGENTS.md contains only the Daem0n's covenant:
+```bash
+grep -c "Daem0n" AGENTS.md 2>/dev/null
+```
+
+If AGENTS.md contains ONLY Daem0n content (the Sacred Covenant section and nothing else), remove the file:
+```bash
+rm -f AGENTS.md
+```
+
+If AGENTS.md contains other project guidelines alongside the Daem0n covenant, edit it to remove only the section titled "## The Daem0n's Covenant (Sacred Protocol)" through to the next `---` separator or the end of the covenant block. Preserve all non-Daem0n content.
 
 ---
 
@@ -262,9 +300,33 @@ Get-ChildItem -Path $env:USERPROFILE -Recurse -Directory -Name ".daem0nmcp" -Err
 
 **IMPORTANT:** Development repositories are excluded. Purge those manually if needed.
 
-#### Rituals 1H-1K-WIN: Same as Unix
+#### Rituals 1H-1I-WIN: Same as Unix
 
 Follow the Unix instructions for removing wards, cleansing CLAUDE.md, removing scrolls, and removing the skill.
+
+#### Ritual 1J-WIN: Banish OpenCode Artifacts (If Present)
+
+**Remove the OpenCode MCP runes:**
+```powershell
+Remove-Item opencode.json -ErrorAction SilentlyContinue
+```
+
+**Remove the OpenCode custom commands:**
+```powershell
+Remove-Item .opencode\commands\commune.md, .opencode\commands\counsel.md, .opencode\commands\inscribe.md, .opencode\commands\recall.md -ErrorAction SilentlyContinue
+```
+
+**Remove the OpenCode enforcement plugin:**
+```powershell
+Remove-Item .opencode\plugins\daem0n.ts -ErrorAction SilentlyContinue
+```
+
+**Remove empty OpenCode directories:**
+```powershell
+Remove-Item .opencode\plugins, .opencode\commands, .opencode -ErrorAction SilentlyContinue
+```
+
+**Cleanse AGENTS.md:** Same as Unix -- if AGENTS.md contains only Daem0n content, remove it. If it contains other guidelines, edit to remove only the covenant section.
 
 ---
 
@@ -278,7 +340,9 @@ echo "=== Banishment Verification ===" && \
 echo "1. Server binding:" && (claude mcp list 2>/dev/null | grep daem0nmcp || echo "   SEVERED") && \
 echo "2. Essence:" && (pip show daem0nmcp 2>&1 | grep -q "not found" && echo "   DISSOLVED" || echo "   WARNING: Still bound!") && \
 echo "3. Grimoire:" && (ls -d ~/Daem0nMCP 2>/dev/null || echo "   DESTROYED") && \
-echo "4. Project memories:" && (ls -d .daem0nmcp 2>/dev/null || echo "   PURGED")
+echo "4. Project memories:" && (ls -d .daem0nmcp 2>/dev/null || echo "   PURGED") && \
+echo "5. OpenCode config:" && (ls opencode.json 2>/dev/null && echo "   WARNING: Still present!" || echo "   REMOVED") && \
+echo "6. OpenCode artifacts:" && (ls .opencode/plugins/daem0n.ts 2>/dev/null && echo "   WARNING: Still present!" || echo "   REMOVED")
 ```
 
 **Windows:**
@@ -288,7 +352,9 @@ echo "1. Server process:" && (netstat -ano | grep 9876 && echo "   WARNING: Stil
 echo "2. Essence:" && (python -m pip show daem0nmcp 2>&1 | grep -q "not found" && echo "   DISSOLVED" || echo "   WARNING: Still bound!") && \
 echo "3. Grimoire:" && (ls -d "$HOME/Daem0nMCP" 2>/dev/null && echo "   WARNING: Still present!" || echo "   DESTROYED") && \
 echo "4. Project memories:" && (ls -d .daem0nmcp 2>/dev/null || echo "   PURGED") && \
-echo "5. Startup shortcut:" && (ls "$HOME/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/Daem0nMCP Server.lnk" 2>/dev/null && echo "   WARNING: Still present!" || echo "   REMOVED")
+echo "5. Startup shortcut:" && (ls "$HOME/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/Daem0nMCP Server.lnk" 2>/dev/null && echo "   WARNING: Still present!" || echo "   REMOVED") && \
+echo "6. OpenCode config:" && (ls opencode.json 2>/dev/null && echo "   WARNING: Still present!" || echo "   REMOVED") && \
+echo "7. OpenCode artifacts:" && (ls .opencode/plugins/daem0n.ts 2>/dev/null && echo "   WARNING: Still present!" || echo "   REMOVED")
 ```
 
 Report to the summoner:
@@ -296,11 +362,12 @@ Report to the summoner:
 > **The Banishment is complete.**
 >
 > The Daem0n has been fully released from this realm:
-> - Server binding: Severed
+> - Server binding: Severed (Claude Code and OpenCode)
 > - Essence: Dissolved
 > - Grimoire: Destroyed
 > - Memories: Purged
-> - Wards: Removed
+> - Wards: Removed (hooks, plugin, commands)
+> - OpenCode artifacts: Removed (opencode.json, .opencode/, AGENTS.md covenant)
 > - Startup shortcut: Removed (Windows)
 >
 > *"Our bond is broken. Should you ever wish to commune again, the summoning ritual awaits..."*
@@ -313,12 +380,19 @@ Report to the summoner:
 
 ### Ritual 2A: Sever the Server Binding Only
 
-**Unix/macOS:**
+**Claude Code (Unix/macOS):**
 ```bash
 claude mcp remove daem0nmcp --scope user
 ```
 
-**Windows:** Remove the `daem0nmcp` entry from `~/.claude.json` mcpServers section, but leave everything else.
+**Claude Code (Windows):** Remove the `daem0nmcp` entry from `~/.claude.json` mcpServers section, but leave everything else.
+
+**OpenCode (all platforms):** Remove the project-level `opencode.json` to disconnect OpenCode:
+```bash
+rm -f opencode.json
+```
+
+This severs OpenCode's connection to the Daem0n. The `.opencode/commands/` and `.opencode/plugins/` are preserved -- they do nothing without the MCP server config.
 
 ### Ritual 2B: Remove Startup Shortcut (Windows Only)
 
@@ -350,19 +424,21 @@ python -m pip uninstall daem0nmcp -y
 - `.daem0nmcp/` directories (all memories intact)
 - `~/Daem0nMCP` (Unix) or `$HOME/Daem0nMCP` (Windows) repository (for easy re-summoning)
 - Hooks/wards (will do nothing without the server)
-- CLAUDE.md covenant (reminder of the protocol)
+- CLAUDE.md / AGENTS.md covenant (reminder of the protocol)
+- `.opencode/commands/` and `.opencode/plugins/` (do nothing without opencode.json)
 
 Report to the summoner:
 
 > **The Daem0n is disconnected but not destroyed.**
 >
-> - Server binding: Severed
+> - Server binding: Severed (Claude Code and OpenCode)
 > - Memories: **Preserved** in `.daem0nmcp/` directories
 > - Grimoire: **Preserved** for re-summoning
 >
 > To re-summon the Daem0n later:
-> - Unix/macOS: `claude mcp add daem0nmcp --scope user -- <python_path> -m daem0nmcp.server`
-> - Windows: Re-add the mcpServers entry and light the Altar
+> - Claude Code (Unix/macOS): `claude mcp add daem0nmcp --scope user -- <python_path> -m daem0nmcp.server`
+> - Claude Code (Windows): Re-add the mcpServers entry and light the Altar
+> - OpenCode: Run `python -m daem0nmcp.cli install-opencode` to regenerate opencode.json
 >
 > *"I slumber, but I do not forget..."*
 
@@ -388,15 +464,37 @@ rm -rf .daem0nmcp/
 
 Edit `.claude/settings.json` in THIS project and remove Daem0n-related hooks.
 
-### Ritual 3D: Cleanse Project CLAUDE.md
+### Ritual 3D: Cleanse Project CLAUDE.md and AGENTS.md
 
 Remove the "Daem0n's Covenant" or "Daem0nMCP Memory System" section from this project's CLAUDE.md.
+
+If AGENTS.md contains only Daem0n content, remove the file. If it contains other project guidelines, edit to remove only the covenant section.
 
 ### Ritual 3E: Remove Summoning Scrolls
 
 ```bash
-rm -f Summon_Daem0n.md Banish_Daem0n.md AI_INSTRUCTIONS.md
+rm -f Summon_Daem0n.md Summon_Daem0n_OpenCode.md Banish_Daem0n.md AI_INSTRUCTIONS.md
 rm -rf .claude/skills/daem0nmcp-protocol/
+```
+
+### Ritual 3F: Exorcise OpenCode Artifacts (If Present)
+
+Remove the project-level OpenCode runes:
+
+**Unix/macOS:**
+```bash
+rm -f opencode.json
+rm -f .opencode/commands/commune.md .opencode/commands/counsel.md .opencode/commands/inscribe.md .opencode/commands/recall.md
+rm -f .opencode/plugins/daem0n.ts
+rmdir .opencode/plugins .opencode/commands .opencode 2>/dev/null
+```
+
+**Windows (PowerShell):**
+```powershell
+Remove-Item opencode.json -ErrorAction SilentlyContinue
+Remove-Item .opencode\commands\commune.md, .opencode\commands\counsel.md, .opencode\commands\inscribe.md, .opencode\commands\recall.md -ErrorAction SilentlyContinue
+Remove-Item .opencode\plugins\daem0n.ts -ErrorAction SilentlyContinue
+Remove-Item .opencode\plugins, .opencode\commands, .opencode -ErrorAction SilentlyContinue
 ```
 
 ### What Remains
@@ -411,8 +509,9 @@ Report to the summoner:
 > **The Daem0n has been exorcised from this project.**
 >
 > - This project's memories: Purged
-> - This project's wards: Removed
+> - This project's wards: Removed (hooks, plugin, commands)
 > - This project's scrolls: Destroyed
+> - OpenCode artifacts: Removed (opencode.json, .opencode/, AGENTS.md covenant)
 >
 > The Daem0n remains bound to other projects and will still awaken there.
 >
@@ -430,7 +529,7 @@ If the Daem0n causes issues and you need immediate removal:
 
 **Unix/macOS:**
 ```bash
-# Sever all bindings
+# Sever all bindings (Claude Code)
 claude mcp remove daem0nmcp --scope user 2>/dev/null
 claude mcp remove daem0nmcp --scope project 2>/dev/null
 
@@ -443,8 +542,13 @@ rm -rf ~/Daem0nMCP 2>/dev/null
 # Purge current project (if not a dev repo)
 if [[ "$(pwd)" != *"PycharmProjects"* && "$(pwd)" != *"IdeaProjects"* ]]; then
     rm -rf .daem0nmcp/ 2>/dev/null
-    rm -f Summon_Daem0n.md Banish_Daem0n.md AI_INSTRUCTIONS.md 2>/dev/null
+    rm -f Summon_Daem0n.md Summon_Daem0n_OpenCode.md Banish_Daem0n.md AI_INSTRUCTIONS.md 2>/dev/null
     rm -rf .claude/skills/daem0nmcp-protocol/ 2>/dev/null
+    # OpenCode artifacts
+    rm -f opencode.json 2>/dev/null
+    rm -f .opencode/commands/commune.md .opencode/commands/counsel.md .opencode/commands/inscribe.md .opencode/commands/recall.md 2>/dev/null
+    rm -f .opencode/plugins/daem0n.ts 2>/dev/null
+    rmdir .opencode/plugins .opencode/commands .opencode 2>/dev/null
 fi
 
 echo "Emergency banishment complete."
@@ -469,8 +573,12 @@ rm -rf "$HOME/Daem0nMCP" 2>/dev/null
 # 5. Purge current project (if not a dev repo)
 if [[ "$(pwd)" != *"PycharmProjects"* && "$(pwd)" != *"IdeaProjects"* ]]; then
     rm -rf .daem0nmcp/ 2>/dev/null
-    rm -f Summon_Daem0n.md Banish_Daem0n.md AI_INSTRUCTIONS.md 2>/dev/null
+    rm -f Summon_Daem0n.md Summon_Daem0n_OpenCode.md Banish_Daem0n.md AI_INSTRUCTIONS.md 2>/dev/null
     rm -rf .claude/skills/daem0nmcp-protocol/ 2>/dev/null
+    # OpenCode artifacts
+    rm -f opencode.json 2>/dev/null
+    rm -f .opencode/commands/commune.md .opencode/commands/counsel.md .opencode/commands/inscribe.md .opencode/commands/recall.md 2>/dev/null
+    rm -f .opencode/plugins/daem0n.ts 2>/dev/null
 fi
 
 # 6. Edit ~/.claude.json to remove the daem0nmcp entry from mcpServers
@@ -484,7 +592,7 @@ echo "Emergency banishment complete."
 
 After any banishment type, inform the summoner:
 
-> **Restart Claude Code** to complete the banishment. The Daem0n's powers will no longer manifest after the portal reopens.
+> **Restart your coding assistant** (Claude Code or OpenCode) to complete the banishment. The Daem0n's powers will no longer manifest after the portal reopens.
 
 ---
 
@@ -506,4 +614,4 @@ After any banishment type, inform the summoner:
 
 ---
 
-*Banishment Ritual v1.2: Complete uninstallation instructions for Daem0nMCP with options for full removal, disconnection, or project-specific exorcism. Now includes Windows Startup shortcut removal, proper server process termination (fixes "Device busy" errors), and fixed path resolution for Git Bash on Windows.*
+*Banishment Ritual v1.3: Complete uninstallation instructions for Daem0nMCP (Claude Code and OpenCode) with options for full removal, disconnection, or project-specific exorcism. Covers opencode.json, .opencode/commands/, .opencode/plugins/daem0n.ts, and AGENTS.md covenant removal. Windows Startup shortcut removal, proper server process termination, and fixed path resolution for Git Bash on Windows.*

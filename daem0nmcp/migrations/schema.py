@@ -260,6 +260,11 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         # Create index for transaction time queries
         "CREATE INDEX IF NOT EXISTS idx_memory_versions_transaction ON memory_versions(memory_id, changed_at);",
     ]),
+    (15, "Add source_client and source_model columns to memories for LLM compatibility tracking", [
+        "ALTER TABLE memories ADD COLUMN source_client TEXT;",
+        "ALTER TABLE memories ADD COLUMN source_model TEXT;",
+        "CREATE INDEX IF NOT EXISTS idx_memories_source_client ON memories(source_client);",
+    ]),
 ]
 
 

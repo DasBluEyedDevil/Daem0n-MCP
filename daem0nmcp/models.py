@@ -88,6 +88,10 @@ class Memory(Base):
     # Based on: recall frequency, positive outcomes, user interactions
     importance_score = Column(Float, nullable=True)
 
+    # Provenance tracking (Phase 22: LLM Compatibility)
+    source_client = Column(String, nullable=True)   # e.g., "opencode", "claude-code"
+    source_model = Column(String, nullable=True)     # e.g., "anthropic/claude-sonnet-4", "openai/gpt-5"
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),

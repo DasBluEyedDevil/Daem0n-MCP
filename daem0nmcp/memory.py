@@ -405,6 +405,8 @@ class MemoryManager:
         file_path: Optional[str] = None,
         project_path: Optional[str] = None,
         happened_at: Optional[datetime] = None,
+        source_client: Optional[str] = None,
+        source_model: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Store a new memory with conflict detection.
@@ -420,6 +422,8 @@ class MemoryManager:
             happened_at: When this fact was true in reality (default: now).
                         Use for backfilling: "User told me last week they prefer Python"
                         Pass a datetime with timezone or naive datetime (treated as UTC).
+            source_client: MCP client name (e.g., "opencode", "claude-code")
+            source_model: LLM model identifier (e.g., "anthropic/claude-sonnet-4")
 
         Returns:
             The created memory as a dict, with any detected conflicts
@@ -467,7 +471,9 @@ class MemoryManager:
             file_path=file_path_abs,
             file_path_relative=file_path_rel,
             is_permanent=is_permanent,
-            vector_embedding=vector_embedding
+            vector_embedding=vector_embedding,
+            source_client=source_client,
+            source_model=source_model,
         )
 
         async with self.db.get_session() as session:
@@ -533,6 +539,8 @@ class MemoryManager:
                 "is_permanent": is_permanent,
                 "created_at": memory.created_at.isoformat(),
                 "valid_from": version.valid_from.isoformat() if version.valid_from else None,
+                "source_client": source_client,
+                "source_model": source_model,
             }
 
             # Add conflict warnings if any

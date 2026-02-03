@@ -293,7 +293,10 @@ def main():
         if args.transport == "sse":
             mcp.run(transport="sse", host=args.host, port=args.port)
         else:
-            mcp.run(transport="stdio")
+            # Disable FastMCP's Rich banner for stdio transport -- it crashes on
+            # Windows cp1252 consoles due to Unicode block-drawing characters,
+            # and stdout must stay clean for the MCP JSON-RPC protocol anyway.
+            mcp.run(transport="stdio", show_banner=False)
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")
     except Exception as e:

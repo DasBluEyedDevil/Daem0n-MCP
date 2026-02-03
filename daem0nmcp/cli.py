@@ -17,6 +17,7 @@ Usage:
     python -m daem0nmcp.cli uninstall-hooks
     python -m daem0nmcp.cli install-claude-hooks [--dry-run]
     python -m daem0nmcp.cli uninstall-claude-hooks [--dry-run]
+    python -m daem0nmcp.cli install-opencode [--dry-run] [--force]
     python -m daem0nmcp.cli watch [--debounce SECONDS] [--no-system] [--no-log] [--no-poll]
     python -m daem0nmcp.cli index [--path PATH] [--patterns *.py *.ts ...]
     python -m daem0nmcp.cli remember --category CATEGORY --content CONTENT [--rationale TEXT] [--file-path PATH] [--tags TAGS]
@@ -315,6 +316,20 @@ def main():
     uninstall_claude_parser = subparsers.add_parser("uninstall-claude-hooks", help="Remove Daem0n Claude Code hooks")
     uninstall_claude_parser.add_argument("--dry-run", action="store_true", help="Show what would change")
 
+    # install-opencode command
+    install_oc_parser = subparsers.add_parser(
+        "install-opencode",
+        help="Install OpenCode integration (creates .opencode/ directory and config)"
+    )
+    install_oc_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what would be created without making changes"
+    )
+    install_oc_parser.add_argument(
+        "--force", "-f", action="store_true",
+        help="Overwrite existing configuration files"
+    )
+
     # watch command
     watch_parser = subparsers.add_parser("watch", help="Start file watcher daemon")
     watch_parser.add_argument("--debounce", type=float, default=1.0,
@@ -357,6 +372,63 @@ def main():
         # Create new settings instance to pick up the env var
         active_settings = Settings()
 
+    # --- Commands that do NOT need database/memory initialization ---
+    # Handle these before get_storage_path() to avoid creating .daem0nmcp/
+    # in the target project directory.
+
+    if args.command == "install-opencode":
+        from .opencode_install import install_opencode
+        project_path = args.project_path or os.getcwd()
+        success, message = install_opencode(
+            project_path,
+            dry_run=getattr(args, 'dry_run', False),
+            force=getattr(args, 'force', False),
+        )
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "install-hooks":
+        from .hooks import install_hooks
+        project_path = args.project_path or os.getcwd()
+        success, message = install_hooks(project_path, force=args.force)
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "uninstall-hooks":
+        from .hooks import uninstall_hooks
+        project_path = args.project_path or os.getcwd()
+        success, message = uninstall_hooks(project_path)
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "install-claude-hooks":
+        from .claude_hooks.install import install_claude_hooks
+        success, message = install_claude_hooks(dry_run=getattr(args, 'dry_run', False))
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "uninstall-claude-hooks":
+        from .claude_hooks.install import uninstall_claude_hooks
+        success, message = uninstall_claude_hooks(dry_run=getattr(args, 'dry_run', False))
+        if args.json:
+            print(json.dumps({"success": success, "message": message}))
+        else:
+            print(message)
+        sys.exit(0 if success else 1)
+
+    # --- Commands that require database/memory initialization ---
     # Initialize components
     storage_path = active_settings.get_storage_path()
     db = DatabaseManager(storage_path)
@@ -506,48 +578,6 @@ def main():
             else:
                 safe_print(f"Error: {result.get('error')}", file=sys.stderr)
                 sys.exit(1)
-
-    elif args.command == "install-hooks":
-        from .hooks import install_hooks
-        project_path = args.project_path or os.getcwd()
-        success, message = install_hooks(project_path, force=args.force)
-
-        if args.json:
-            print(json.dumps({"success": success, "message": message}))
-        else:
-            print(message)
-
-        sys.exit(0 if success else 1)
-
-    elif args.command == "uninstall-hooks":
-        from .hooks import uninstall_hooks
-        project_path = args.project_path or os.getcwd()
-        success, message = uninstall_hooks(project_path)
-
-        if args.json:
-            print(json.dumps({"success": success, "message": message}))
-        else:
-            print(message)
-
-        sys.exit(0 if success else 1)
-
-    elif args.command == "install-claude-hooks":
-        from .claude_hooks.install import install_claude_hooks
-        success, message = install_claude_hooks(dry_run=getattr(args, 'dry_run', False))
-        if args.json:
-            print(json.dumps({"success": success, "message": message}))
-        else:
-            print(message)
-        sys.exit(0 if success else 1)
-
-    elif args.command == "uninstall-claude-hooks":
-        from .claude_hooks.install import uninstall_claude_hooks
-        success, message = uninstall_claude_hooks(dry_run=getattr(args, 'dry_run', False))
-        if args.json:
-            print(json.dumps({"success": success, "message": message}))
-        else:
-            print(message)
-        sys.exit(0 if success else 1)
 
     elif args.command == "watch":
         from .watcher import FileWatcher, WatcherConfig, LoggingChannel
