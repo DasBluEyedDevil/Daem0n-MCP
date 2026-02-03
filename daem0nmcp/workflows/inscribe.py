@@ -60,28 +60,24 @@ async def dispatch(
     url: Optional[str] = None,
     topic: Optional[str] = None,
     chunk_size: int = 2000,
-    **kwargs,
 ) -> Dict[str, Any]:
     """Dispatch action to appropriate handler."""
     if action not in VALID_ACTIONS:
         raise InvalidActionError(action, sorted(VALID_ACTIONS))
 
-    # Extract client metadata for provenance tracking (Phase 22: LLM Compatibility)
-    # DESIGN NOTE: The dual-mode parsing (isinstance check for str vs dict) is intentional.
-    # - The OpenCode plugin sends _client_meta as a JSON.stringify'd string (Plan 22-01 enforces this).
-    # - Future MCP clients may send _client_meta as a native dict/object if their transport
-    #   deserializes JSON args before delivery. Handling both modes ensures forward compatibility
-    #   without requiring all clients to match OpenCode's serialization behavior.
-    import json as _json
-    _raw_meta = kwargs.pop("_client_meta", None)
+    # Read client metadata from ContextVar (set by CovenantMiddleware).
+    # The middleware strips _client_meta from tool args before Pydantic
+    # validation and stashes the parsed dict in client_meta_var.
+    from ..transforms.covenant import client_meta_var
+
     source_client = None
     source_model = None
-    if _raw_meta:
+    meta = client_meta_var.get()
+    if meta:
         try:
-            meta = _json.loads(_raw_meta) if isinstance(_raw_meta, str) else _raw_meta
             source_client = meta.get("client")
             source_model = f"{meta.get('providerID', 'unknown')}/{meta.get('modelID', 'unknown')}"
-        except (ValueError, TypeError, AttributeError):
+        except (AttributeError, TypeError):
             pass  # Malformed metadata is silently ignored
 
     if action == "remember":

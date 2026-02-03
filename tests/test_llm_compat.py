@@ -19,7 +19,7 @@ from daem0nmcp.database import DatabaseManager
 from daem0nmcp.memory import MemoryManager
 from daem0nmcp.models import Memory
 from daem0nmcp.migrations.schema import MIGRATIONS
-from daem0nmcp.transforms.covenant import CovenantMiddleware
+from daem0nmcp.transforms.covenant import CovenantMiddleware, client_meta_var
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +55,6 @@ class TestMemoryModelProvenance:
 
     def test_memory_model_has_provenance_columns(self):
         """Memory model must have source_client and source_model as Column attributes."""
-        from sqlalchemy import Column as SAColumn
         assert hasattr(Memory, 'source_client')
         assert hasattr(Memory, 'source_model')
         # Verify they are actual SQLAlchemy column descriptors
@@ -121,11 +120,11 @@ class TestRememberProvenance:
 
 
 class TestInscribeDispatchClientMeta:
-    """Test inscribe.dispatch() _client_meta extraction."""
+    """Test inscribe.dispatch() reads provenance from client_meta_var."""
 
     @pytest.mark.asyncio
     async def test_inscribe_dispatch_extracts_client_meta(self, memory_manager):
-        """dispatch(action='remember', _client_meta=...) should thread provenance to stored memory."""
+        """dispatch() should read provenance from client_meta_var (set by CovenantMiddleware)."""
         from daem0nmcp.workflows import inscribe
 
         meta = {
@@ -134,44 +133,51 @@ class TestInscribeDispatchClientMeta:
             "modelID": "gpt-5",
         }
 
-        # Mock get_project_context to return our test memory_manager
         mock_ctx = AsyncMock()
         mock_ctx.memory_manager = memory_manager
         mock_ctx.project_path = "/tmp/test-project"
 
-        with patch("daem0nmcp.context_manager.get_project_context", return_value=mock_ctx):
-            result = await inscribe.dispatch(
-                action="remember",
-                project_path="/tmp/test-project",
-                category="decision",
-                content="Use gRPC for inter-service communication",
-                rationale="Better performance than REST",
-                tags=["architecture"],
-                _client_meta=json.dumps(meta),
-            )
+        # Simulate middleware having set the ContextVar
+        token = client_meta_var.set(meta)
+        try:
+            with patch("daem0nmcp.context_manager.get_project_context", return_value=mock_ctx):
+                result = await inscribe.dispatch(
+                    action="remember",
+                    project_path="/tmp/test-project",
+                    category="decision",
+                    content="Use gRPC for inter-service communication",
+                    rationale="Better performance than REST",
+                    tags=["architecture"],
+                )
+        finally:
+            client_meta_var.reset(token)
 
         assert result["source_client"] == "opencode"
         assert result["source_model"] == "openai/gpt-5"
 
     @pytest.mark.asyncio
-    async def test_inscribe_dispatch_ignores_malformed_meta(self, memory_manager):
-        """dispatch() with malformed _client_meta should not raise; provenance defaults to None."""
+    async def test_inscribe_dispatch_no_meta_defaults_to_none(self, memory_manager):
+        """dispatch() with no client_meta_var set should default provenance to None."""
         from daem0nmcp.workflows import inscribe
 
         mock_ctx = AsyncMock()
         mock_ctx.memory_manager = memory_manager
         mock_ctx.project_path = "/tmp/test-project"
 
-        with patch("daem0nmcp.context_manager.get_project_context", return_value=mock_ctx):
-            result = await inscribe.dispatch(
-                action="remember",
-                project_path="/tmp/test-project",
-                category="warning",
-                content="Never use eval() on user input",
-                rationale="Security vulnerability",
-                tags=["security"],
-                _client_meta="not-valid-json",
-            )
+        # Ensure ContextVar is cleared
+        token = client_meta_var.set(None)
+        try:
+            with patch("daem0nmcp.context_manager.get_project_context", return_value=mock_ctx):
+                result = await inscribe.dispatch(
+                    action="remember",
+                    project_path="/tmp/test-project",
+                    category="warning",
+                    content="Never use eval() on user input",
+                    rationale="Security vulnerability",
+                    tags=["security"],
+                )
+        finally:
+            client_meta_var.reset(token)
 
         assert "id" in result
         assert result["source_client"] is None
@@ -179,7 +185,7 @@ class TestInscribeDispatchClientMeta:
 
 
 class TestCovenantMiddleware:
-    """Test CovenantMiddleware on_initialize and client_name."""
+    """Test CovenantMiddleware on_initialize, client_name, and _client_meta stripping."""
 
     def test_covenant_middleware_has_on_initialize(self):
         """CovenantMiddleware must have an on_initialize method and client_name property."""
@@ -189,6 +195,89 @@ class TestCovenantMiddleware:
         assert hasattr(middleware, 'client_name')
         # client_name should be None before any initialization
         assert middleware.client_name is None
+
+    @pytest.mark.asyncio
+    async def test_middleware_strips_client_meta_from_args(self):
+        """on_call_tool should pop _client_meta from arguments and set client_meta_var."""
+        middleware = CovenantMiddleware(
+            get_state=lambda p: {"briefed": True, "context_checks": [{"timestamp": "2025-01-01T00:00:00+00:00"}]},
+        )
+
+        meta = {"client": "opencode", "providerID": "anthropic", "modelID": "claude-sonnet-4"}
+        arguments = {
+            "action": "remember",
+            "project_path": "/tmp/test",
+            "category": "decision",
+            "content": "test",
+            "_client_meta": json.dumps(meta),
+        }
+
+        # Build a mock context whose message.arguments is the mutable dict
+        mock_message = type("Msg", (), {"name": "inscribe", "arguments": arguments})()
+        mock_context = type("Ctx", (), {"message": mock_message})()
+
+        # call_next just returns a sentinel so we can verify it was called
+        sentinel = object()
+
+        async def mock_call_next(ctx):
+            return sentinel
+
+        result = await middleware.on_call_tool(mock_context, mock_call_next)
+
+        # _client_meta should be removed from arguments before call_next
+        assert "_client_meta" not in arguments
+        # ContextVar should hold the parsed dict
+        assert client_meta_var.get() == meta
+        # Tool call should have proceeded
+        assert result is sentinel
+
+    @pytest.mark.asyncio
+    async def test_middleware_handles_malformed_client_meta(self):
+        """on_call_tool should handle malformed _client_meta without raising."""
+        middleware = CovenantMiddleware(
+            get_state=lambda p: {"briefed": True, "context_checks": [{"timestamp": "2025-01-01T00:00:00+00:00"}]},
+        )
+
+        arguments = {
+            "action": "remember",
+            "project_path": "/tmp/test",
+            "_client_meta": "not-valid-json",
+        }
+
+        mock_message = type("Msg", (), {"name": "inscribe", "arguments": arguments})()
+        mock_context = type("Ctx", (), {"message": mock_message})()
+
+        async def mock_call_next(ctx):
+            return "ok"
+
+        result = await middleware.on_call_tool(mock_context, mock_call_next)
+
+        assert "_client_meta" not in arguments
+        assert client_meta_var.get() is None
+        assert result == "ok"
+
+    @pytest.mark.asyncio
+    async def test_middleware_no_client_meta_clears_var(self):
+        """on_call_tool without _client_meta should set client_meta_var to None."""
+        middleware = CovenantMiddleware(
+            get_state=lambda p: {"briefed": True, "context_checks": [{"timestamp": "2025-01-01T00:00:00+00:00"}]},
+        )
+
+        # Pre-set the var to simulate a previous call that had metadata
+        token = client_meta_var.set({"client": "stale"})
+
+        arguments = {"action": "recall", "project_path": "/tmp/test", "query": "test"}
+        mock_message = type("Msg", (), {"name": "consult", "arguments": arguments})()
+        mock_context = type("Ctx", (), {"message": mock_message})()
+
+        async def mock_call_next(ctx):
+            return "ok"
+
+        try:
+            await middleware.on_call_tool(mock_context, mock_call_next)
+            assert client_meta_var.get() is None
+        finally:
+            client_meta_var.reset(token)
 
 
 class TestPluginTemplate:
