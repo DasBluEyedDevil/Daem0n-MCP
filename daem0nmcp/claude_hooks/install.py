@@ -52,12 +52,6 @@ def _build_hook_definitions() -> dict[str, list[dict]]:
 
     return {
         "hooks": {
-            "SessionStart": [
-                {
-                    "matcher": "",
-                    "hooks": [{"type": "command", "command": f'{q} -m daem0nmcp.claude_hooks.session_start'}],
-                },
-            ],
             "PreToolUse": [
                 {
                     "matcher": "Edit|Write|NotebookEdit",
@@ -104,13 +98,19 @@ def install_claude_hooks(dry_run: bool = False) -> tuple[bool, str]:
 
     hooks_section = settings.setdefault("hooks", {})
 
+    # First remove all Daem0n / legacy entries from every event. This cleans up
+    # deprecated events (e.g. older SessionStart installs) on upgrade.
+    for event in list(hooks_section.keys()):
+        filtered = [e for e in hooks_section[event] if not _is_daem0n_entry(e)]
+        if filtered:
+            hooks_section[event] = filtered
+        else:
+            del hooks_section[event]
+
     for event, new_entries in new_defs["hooks"].items():
         existing = hooks_section.get(event, [])
-        # Remove any existing Daem0n / legacy entries
-        filtered = [e for e in existing if not _is_daem0n_entry(e)]
-        # Append new entries
-        filtered.extend(new_entries)
-        hooks_section[event] = filtered
+        existing.extend(new_entries)
+        hooks_section[event] = existing
 
     settings["hooks"] = hooks_section
 

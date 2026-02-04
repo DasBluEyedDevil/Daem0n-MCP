@@ -57,7 +57,7 @@ class TestInstall:
 
         data = json.loads(fake_settings.read_text())
         hooks = data["hooks"]
-        assert "SessionStart" in hooks
+        assert "SessionStart" not in hooks
         assert "PreToolUse" in hooks
         assert "PostToolUse" in hooks
         assert "Stop" in hooks
@@ -112,6 +112,31 @@ class TestInstall:
         for entry in pre_tool:
             for hook in entry.get("hooks", []):
                 assert "daem0n_pre_edit_hook" not in hook["command"]
+
+    def test_removes_old_session_start_on_reinstall(self, fake_settings):
+        existing = {
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": '"python" -m daem0nmcp.claude_hooks.session_start'}],
+                    },
+                    {
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "node gsd-check-update.js"}],
+                    },
+                ]
+            }
+        }
+        fake_settings.write_text(json.dumps(existing))
+
+        ok, _msg = install_claude_hooks()
+        assert ok
+
+        data = json.loads(fake_settings.read_text())
+        session_start = data["hooks"].get("SessionStart", [])
+        assert len(session_start) == 1
+        assert "gsd-check-update.js" in session_start[0]["hooks"][0]["command"]
 
     def test_dry_run_no_write(self, fake_settings):
         ok, msg = install_claude_hooks(dry_run=True)

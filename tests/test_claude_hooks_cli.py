@@ -25,7 +25,7 @@ def test_cli_install_claude_hooks_dry_run(fake_settings):
     ok, msg = install_claude_hooks(dry_run=True)
     assert ok
     assert "[dry-run]" in msg
-    assert "SessionStart" in msg
+    assert "PreToolUse" in msg
 
 
 def test_cli_install_claude_hooks_json(fake_settings):
