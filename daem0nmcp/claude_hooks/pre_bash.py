@@ -76,6 +76,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    import warnings
+    warnings.filterwarnings("ignore")
+
     from daem0nmcp.claude_hooks._client import run_hook_safely
 
     run_hook_safely(main, timeout_seconds=10)

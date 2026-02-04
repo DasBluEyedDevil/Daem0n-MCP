@@ -22,20 +22,45 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
+def _resolve_db_path(project_path: str) -> str:
+    """
+    Find daem0nmcp.db from a project path, accepting any of:
+      - /path/to/project                 (.daem0nmcp/storage/daem0nmcp.db)
+      - /path/to/project/.daem0nmcp      (storage/daem0nmcp.db)
+      - /path/to/project/.daem0nmcp/storage  (daem0nmcp.db)
+    """
+    candidates = [
+        os.path.join(project_path, ".daem0nmcp", "storage", "daem0nmcp.db"),
+        os.path.join(project_path, "storage", "daem0nmcp.db"),
+        os.path.join(project_path, "daem0nmcp.db"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser(description="Re-encode memory embeddings for new model")
     parser.add_argument(
         "--project-path",
         default=os.getcwd(),
-        help="Project path containing storage/ directory (default: cwd)",
+        help="Project root, .daem0nmcp dir, or storage dir (default: cwd)",
     )
     parser.add_argument("--batch-size", type=int, default=100, help="Commit batch size")
     args = parser.parse_args()
 
-    db_path = os.path.join(args.project_path, "storage", "daem0nmcp.db")
-    if not os.path.exists(db_path):
-        logger.error(f"Database not found: {db_path}")
+    db_path = _resolve_db_path(args.project_path)
+    if not db_path:
+        logger.error(
+            f"Database not found. Searched from: {args.project_path}\n"
+            f"  Tried: <path>/.daem0nmcp/storage/daem0nmcp.db\n"
+            f"         <path>/storage/daem0nmcp.db\n"
+            f"         <path>/daem0nmcp.db"
+        )
         sys.exit(1)
+
+    logger.info(f"Using database: {db_path}")
 
     # Import after arg parsing to avoid slow imports on --help
     from daem0nmcp import vectors
@@ -55,7 +80,9 @@ def main():
         return
 
     # Initialize Qdrant (collections auto-recreated with new dimension)
-    qdrant_path = os.path.join(args.project_path, "storage", "qdrant")
+    # Derive qdrant path from wherever we found the db
+    storage_dir = os.path.dirname(db_path)
+    qdrant_path = os.path.join(storage_dir, "qdrant")
     qdrant = None
     if os.path.exists(qdrant_path):
         try:

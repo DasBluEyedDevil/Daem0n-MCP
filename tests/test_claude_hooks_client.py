@@ -120,13 +120,14 @@ class TestRunHookSafely:
             run_hook_safely(bad)
         assert exc_info.value.code == 0
 
-    def test_passes_through_system_exit(self):
+    def test_converts_nonzero_exit_to_zero(self):
+        """Non-zero SystemExit is converted to exit 0 so Claude Code doesn't report hook errors."""
         def exits():
             sys.exit(2)
 
         with pytest.raises(SystemExit) as exc_info:
             run_hook_safely(exits)
-        assert exc_info.value.code == 2
+        assert exc_info.value.code == 0
 
     def test_normal_completion(self):
         results = []

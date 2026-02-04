@@ -104,11 +104,18 @@ def run_hook_safely(main_func, timeout_seconds: int = 5) -> None:
     """
     Run a hook's main function with a timeout and exception swallowing.
 
-    Uses threading.Timer for Windows compatibility (no signal.alarm).
+    Uses threading.Timer with os._exit as a last resort.  The real
+    defence is that hook functions themselves use short timeouts
+    (e.g. sqlite3 busy_timeout=2s) so they return before the
+    watchdog fires.
+
     On timeout or exception, exits cleanly with code 0 so hooks never
     break the user's workflow.
     """
     def _timeout_handler():
+        # Last-resort kill.  os._exit bypasses Python cleanup but
+        # guarantees termination even if the main thread is stuck in
+        # a native C call (e.g. SQLite busy-wait).
         os._exit(0)
 
     timer = threading.Timer(timeout_seconds, _timeout_handler)
@@ -116,7 +123,11 @@ def run_hook_safely(main_func, timeout_seconds: int = 5) -> None:
     timer.start()
     try:
         main_func()
-    except SystemExit:
+    except SystemExit as exc:
+        # Re-raise clean exits; convert non-zero to 0 so hooks
+        # never report errors to Claude Code.
+        if exc.code and exc.code != 0:
+            sys.exit(0)
         raise
     except Exception:
         sys.exit(0)
