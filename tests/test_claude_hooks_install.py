@@ -57,7 +57,7 @@ class TestInstall:
 
         data = json.loads(fake_settings.read_text())
         hooks = data["hooks"]
-        assert "SessionStart" not in hooks
+        assert "SessionStart" in hooks
         assert "PreToolUse" in hooks
         assert "PostToolUse" in hooks
         assert "Stop" in hooks
@@ -135,8 +135,11 @@ class TestInstall:
 
         data = json.loads(fake_settings.read_text())
         session_start = data["hooks"].get("SessionStart", [])
-        assert len(session_start) == 1
+        assert len(session_start) == 2
+        # Non-Daem0n GSD entry is preserved
         assert "gsd-check-update.js" in session_start[0]["hooks"][0]["command"]
+        # New Daem0n SessionStart entry is added
+        assert "daem0nmcp.claude_hooks.session_start" in session_start[1]["hooks"][0]["command"]
 
     def test_dry_run_no_write(self, fake_settings):
         ok, msg = install_claude_hooks(dry_run=True)

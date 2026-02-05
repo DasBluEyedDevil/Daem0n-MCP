@@ -52,6 +52,23 @@ async def test_session_start_marks_briefed(tmp_project):
     assert state["briefed"] is True
 
 
+def test_main_outputs_prompt_message(tmp_path, monkeypatch, capsys):
+    """main() prints the prompt message telling the LLM to call commune."""
+    # Create .daem0nmcp so get_project_path() returns a path
+    (tmp_path / ".daem0nmcp").mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+
+    from daem0nmcp.claude_hooks.session_start import main
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "[Daem0n] IMPORTANT" in captured.out
+    assert 'commune(action="briefing")' in captured.out
+
+
 @pytest.mark.asyncio
 async def test_session_start_no_daem0n_exits_clean(tmp_path, monkeypatch):
     """main() calls sys.exit(0) when no .daem0nmcp dir exists."""

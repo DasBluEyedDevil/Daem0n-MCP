@@ -80,6 +80,12 @@ def _build_hook_definitions() -> dict[str, list[dict]]:
                     "hooks": [{"type": "command", "command": f'{q} -m daem0nmcp.claude_hooks.stop'}],
                 },
             ],
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "hooks": [{"type": "command", "command": f'{q} -m daem0nmcp.claude_hooks.session_start'}],
+                },
+            ],
         }
     }
 

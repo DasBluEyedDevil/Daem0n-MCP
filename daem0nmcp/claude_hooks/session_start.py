@@ -155,9 +155,11 @@ def main() -> None:
     project_path = get_project_path()
     if project_path is None:
         sys.exit(0)
-
-    text = _fast_briefing(project_path)
-    succeed(text)
+    succeed(
+        "[Daem0n] IMPORTANT: Before responding to the user, "
+        'call mcp__daem0nmcp__commune(action="briefing") '
+        "to receive your session briefing and project context."
+    )
 
 
 if __name__ == "__main__":
