@@ -55,6 +55,20 @@ logs/
 CLAUDE.md
 .planning/
 
+# Internal planning & analysis
+docs/plans/
+docs/AUDIT.md
+docs/MCP_APPS_INTEGRATION_ANALYSIS.md
+docs/openspec-daem0n-integration.md
+docs/condensed_docstrings.py
+enhancements.md
+
+# Internal dev scripts
+scripts/condense_docstrings.py
+
+# Lock files
+uv.lock
+
 # Node.js
 node_modules/
 package-lock.json
