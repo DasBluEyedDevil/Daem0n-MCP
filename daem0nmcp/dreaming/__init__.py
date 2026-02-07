@@ -2,7 +2,7 @@
 
 from .scheduler import IdleDreamScheduler
 from .persistence import DreamSession, DreamResult, persist_dream_result, persist_session_summary
-from .strategies import DreamStrategy, FailedDecisionReview, ConnectionDiscovery, CommunityRefresh
+from .strategies import DreamStrategy, FailedDecisionReview, ConnectionDiscovery, CommunityRefresh, PendingOutcomeResolver
 
 __all__ = [
     "IdleDreamScheduler",
@@ -14,4 +14,5 @@ __all__ = [
     "FailedDecisionReview",
     "ConnectionDiscovery",
     "CommunityRefresh",
+    "PendingOutcomeResolver",
 ]

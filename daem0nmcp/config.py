@@ -118,6 +118,13 @@ class Settings(BaseSettings):
     dream_connection_min_shared_entities: int = 2      # Min shared entities to create link
     dream_connection_confidence: float = 0.7           # Confidence for inferred relationships
 
+    # PendingOutcomeResolver strategy
+    dream_pending_max_per_session: int = 3              # Max pending decisions to resolve per session
+    dream_pending_min_age_hours: int = 24               # Min age before a pending decision is eligible
+    dream_pending_cooldown_hours: int = 168             # 7 days cooldown between re-evaluations
+    dream_pending_evidence_threshold: int = 3           # Min directional evidence for auto-resolve
+    dream_pending_dry_run: bool = True                  # Ships inert -- must opt-in to auto-resolve
+
     # CommunityRefresh strategy
     dream_community_staleness_threshold: int = 10      # New memories before community rebuild
 

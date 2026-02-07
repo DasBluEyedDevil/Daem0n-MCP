@@ -836,6 +836,7 @@ async def _fetch_dream_sessions(ctx: ProjectContext, limit: int = 5) -> List[Dic
                     "session_id": sid,
                     "decisions_reviewed": ctx_data.get("decisions_reviewed", 0),
                     "insights_generated": ctx_data.get("insights_generated", 0),
+                    "outcomes_resolved": ctx_data.get("outcomes_resolved", 0),
                     "interrupted": ctx_data.get("interrupted", False),
                     "timestamp": m.created_at.isoformat() if m.created_at else None,
                     "insights": [],
@@ -1024,11 +1025,16 @@ def _build_briefing_message(
     if dream_sessions:
         total_insights = sum(s.get("insights_generated", 0) for s in dream_sessions)
         total_reviewed = sum(s.get("decisions_reviewed", 0) for s in dream_sessions)
+        total_resolved = sum(s.get("outcomes_resolved", 0) for s in dream_sessions)
         if total_insights > 0:
-            message_parts.append(
+            dream_msg = (
                 f"[DREAM] Daemon reviewed {total_reviewed} decisions while idle, "
                 f"generated {total_insights} insight(s)."
             )
+            if total_resolved > 0:
+                dream_msg = dream_msg.rstrip(".")
+                dream_msg += f", auto-resolved {total_resolved} pending outcome(s)."
+            message_parts.append(dream_msg)
 
     if stats.get("learning_insights", {}).get("suggestion"):
         message_parts.append(stats["learning_insights"]["suggestion"])

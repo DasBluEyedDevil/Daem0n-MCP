@@ -156,13 +156,13 @@ _dream_scheduler = None
 try:
     from .dreaming import (
         IdleDreamScheduler, DreamStrategy, FailedDecisionReview,
-        ConnectionDiscovery, CommunityRefresh, DreamSession,
+        ConnectionDiscovery, CommunityRefresh, PendingOutcomeResolver, DreamSession,
     )
     from .dreaming.persistence import persist_session_summary
 except ImportError:
     from daem0nmcp.dreaming import (
         IdleDreamScheduler, DreamStrategy, FailedDecisionReview,
-        ConnectionDiscovery, CommunityRefresh, DreamSession,
+        ConnectionDiscovery, CommunityRefresh, PendingOutcomeResolver, DreamSession,
     )
     from daem0nmcp.dreaming.persistence import persist_session_summary
 
@@ -210,9 +210,10 @@ if settings.dream_enabled:
         _dream_logger.info("Dream session %s started for %s", session.session_id, ctx.project_path)
 
         try:
-            # Multi-strategy pipeline: review → discover connections → refresh communities
+            # Multi-strategy pipeline: review → resolve pending → discover connections → refresh communities
             strategies: list[DreamStrategy] = [
                 FailedDecisionReview(),
+                PendingOutcomeResolver(),
                 ConnectionDiscovery(
                     lookback_hours=settings.dream_connection_lookback_hours,
                     max_connections=settings.dream_connection_max_per_session,

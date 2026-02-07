@@ -37,6 +37,7 @@ class DreamSession:
     ended_at: Optional[datetime] = None
     decisions_reviewed: int = 0
     insights_generated: int = 0
+    outcomes_resolved: int = 0
     results: List[DreamResult] = field(default_factory=list)
     interrupted: bool = False  # True if user returned before completion
     strategies_run: List[str] = field(default_factory=list)
@@ -58,6 +59,20 @@ async def persist_dream_result(
         The result from memory_manager.remember(), or {"error": str} on failure.
     """
     try:
+        # Build tags -- pending-resolution types get an extra tag for cooldown tracking
+        tags = [
+            "dream",
+            "re-evaluation",
+            f"dream-session:{session.session_id}",
+            f"source-decision:{result.source_decision_id}",
+        ]
+        _pending_types = {
+            "auto_resolved_success", "auto_resolved_failure",
+            "flagged_for_review", "insufficient_evidence",
+        }
+        if result.result_type in _pending_types:
+            tags.append("pending-resolution")
+
         return await memory_manager.remember(
             category="learning",
             content=f"Dream re-evaluation: {result.insight}",
@@ -65,12 +80,7 @@ async def persist_dream_result(
                 f"Autonomous re-evaluation of decision #{result.source_decision_id} "
                 f"during idle period (session {session.session_id})"
             ),
-            tags=[
-                "dream",
-                "re-evaluation",
-                f"dream-session:{session.session_id}",
-                f"source-decision:{result.source_decision_id}",
-            ],
+            tags=tags,
             context={
                 "source_decision_id": result.source_decision_id,
                 "dream_session_id": session.session_id,
@@ -111,13 +121,18 @@ async def persist_session_summary(
         return None
 
     try:
+        # Build content string with optional outcomes_resolved mention
+        content = (
+            f"Dream session summary: Reviewed {session.decisions_reviewed} "
+            f"decisions, generated {session.insights_generated} insights"
+            f" (strategies: {', '.join(session.strategies_run) or 'none'})"
+        )
+        if session.outcomes_resolved > 0:
+            content += f", auto-resolved {session.outcomes_resolved} pending outcome(s)"
+
         return await memory_manager.remember(
             category="learning",
-            content=(
-                f"Dream session summary: Reviewed {session.decisions_reviewed} "
-                f"decisions, generated {session.insights_generated} insights"
-                f" (strategies: {', '.join(session.strategies_run) or 'none'})"
-            ),
+            content=content,
             rationale=f"Dream session {session.session_id} summary",
             tags=[
                 "dream",
@@ -128,6 +143,7 @@ async def persist_session_summary(
                 "dream_session_id": session.session_id,
                 "decisions_reviewed": session.decisions_reviewed,
                 "insights_generated": session.insights_generated,
+                "outcomes_resolved": session.outcomes_resolved,
                 "strategies_run": session.strategies_run,
                 "interrupted": session.interrupted,
                 "started_at": session.started_at.isoformat(),
