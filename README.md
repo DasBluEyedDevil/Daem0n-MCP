@@ -28,7 +28,6 @@ The daemon's vision has been fundamentally sharpened. The old `all-MiniLM-L6-v2`
 
 **This is a BREAKING CHANGE** — existing embeddings must be re-encoded:
 ```bash
-pip install -e ~/Daem0nMCP[onnx]  # Optional ONNX acceleration
 python -m daem0nmcp.migrations.migrate_embedding_model --project-path /path/to/.daem0nmcp
 ```
 
@@ -267,9 +266,6 @@ git clone https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
 
 # Install
 pip install -e ~/Daem0nMCP
-
-# Optional: ONNX acceleration for embeddings
-pip install -e ~/Daem0nMCP[onnx]
 
 # Run the MCP server (Linux/macOS — stdio transport)
 python -m daem0nmcp.server
@@ -964,8 +960,6 @@ All commands support `--json` for machine-readable output and `--project-path` t
 # If installed from source (recommended)
 cd ~/Daem0nMCP && git pull && pip install -e .
 
-# Optional: ONNX acceleration
-pip install -e ~/Daem0nMCP[onnx]
 ```
 
 ### 2. Re-encode Embeddings (v6.6.6+ — REQUIRED for existing data)

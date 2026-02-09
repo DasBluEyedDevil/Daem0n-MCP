@@ -693,10 +693,7 @@ Add a `timeout` field to your `opencode.json` to increase the limit:
 
 The `timeout` value is in milliseconds. 30000 (30 seconds) provides generous margin for model loading.
 
-**To reduce cold start time permanently, install ONNX acceleration:**
-```bash
-pip install daem0nmcp[onnx]
-```
+**ONNX acceleration is now built-in** — no additional installation needed.
 
 This enables quantized inference, cutting model load time significantly.
 

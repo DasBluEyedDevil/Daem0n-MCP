@@ -5,24 +5,20 @@ All settings are loaded from environment variables with DAEM0NMCP_ prefix.
 Example: DAEM0NMCP_LOG_LEVEL=DEBUG
 """
 
-import importlib.util
 import shutil
 from pathlib import Path
 from typing import Optional, List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_ONNX_AVAILABLE = importlib.util.find_spec("onnxruntime") is not None
-_DEFAULT_EMBEDDING_BACKEND = "onnx" if _ONNX_AVAILABLE else "torch"
+_DEFAULT_EMBEDDING_BACKEND = "onnx"
 
 
 class Settings(BaseSettings):
     """Daem0nMCP configuration settings."""
 
     model_config = SettingsConfigDict(
-        env_prefix="DAEM0NMCP_",
-        env_file=".env",
-        env_file_encoding="utf-8"
+        env_prefix="DAEM0NMCP_", env_file=".env", env_file_encoding="utf-8"
     )
 
     # Core paths
@@ -37,7 +33,9 @@ class Settings(BaseSettings):
     context_ttl_seconds: int = 3600  # 1 hour TTL for unused contexts
 
     # Enforcement settings
-    pending_decision_threshold_hours: int = 24  # Hours before pending decisions block commits
+    pending_decision_threshold_hours: int = (
+        24  # Hours before pending decisions block commits
+    )
 
     # Ingestion limits
     max_content_size: int = 1_000_000  # 1MB max content
@@ -47,16 +45,33 @@ class Settings(BaseSettings):
 
     # TODO scanner config
     todo_skip_dirs: List[str] = [
-        "node_modules", ".git", ".venv", "venv", "__pycache__",
-        "dist", "build", ".tox", ".mypy_cache", ".pytest_cache",
-        ".eggs", ".coverage", "htmlcov", ".daem0nmcp", ".svn", ".hg"
+        "node_modules",
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "dist",
+        "build",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".eggs",
+        ".coverage",
+        "htmlcov",
+        ".daem0nmcp",
+        ".svn",
+        ".hg",
     ]
     todo_skip_extensions: List[str] = [".pyc", ".pyo", ".so", ".dylib"]
     todo_max_files: int = 500
 
     # Qdrant vector storage
-    qdrant_path: Optional[str] = None  # Path for local Qdrant storage, auto-detect if not set
-    qdrant_url: Optional[str] = None   # Optional remote Qdrant URL (overrides local path)
+    qdrant_path: Optional[str] = (
+        None  # Path for local Qdrant storage, auto-detect if not set
+    )
+    qdrant_url: Optional[str] = (
+        None  # Optional remote Qdrant URL (overrides local path)
+    )
     qdrant_api_key: Optional[str] = None  # API key for remote Qdrant (if using cloud)
 
     # File Watcher (Phase 1: Proactive Layer)
@@ -65,12 +80,18 @@ class Settings(BaseSettings):
     watcher_system_notifications: bool = True  # Enable desktop notifications
     watcher_log_file: bool = True  # Enable log file channel
     watcher_editor_poll: bool = True  # Enable editor poll channel
-    watcher_skip_patterns: List[str] = []  # Additional patterns to skip (added to defaults)
+    watcher_skip_patterns: List[
+        str
+    ] = []  # Additional patterns to skip (added to defaults)
     watcher_watch_extensions: List[str] = []  # File extensions to watch (empty = all)
 
     # Search tuning
-    hybrid_vector_weight: float = Field(default=0.3, ge=0.0, le=1.0)  # 0.0 = TF-IDF only, 1.0 = vectors only
-    search_diversity_max_per_file: int = Field(default=3, ge=0)  # Max results from same source file (0=unlimited)
+    hybrid_vector_weight: float = Field(
+        default=0.3, ge=0.0, le=1.0
+    )  # 0.0 = TF-IDF only, 1.0 = vectors only
+    search_diversity_max_per_file: int = Field(
+        default=3, ge=0
+    )  # Max results from same source file (0=unlimited)
 
     # Embedding Model
     embedding_model: str = "nomic-ai/modernbert-embed-base"
@@ -88,7 +109,9 @@ class Settings(BaseSettings):
 
     # Surprise scoring
     surprise_k_nearest: int = Field(default=5, ge=1)  # Neighbors for surprise calc
-    surprise_boost_threshold: float = Field(default=0.7, ge=0.0, le=1.0)  # Boost if above
+    surprise_boost_threshold: float = Field(
+        default=0.7, ge=0.0, le=1.0
+    )  # Boost if above
 
     # Recall planner limits
     recall_simple_max_memories: int = Field(default=5, ge=1)
@@ -96,37 +119,53 @@ class Settings(BaseSettings):
     recall_complex_max_memories: int = Field(default=20, ge=1)
 
     # Fact promotion
-    fact_promotion_threshold: int = Field(default=3, ge=1)  # Successful outcomes to promote
+    fact_promotion_threshold: int = Field(
+        default=3, ge=1
+    )  # Successful outcomes to promote
 
     # Auto-Zoom retrieval routing
     auto_zoom_enabled: bool = False  # Master switch (shadow mode when False)
-    auto_zoom_shadow: bool = True    # Log classifications without routing
+    auto_zoom_shadow: bool = True  # Log classifications without routing
     auto_zoom_confidence_threshold: float = 0.25  # Below this -> hybrid fallback
     auto_zoom_graph_expansion_depth: int = 2  # Multi-hop depth for complex queries
 
     # Background Dreaming
-    dream_enabled: bool = True                     # Master switch for dreaming
-    dream_idle_timeout: float = 60.0               # Seconds of idle before dreaming starts
-    dream_max_decisions_per_session: int = 5        # Max failed decisions to re-evaluate per session
-    dream_yield_check_interval: float = 0.0         # Seconds between yield checks (0 = every step)
-    dream_min_decision_age_hours: int = 1           # Min age of decision before re-evaluation eligible
-    dream_review_cooldown_hours: int = 72            # Skip decisions reviewed within this window
+    dream_enabled: bool = True  # Master switch for dreaming
+    dream_idle_timeout: float = 60.0  # Seconds of idle before dreaming starts
+    dream_max_decisions_per_session: int = (
+        5  # Max failed decisions to re-evaluate per session
+    )
+    dream_yield_check_interval: float = (
+        0.0  # Seconds between yield checks (0 = every step)
+    )
+    dream_min_decision_age_hours: int = (
+        1  # Min age of decision before re-evaluation eligible
+    )
+    dream_review_cooldown_hours: int = 72  # Skip decisions reviewed within this window
 
     # ConnectionDiscovery strategy
-    dream_connection_lookback_hours: int = 168        # 7-day lookback for entity sharing
-    dream_connection_max_per_session: int = 20         # Max connections per dream session
-    dream_connection_min_shared_entities: int = 2      # Min shared entities to create link
-    dream_connection_confidence: float = 0.7           # Confidence for inferred relationships
+    dream_connection_lookback_hours: int = 168  # 7-day lookback for entity sharing
+    dream_connection_max_per_session: int = 20  # Max connections per dream session
+    dream_connection_min_shared_entities: int = 2  # Min shared entities to create link
+    dream_connection_confidence: float = 0.7  # Confidence for inferred relationships
 
     # PendingOutcomeResolver strategy
-    dream_pending_max_per_session: int = 3              # Max pending decisions to resolve per session
-    dream_pending_min_age_hours: int = 24               # Min age before a pending decision is eligible
-    dream_pending_cooldown_hours: int = 168             # 7 days cooldown between re-evaluations
-    dream_pending_evidence_threshold: int = 3           # Min directional evidence for auto-resolve
-    dream_pending_dry_run: bool = True                  # Ships inert -- must opt-in to auto-resolve
+    dream_pending_max_per_session: int = (
+        3  # Max pending decisions to resolve per session
+    )
+    dream_pending_min_age_hours: int = (
+        24  # Min age before a pending decision is eligible
+    )
+    dream_pending_cooldown_hours: int = 168  # 7 days cooldown between re-evaluations
+    dream_pending_evidence_threshold: int = (
+        3  # Min directional evidence for auto-resolve
+    )
+    dream_pending_dry_run: bool = True  # Ships inert -- must opt-in to auto-resolve
 
     # CommunityRefresh strategy
-    dream_community_staleness_threshold: int = 10      # New memories before community rebuild
+    dream_community_staleness_threshold: int = (
+        10  # New memories before community rebuild
+    )
 
     # Cognitive Tools
     cognitive_debate_max_rounds: int = 5
@@ -146,6 +185,7 @@ class Settings(BaseSettings):
         Returns True if migration occurred.
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         legacy_storage = project_path / ".devilmcp" / "storage"
@@ -194,6 +234,7 @@ class Settings(BaseSettings):
         Also handles automatic migration from legacy .devilmcp storage.
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         # Check for explicit storage path override

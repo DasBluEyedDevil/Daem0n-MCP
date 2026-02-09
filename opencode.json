@@ -3,11 +3,24 @@
   "mcp": {
     "daem0nmcp": {
       "type": "local",
-      "command": ["python", "-m", "daem0nmcp"],
+      "command": [
+        "python",
+        "-m",
+        "daem0nmcp"
+      ],
       "enabled": true,
       "environment": {
         "PYTHONUNBUFFERED": "1"
       }
+    },
+    "opencode-teams": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "opencode-teams"
+      ],
+      "enabled": true
     }
   }
 }

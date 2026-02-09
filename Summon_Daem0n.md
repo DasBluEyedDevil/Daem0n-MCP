@@ -838,15 +838,7 @@ The embedding model has changed. **This is a BREAKING CHANGE for existing vector
 | **Backend** | PyTorch only | ONNX quantized (with torch fallback) |
 | **Prefixes** | None | `search_query: ` / `search_document: ` |
 
-**Step 1: Install ONNX Acceleration (Optional but Recommended)**
-
-```bash
-pip install -e "$HOME/Daem0nMCP[onnx]"
-```
-
-**Note:** `onnxruntime` does not yet have wheels for Python 3.14. On Python 3.14, the Daem0n automatically falls back to PyTorch. No action required.
-
-**Step 2: Re-encode Existing Memories (CRITICAL)**
+**Step 1: Re-encode Existing Memories (CRITICAL)**
 
 All existing vector embeddings must be re-encoded with the new model:
 
@@ -863,7 +855,7 @@ python -m daem0nmcp.migrations.migrate_embedding_model \
 
 For multiple project realms, run the migration once per project.
 
-**Step 3: Verify the Deep Sight**
+**Step 2: Verify the Deep Sight**
 
 ```bash
 python -c "
