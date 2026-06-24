@@ -72,7 +72,7 @@ python -m daem0nmcp.cli uninstall-claude-hooks     # Remove
 | `stop` | Auto-capture decisions from conversation |
 
 ### Stats
-- **8 workflow tools** + **3 cognitive tools** (11 MCP tools total, plus legacy)
+- **8 workflow tools** + **3 cognitive tools** (11 MCP tools total)
 - **59 workflow actions** across 8 workflows
 - **500+ tests** passing
 
@@ -116,7 +116,7 @@ mcp__daem0nmcp__reflect(action="outcome", memory_id=42, outcome_text="...", work
 - **88% fewer tool definitions** in context (8 vs 67)
 - **Lower token overhead** — AI agents load fewer tool schemas
 - **Logical grouping** — related operations live in one tool
-- **Backward compatible** — legacy individual tools still registered alongside workflows
+- **Backward compatible** — legacy individual functions remain importable for internal dispatch, but only the consolidated workflow and cognitive tools are exposed to MCP clients
 
 ---
 
@@ -251,7 +251,7 @@ AI agents start each session fresh. They don't remember:
 
 ### OpenCode
 
-1. Install Daem0n-MCP: `pip install -e ~/Daem0nMCP`
+1. Install Daem0n-MCP: `pip install -e ~/Daem0n-MCP`
 2. Run the installer: `python -m daem0nmcp.cli install-opencode`
 3. Launch OpenCode in your project directory
 4. Run `/commune` to begin
@@ -262,16 +262,16 @@ For the full ritual walkthrough, see `Summon_Daem0n_OpenCode.md`.
 
 ```bash
 # Clone the repository
-git clone https://github.com/DasBluEyedDevil/Daem0n-MCP.git ~/Daem0nMCP
+git clone https://github.com/9thlevelsoftware/Daem0n-MCP.git ~/Daem0n-MCP
 
 # Install
-pip install -e ~/Daem0nMCP
+pip install -e ~/Daem0n-MCP
 
 # Run the MCP server (Linux/macOS — stdio transport)
 python -m daem0nmcp.server
 
 # Run the MCP server (Windows — HTTP transport required)
-python ~/Daem0nMCP/start_server.py --port 9876
+python ~/Daem0n-MCP/start_server.py --port 9876
 ```
 
 ## Installation by Platform
@@ -294,7 +294,7 @@ Windows has a known bug where Python MCP servers using stdio transport hang inde
 
 1. **Start the server** (keep this terminal open):
 ```bash
-python ~/Daem0nMCP/start_server.py --port 9876
+python ~/Daem0n-MCP/start_server.py --port 9876
 ```
 Or use `start_daem0nmcp_server.bat`
 
@@ -323,7 +323,7 @@ For OpenCode setup, see the [OpenCode Integration](#opencode-integration) sectio
 
 ## Workflow Tools (8 Tools, 59 Actions)
 
-All capabilities are accessed through 8 workflow tools. Each tool accepts an `action` parameter to select the operation. Legacy individual tools remain registered for backward compatibility.
+All capabilities are accessed through 8 workflow tools. Each tool accepts an `action` parameter to select the operation. Legacy individual functions remain importable for internal dispatch, but only the consolidated workflow and cognitive tools are exposed to MCP clients.
 
 ### `commune` — Session Start & Status
 
@@ -958,7 +958,7 @@ All commands support `--json` for machine-readable output and `--project-path` t
 
 ```bash
 # If installed from source (recommended)
-cd ~/Daem0nMCP && git pull && pip install -e .
+cd ~/Daem0n-MCP && git pull && pip install -e .
 
 ```
 
@@ -1013,7 +1013,7 @@ Supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP v
 1. **Start server before Claude Code (Windows):**
    ```bash
    # Terminal 1: Start Daem0n server first
-   python ~/Daem0nMCP/start_server.py --port 9876
+   python ~/Daem0n-MCP/start_server.py --port 9876
    # Wait for "Uvicorn running on http://localhost:9876"
 
    # Terminal 2: Then start Claude Code
@@ -1090,7 +1090,7 @@ See `Banish_Daem0n.md` for complete removal instructions (covers both Claude Cod
 python -m daem0nmcp.cli uninstall-claude-hooks
 claude mcp remove daem0nmcp --scope user
 pip uninstall daem0nmcp
-rm -rf ~/Daem0nMCP
+rm -rf ~/Daem0n-MCP
 rm -rf .daem0nmcp/
 ```
 
@@ -1100,7 +1100,7 @@ rm -rf .daem0nmcp/
 rm opencode.json
 rm -rf .opencode/commands/ .opencode/plugins/daem0n.ts
 pip uninstall daem0nmcp
-rm -rf ~/Daem0nMCP
+rm -rf ~/Daem0n-MCP
 rm -rf .daem0nmcp/
 ```
 
