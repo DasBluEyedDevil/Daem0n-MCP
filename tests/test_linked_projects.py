@@ -141,7 +141,9 @@ class TestLinkTools:
         return DatabaseManager(str(tmp_path / "storage"))
 
     @pytest.mark.asyncio
-    async def test_link_projects_tool(self, db_manager):
+    async def test_link_projects_tool(
+        self, db_manager, covenant_workspace_factory
+    ):
         """link_projects MCP tool should create a link."""
         await db_manager.init_db()
 
@@ -150,20 +152,26 @@ class TestLinkTools:
         server._project_contexts.clear()
 
         project_path = str(db_manager.storage_path.parent.parent)
+        workspace = covenant_workspace_factory(
+            project_path, additional_roots=["/repos/client"]
+        )
 
         # Briefing first (for communion)
-        await server.get_briefing(project_path=project_path)
+        await workspace.brief()
 
-        result = await server.link_projects(
+        result = await workspace.call(
+            server.link_projects,
             linked_path="/repos/client",
             relationship="same-project",
-            project_path=project_path,
+            project_path=workspace,
         )
 
         assert result["status"] == "linked"
 
     @pytest.mark.asyncio
-    async def test_list_linked_projects_tool(self, db_manager):
+    async def test_list_linked_projects_tool(
+        self, db_manager, covenant_workspace_factory
+    ):
         """list_linked_projects MCP tool should return links."""
         await db_manager.init_db()
 
@@ -172,21 +180,29 @@ class TestLinkTools:
         server._project_contexts.clear()
 
         project_path = str(db_manager.storage_path.parent.parent)
-
-        await server.get_briefing(project_path=project_path)
-        await server.link_projects(
-            linked_path="/repos/client",
-            relationship="same-project",
-            project_path=project_path,
+        workspace = covenant_workspace_factory(
+            project_path, additional_roots=["/repos/client"]
         )
 
-        result = await server.list_linked_projects(project_path=project_path)
+        await workspace.brief()
+        await workspace.call(
+            server.link_projects,
+            linked_path="/repos/client",
+            relationship="same-project",
+            project_path=workspace,
+        )
+
+        result = await workspace.call(
+            server.list_linked_projects, project_path=workspace
+        )
 
         assert len(result["links"]) == 1
         assert result["links"][0]["linked_path"] == "/repos/client"
 
     @pytest.mark.asyncio
-    async def test_unlink_projects_tool(self, db_manager):
+    async def test_unlink_projects_tool(
+        self, db_manager, covenant_workspace_factory
+    ):
         """unlink_projects MCP tool should remove a link."""
         await db_manager.init_db()
 
@@ -195,16 +211,22 @@ class TestLinkTools:
         server._project_contexts.clear()
 
         project_path = str(db_manager.storage_path.parent.parent)
-
-        await server.get_briefing(project_path=project_path)
-        await server.link_projects(
-            linked_path="/repos/client",
-            relationship="same-project",
-            project_path=project_path,
+        workspace = covenant_workspace_factory(
+            project_path, additional_roots=["/repos/client"]
         )
 
-        result = await server.unlink_projects(
-            linked_path="/repos/client", project_path=project_path
+        await workspace.brief()
+        await workspace.call(
+            server.link_projects,
+            linked_path="/repos/client",
+            relationship="same-project",
+            project_path=workspace,
+        )
+
+        result = await workspace.call(
+            server.unlink_projects,
+            linked_path="/repos/client",
+            project_path=workspace,
         )
 
         assert result["status"] == "unlinked"
@@ -342,7 +364,9 @@ class TestLinkedProjectsE2E:
     """End-to-end test of the complete linked projects flow."""
 
     @pytest.mark.asyncio
-    async def test_complete_linked_workflow(self, tmp_path):
+    async def test_complete_linked_workflow(
+        self, tmp_path, covenant_workspace_factory
+    ):
         """Test: link -> briefing -> recall -> unlink."""
         from daem0nmcp import server
         from daem0nmcp.database import DatabaseManager
@@ -361,6 +385,9 @@ class TestLinkedProjectsE2E:
         await client_db.init_db()
 
         server._project_contexts.clear()
+        workspace = covenant_workspace_factory(
+            backend_path, additional_roots=[client_path]
+        )
 
         # Add memories to each project
         backend_mem = MemoryManager(backend_db)
@@ -385,32 +412,34 @@ class TestLinkedProjectsE2E:
         )
 
         # 1. COMMUNION - get briefing
-        briefing = await server.get_briefing(project_path=str(backend_path))
+        briefing = await workspace.brief()
         assert briefing["status"] == "ready"
         assert briefing["linked_projects"] == []  # No links yet
 
         # 2. LINK PROJECTS
-        link_result = await server.link_projects(
+        link_result = await workspace.call(
+            server.link_projects,
             linked_path=str(client_path),
             relationship="same-project",
             label="Frontend client",
-            project_path=str(backend_path),
+            project_path=workspace,
         )
         assert link_result["status"] == "linked"
 
         # 3. VERIFY BRIEFING SHOWS LINK
-        briefing2 = await server.get_briefing(project_path=str(backend_path))
+        briefing2 = await workspace.call_unsealed(
+            server.get_briefing, project_path=workspace
+        )
         assert len(briefing2["linked_projects"]) == 1
         assert briefing2["linked_projects"][0]["path"] == str(client_path)
         assert briefing2["linked_projects"][0]["warning_count"] == 1
 
         # 4. RECALL WITH LINKED
-        await server.context_check(
-            description="checking auth patterns", project_path=str(backend_path)
-        )
-
-        recall_result = await server.recall(
-            topic="auth tokens", include_linked=True, project_path=str(backend_path)
+        recall_result = await workspace.call(
+            server.recall,
+            topic="auth tokens",
+            include_linked=True,
+            project_path=workspace,
         )
 
         # Should find client's warning about localStorage
@@ -418,17 +447,23 @@ class TestLinkedProjectsE2E:
         assert "localStorage" in all_content or "HttpOnly" in all_content
 
         # 5. LIST LINKS
-        links = await server.list_linked_projects(project_path=str(backend_path))
+        links = await workspace.call(
+            server.list_linked_projects, project_path=workspace
+        )
         assert len(links["links"]) == 1
 
         # 6. UNLINK
-        unlink_result = await server.unlink_projects(
-            linked_path=str(client_path), project_path=str(backend_path)
+        unlink_result = await workspace.call(
+            server.unlink_projects,
+            linked_path=str(client_path),
+            project_path=workspace,
         )
         assert unlink_result["status"] == "unlinked"
 
         # 7. VERIFY UNLINKED
-        links2 = await server.list_linked_projects(project_path=str(backend_path))
+        links2 = await workspace.call(
+            server.list_linked_projects, project_path=workspace
+        )
         assert len(links2["links"]) == 0
 
 
@@ -566,7 +601,9 @@ class TestDatabaseConsolidation:
             assert merged_mem.context["_merged_from"] == str(child_path)
 
     @pytest.mark.asyncio
-    async def test_consolidate_linked_databases_tool(self, tmp_path):
+    async def test_consolidate_linked_databases_tool(
+        self, tmp_path, covenant_workspace_factory
+    ):
         """Test the MCP tool for consolidating databases."""
         from daem0nmcp import server
         from daem0nmcp.database import DatabaseManager
@@ -593,18 +630,24 @@ class TestDatabaseConsolidation:
         # Initialize parent
         parent_db = DatabaseManager(str(parent_path / ".daem0nmcp" / "storage"))
         await parent_db.init_db()
+        workspace = covenant_workspace_factory(
+            parent_path, additional_roots=[child_path]
+        )
 
         # Communion and link
-        await server.get_briefing(project_path=str(parent_path))
-        await server.link_projects(
+        await workspace.brief()
+        await workspace.call(
+            server.link_projects,
             linked_path=str(child_path),
             relationship="same-project",
-            project_path=str(parent_path),
+            project_path=workspace,
         )
 
         # Consolidate via MCP tool
-        result = await server.consolidate_linked_databases(
-            archive_sources=False, project_path=str(parent_path)
+        result = await workspace.call(
+            server.consolidate_linked_databases,
+            archive_sources=False,
+            project_path=workspace,
         )
 
         assert result["status"] == "consolidated"

@@ -1,97 +1,110 @@
-# Multi-Repository Setup Guide
+# Multi-Repository Setup Guide (v7)
 
-Daem0n-MCP supports projects split across multiple repositories while maintaining
-a unified memory context.
+Daem0n v7 identifies every registered repository with an opaque
+`workspace_id`. Tool inputs and resource URIs use that ID, never a filesystem
+root. Register roots in server configuration before starting either stdio or
+Streamable HTTP at `/mcp`.
 
-## Architecture Options
+## Choose an ownership model
 
-### Option 1: Consolidated Parent (Recommended)
+### Consolidated parent workspace
 
-All memories stored in parent directory's `.daem0nmcp/`:
+Use one registered parent workspace when the repositories share lifecycle and
+access policy:
 
-```
-/workspace/
-├── .daem0nmcp/        ← All memories here
+```text
+/workspace/                 -> ws_parent
 ├── backend/
-│   └── (no .daem0nmcp)
 └── client/
-    └── (no .daem0nmcp)
 ```
 
-**Pros:**
-- Single source of truth
-- No cross-repo query overhead
-- Simpler backup/restore
+Start the session and query the shared record stream with the parent ID:
 
-**Setup:**
-```python
-# Always use parent as project_path
-get_briefing(project_path="/workspace")
-remember(content="...", project_path="/workspace")
+```text
+session_brief(workspace_id="ws_000000000000000000000001")
+memory_recall(
+    workspace_id="ws_000000000000000000000001",
+    query="authentication across backend and client",
+    limit=10
+)
 ```
 
-### Option 2: Linked Repositories
+### Linked workspaces
 
-Each repo has its own `.daem0nmcp/` but can read from linked repos:
+Register each repository separately when it needs independent ownership,
+authorization, export, or archival:
 
-```
-/workspace/
-├── backend/
-│   └── .daem0nmcp/    ← Backend memories
-└── client/
-    └── .daem0nmcp/    ← Client memories (linked to backend)
+```text
+/workspace/backend/         -> ws_000000000000000000000002
+/workspace/client/          -> ws_000000000000000000000003
 ```
 
-**Pros:**
-- Repository independence
-- Can work offline on single repo
-- Clear ownership of decisions
+`workspace_link` is protected. Preflight its exact arguments first:
 
-**Setup:**
-```python
-# In backend
-link_projects(linked_path="/workspace/client", relationship="same-project")
-
-# Query spans both
-recall(topic="auth", include_linked=True)
+```text
+memory_preflight(
+    workspace_id="ws_000000000000000000000002",
+    target_tool="workspace_link",
+    target_arguments={
+        "linked_workspace_id": "ws_000000000000000000000003",
+        "relationship": "same-project"
+    }
+)
+workspace_link(
+    workspace_id="ws_000000000000000000000002",
+    linked_workspace_id="ws_000000000000000000000003",
+    relationship="same-project",
+    preflight_token="<token-from-memory_preflight>"
+)
 ```
 
-## Migrating to Consolidated
+Linked recall remains explicit: provide authorized `linked_workspace_ids` to
+`memory_recall`. The server resolves every ID before reading and does not infer
+workspace scope from paths.
 
-If you have existing separate `.daem0nmcp/` directories:
+## Consolidating registered workspaces
 
-```python
-# 1. Initialize parent
-get_briefing(project_path="/workspace")
+Consolidation appends canonical v7 events to the target workspace. It is a
+protected replay-safe write, so use the same exact arguments for preflight and
+reuse the idempotency key on retry:
 
-# 2. Link children
-link_projects(linked_path="/workspace/backend")
-link_projects(linked_path="/workspace/client")
-
-# 3. Merge databases
-consolidate_linked_databases(archive_sources=True)
-
-# 4. Verify
-get_briefing(project_path="/workspace")
-# Check: memories_merged count matches expectations
+```text
+memory_preflight(
+    workspace_id="ws_000000000000000000000001",
+    target_tool="workspace_consolidate",
+    target_arguments={
+        "source_workspace_ids": [
+            "ws_000000000000000000000002",
+            "ws_000000000000000000000003"
+        ],
+        "idempotency_key": "consolidate-product-2026-0001"
+    }
+)
+workspace_consolidate(
+    workspace_id="ws_000000000000000000000001",
+    source_workspace_ids=[
+        "ws_000000000000000000000002",
+        "ws_000000000000000000000003"
+    ],
+    idempotency_key="consolidate-product-2026-0001",
+    preflight_token="<token-from-memory_preflight>"
+)
 ```
 
-## Relationship Types
+Use `workspace_consolidate_and_archive_sources` only when source archival is
+intentional and separately authorized. Verify the target with `system_health`
+and bounded recall before archiving anything.
 
-| Type | Use Case |
-|------|----------|
-| `same-project` | Client/server pair, monorepo split |
-| `upstream` | Shared library your project depends on |
-| `downstream` | App that depends on your library |
-| `related` | Loosely associated projects |
+## Read-only workspace context
 
-## FAQ
+Replace `{workspace_id}` with the exact registered ID:
 
-**Q: Can I undo consolidation?**
-A: If you used `archive_sources=True`, original databases are at `.daem0nmcp.archived/`.
+- `memory://workspaces/{workspace_id}/warnings`
+- `memory://workspaces/{workspace_id}/failures`
+- `memory://workspaces/{workspace_id}/rules`
+- `memory://workspaces/{workspace_id}/active-context`
 
-**Q: What happens to file paths after merge?**
-A: They're preserved. A memory about `backend/src/auth.py` keeps that path.
-
-**Q: Does consolidation copy or move?**
-A: Copy. Source data remains unless you archive.
+For a v6 installation, migrate/register the repositories before using these
+examples. The generated mapping at
+[`docs/v6-to-v7-tools.json`](v6-to-v7-tools.json) documents every v6 split or
+rename.

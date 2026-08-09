@@ -351,3 +351,8 @@ class SecureMessenger {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { SecureMessenger };
 }
+
+if (typeof window !== 'undefined') {
+    window.SecureMessenger = new SecureMessenger();
+    window.SecureMessenger.init();
+}

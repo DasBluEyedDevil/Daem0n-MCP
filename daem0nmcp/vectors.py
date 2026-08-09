@@ -8,29 +8,33 @@ This module provides:
 """
 
 import logging
+import math
 import struct
+from typing import Any
 
-import numpy as np
-from sentence_transformers import SentenceTransformer
-
+from .capabilities import CapabilityRegistry
 from .config import settings
 
 logger = logging.getLogger(__name__)
 
 # Global model instance (lazy loaded, shared across all contexts)
-_model: SentenceTransformer | None = None
+_model: Any | None = None
 
 
 def is_available() -> bool:
-    """Check if vector embeddings are available. Always True since deps are core."""
-    return True
+    """Check whether locally hosted embeddings are explicitly enabled and installed."""
+    return CapabilityRegistry().get("models-local")["status"] == "ready"
 
 
-def _get_model() -> SentenceTransformer:
+def _get_model() -> Any:
     """Get or create the embedding model (lazy loading, shared across contexts)."""
     global _model
 
+    CapabilityRegistry().require("models-local")
+
     if _model is None:
+        from sentence_transformers import SentenceTransformer
+
         backend = settings.embedding_backend
         logger.info(
             f"Loading embedding model ({settings.embedding_model}, "
@@ -105,17 +109,17 @@ def decode(data: bytes) -> list[float] | None:
 
 def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     """Compute cosine similarity between two vectors."""
-    a = np.array(vec1)
-    b = np.array(vec2)
+    if len(vec1) != len(vec2):
+        raise ValueError("Vector dimensions must match.")
 
-    dot_product = np.dot(a, b)
-    norm_a = np.linalg.norm(a)
-    norm_b = np.linalg.norm(b)
+    dot_product = sum(left * right for left, right in zip(vec1, vec2))
+    norm_a = math.sqrt(sum(value * value for value in vec1))
+    norm_b = math.sqrt(sum(value * value for value in vec2))
 
     if norm_a == 0 or norm_b == 0:
         return 0.0
 
-    return float(dot_product / (norm_a * norm_b))
+    return dot_product / (norm_a * norm_b)
 
 
 class VectorIndex:

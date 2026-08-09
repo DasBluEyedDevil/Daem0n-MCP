@@ -27,6 +27,8 @@ Global Options:
     --project-path PATH Specify project root path (sets DAEM0NMCP_PROJECT_ROOT)
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
@@ -34,11 +36,31 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .config import Settings, settings
-from .database import DatabaseManager
-from .memory import MemoryManager
-from .rules import RulesEngine
+
+if TYPE_CHECKING:
+    from .database import DatabaseManager
+    from .memory import MemoryManager
+    from .rules import RulesEngine
+
+
+_V6_VECTOR_MIGRATION_ERROR = (
+    "Deprecated v6-only vector migration cannot run against format 7; use "
+    "`python -m daem0nmcp.cli rebuild-projection --projection dense "
+    "--workspace-id <workspace-id>` instead."
+)
+
+
+def _v7_batch_size(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("batch size must be an integer") from exc
+    if not 1 <= parsed <= 10_000:
+        raise argparse.ArgumentTypeError("batch size must be between 1 and 10000")
+    return parsed
 
 
 def safe_print(text: str, file=None) -> None:
@@ -311,7 +333,47 @@ def main():
     migrate_parser.add_argument(
         "--backfill-vectors",
         action="store_true",
-        help="Backfill vector embeddings for existing memories",
+        help="Deprecated: backfill vector embeddings for format 6 only",
+    )
+
+    migrate_v7_parser = subparsers.add_parser(
+        "migrate-v7", help="Inspect or explicitly activate architecture format 7"
+    )
+    migration_action = migrate_v7_parser.add_mutually_exclusive_group()
+    migration_action.add_argument(
+        "--apply", action="store_true", help="Apply or resume the offline migration"
+    )
+    migration_action.add_argument(
+        "--rollback",
+        nargs="?",
+        const="latest",
+        metavar="MIGRATION_ID",
+        help="Roll back the active migration run (default: latest)",
+    )
+    migrate_v7_parser.add_argument(
+        "--batch-size", type=_v7_batch_size, default=500, help="Rows per checkpoint batch"
+    )
+
+    projection_status_parser = subparsers.add_parser(
+        "projection-status", help="Show v7 retrieval projection state"
+    )
+    projection_status_parser.add_argument(
+        "--workspace-id", required=True, help="Registered opaque workspace ID"
+    )
+
+    rebuild_projection_parser = subparsers.add_parser(
+        "rebuild-projection", help="Build and activate one v7 retrieval projection"
+    )
+    rebuild_projection_parser.add_argument(
+        "--projection",
+        required=True,
+        choices=["lexical", "dense", "graph", "temporal", "procedure", "outcome"],
+    )
+    rebuild_projection_parser.add_argument(
+        "--workspace-id", required=True, help="Registered opaque workspace ID"
+    )
+    rebuild_projection_parser.add_argument(
+        "--dry-run", action="store_true", help="Report changes without writing"
     )
 
     # pre-commit command
@@ -463,6 +525,186 @@ def main():
         # Create new settings instance to pick up the env var
         active_settings = Settings()
 
+    if args.command == "migrate-v7":
+        from .migrations import MigrationV7Error, MigrationV7Service
+        from .storage_activation import DatabaseInUseError, PointerValidationError
+        from .workspace import WorkspaceAccessError, WorkspacePathError, WorkspaceRegistry
+
+        registry = WorkspaceRegistry.from_settings(active_settings)
+        service = MigrationV7Service(registry)
+        try:
+            if args.rollback is not None:
+                result = service.rollback(args.project_path, args.rollback)
+            elif args.apply:
+                result = service.apply(args.project_path, batch_size=args.batch_size)
+            else:
+                result = service.dry_run(args.project_path)
+            payload = result.as_dict()
+            exit_code = 0
+        except (
+            DatabaseInUseError,
+            PointerValidationError,
+            WorkspaceAccessError,
+            WorkspacePathError,
+        ) as exc:
+            code = getattr(exc, "code", type(exc).__name__)
+            payload = {
+                "status": "error",
+                "action": "rollback" if args.rollback is not None else "migrate",
+                "workspace_id": None,
+                "source_format": None,
+                "target_format": 7,
+                "migration_run_id": None,
+                "active_generation": None,
+                "inventory": {},
+                "checkpoints": {},
+                "validation": {},
+                "warnings": [],
+                "error": {"code": code, "message": code},
+            }
+            exit_code = 2
+        except MigrationV7Error as exc:
+            payload = {
+                "status": "error",
+                "action": "rollback" if args.rollback is not None else "migrate",
+                "workspace_id": None,
+                "source_format": None,
+                "target_format": 7,
+                "migration_run_id": None,
+                "active_generation": None,
+                "inventory": {},
+                "checkpoints": {},
+                "validation": {},
+                "warnings": [],
+                "error": {"code": exc.code, "message": exc.code},
+            }
+            exit_code = 2 if exc.code == "UNSAFE_MIGRATION_PATH" else 1
+        except Exception:
+            payload = {
+                "status": "error",
+                "action": "rollback" if args.rollback is not None else "migrate",
+                "workspace_id": None,
+                "source_format": None,
+                "target_format": 7,
+                "migration_run_id": None,
+                "active_generation": None,
+                "inventory": {},
+                "checkpoints": {},
+                "validation": {},
+                "warnings": [],
+                "error": {"code": "MIGRATION_FAILED", "message": "MIGRATION_FAILED"},
+            }
+            exit_code = 1
+        if args.json:
+            print(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str))
+        else:
+            print(f"Status: {payload['status']}")
+            print(f"Action: {payload['action']}")
+            if payload.get("workspace_id"):
+                print(f"Workspace: {payload['workspace_id']}")
+            if payload.get("source_format") is not None:
+                print(f"Format: {payload['source_format']} -> {payload['target_format']}")
+            if payload.get("active_generation") is not None:
+                print(f"Generation: {payload['active_generation']}")
+            if payload.get("error"):
+                print(f"Error: {payload['error']['code']}")
+        sys.exit(exit_code)
+
+    if args.command in {"projection-status", "rebuild-projection"}:
+        import sqlite3
+
+        from .retrieval.operations import (
+            ProjectionOperationError,
+            projection_status,
+            rebuild_projection,
+        )
+        from .retrieval.runtime import create_projection_builders
+        from .storage_activation import (
+            DatabaseFileLock,
+            DatabaseInUseError,
+            PointerValidationError,
+            resolve_active_database,
+        )
+        from .workspace import (
+            WorkspaceAccessError,
+            WorkspacePathError,
+            WorkspaceRegistry,
+        )
+
+        try:
+            registry = WorkspaceRegistry.from_settings(active_settings)
+            workspace = registry.resolve(args.workspace_id)
+            workspace_settings = active_settings
+            if workspace.workspace_id != registry.default.workspace_id:
+                if getattr(active_settings, "storage_path", None):
+                    raise ProjectionOperationError(
+                        "WORKSPACE_STORAGE_AMBIGUOUS"
+                    )
+                workspace_settings = active_settings.model_copy(
+                    update={"project_root": str(workspace.root)}
+                )
+            storage_path = Path(workspace_settings.get_storage_path())
+            with DatabaseFileLock(storage_path, "shared"):
+                active = resolve_active_database(storage_path)
+                if active.format_version != 7:
+                    raise ProjectionOperationError("FORMAT_7_REQUIRED")
+                connection = sqlite3.connect(active.path)
+                connection.row_factory = sqlite3.Row
+                try:
+                    connection.execute("PRAGMA foreign_keys=ON")
+                    if args.command == "projection-status":
+                        payload = projection_status(
+                            connection, workspace.workspace_id
+                        )
+                    else:
+                        builders = create_projection_builders(
+                            connection,
+                            active.path,
+                            config=workspace_settings,
+                            include_optional=True,
+                        )
+                        payload = rebuild_projection(
+                            connection,
+                            workspace_id=workspace.workspace_id,
+                            projection=args.projection,
+                            dry_run=args.dry_run,
+                            builders=builders,
+                        )
+                finally:
+                    connection.close()
+            exit_code = 0
+        except (
+            DatabaseInUseError,
+            PointerValidationError,
+            ProjectionOperationError,
+            WorkspaceAccessError,
+            WorkspacePathError,
+        ) as exc:
+            code = getattr(exc, "code", type(exc).__name__)
+            payload = {"error": {"code": code, "message": code}, "status": "error"}
+            exit_code = 2 if code in {
+                "DATABASE_IN_USE",
+                "UNAUTHORIZED_WORKSPACE",
+                "WORKSPACE_PATH_ESCAPE",
+            } else 1
+        except Exception:
+            payload = {
+                "error": {
+                    "code": "PROJECTION_OPERATION_FAILED",
+                    "message": "PROJECTION_OPERATION_FAILED",
+                },
+                "status": "error",
+            }
+            exit_code = 1
+        if args.json:
+            print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+        elif payload.get("error"):
+            print(f"Error: {payload['error']['code']}")
+        else:
+            print(f"Status: {payload.get('status', 'ready')}")
+            print(f"Workspace: {workspace.workspace_id}")
+        sys.exit(exit_code)
+
     # --- Commands that do NOT need database/memory initialization ---
     # Handle these before get_storage_path() to avoid creating .daem0nmcp/
     # in the target project directory.
@@ -528,6 +770,10 @@ def main():
 
     # --- Commands that require database/memory initialization ---
     # Initialize components
+    from .database import DatabaseManager
+    from .memory import MemoryManager
+    from .rules import RulesEngine
+
     storage_path = active_settings.get_storage_path()
     db = DatabaseManager(storage_path)
     memory = MemoryManager(db)
@@ -568,12 +814,35 @@ def main():
                 print(f"  ... and {len(todos) - 20} more")
 
     elif args.command == "migrate":
-        from .migrations import migrate_and_backfill_vectors, run_migrations
+        from .migrations import run_migrations
 
-        db_path = str(Path(storage_path) / "daem0nmcp.db")
+        db_path = str(db.db_path)
 
         if args.backfill_vectors:
-            result = migrate_and_backfill_vectors(db_path)
+            if db.format_version != 6:
+                if args.json:
+                    print(
+                        json.dumps(
+                            {
+                                "database": db_path,
+                                "error": {
+                                    "code": "LEGACY_VECTOR_MIGRATION_V6_ONLY",
+                                    "message": _V6_VECTOR_MIGRATION_ERROR,
+                                },
+                            },
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                    )
+                else:
+                    print(_V6_VECTOR_MIGRATION_ERROR)
+                sys.exit(1)
+
+            from .migrations import migrate_and_backfill_vectors
+
+            result = migrate_and_backfill_vectors(
+                db_path, workspace_id=db.workspace_id
+            )
             if args.json:
                 result["database"] = db_path
                 print(json.dumps(result, default=str))
@@ -587,7 +856,9 @@ def main():
                 print(f"  Vectors available: {result['vectors_available']}")
                 safe_print(f"\n{result['message']}")
         else:
-            count, applied = run_migrations(db_path)
+            count, applied = run_migrations(
+                db_path, workspace_id=db.workspace_id
+            )
             if args.json:
                 result = {
                     "database": db_path,
@@ -603,9 +874,17 @@ def main():
                     print(f"  - {m}")
                 if count == 0:
                     print("Database is up to date.")
-                print(
-                    "\nTo also backfill vectors, run: python -m daem0nmcp.cli migrate --backfill-vectors"
-                )
+                if db.format_version == 6:
+                    print(
+                        "\nDeprecated format-6 backfill: "
+                        "python -m daem0nmcp.cli migrate --backfill-vectors"
+                    )
+                else:
+                    print(
+                        "\nFor format 7 dense retrieval, run: python -m "
+                        "daem0nmcp.cli rebuild-projection --projection dense "
+                        "--workspace-id <workspace-id>"
+                    )
 
     elif args.command == "status":
         project_path = args.project_path or os.getcwd()

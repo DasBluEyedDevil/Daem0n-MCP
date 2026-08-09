@@ -52,7 +52,7 @@ async def test_no_completion_no_output(tmp_project):
 
 
 @pytest.mark.asyncio
-async def test_auto_captures_decisions(tmp_project):
+async def test_suggests_decisions_without_writing_memory(tmp_project):
     messages = [
         {"role": "user", "content": "Add caching to the API"},
         {
@@ -65,15 +65,17 @@ async def test_auto_captures_decisions(tmp_project):
     ]
     state = {"reminder_count": 0, "last_reminder_turn": -1}
     result = await analyse_and_remember(str(tmp_project), messages, state)
-    assert "auto-captured" in result.message
+    assert "hook did not write memory" in result.message
+    assert "mcp__daem0nmcp__memory_preflight" in result.message
+    assert "mcp__daem0nmcp__memory_store" in result.message
 
-    # Verify memory was actually created
+    # The standalone hook must never mutate storage behind the MCP boundary.
     db = DatabaseManager(str(tmp_project / ".daem0nmcp" / "storage"))
     await db.init_db()
     mem = MemoryManager(db)
     stats = await mem.get_statistics()
     await db.close()
-    assert stats["total_memories"] > 0
+    assert stats["total_memories"] == 0
 
 
 @pytest.mark.asyncio

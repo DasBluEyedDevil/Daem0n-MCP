@@ -2,7 +2,10 @@
 Database Manager - Simplified for the focused memory system.
 """
 
+import asyncio
 import logging
+import sqlite3
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +18,14 @@ from .models import (  # noqa: F401 - MemoryVersion imported for table creation
     Base,
     MemoryVersion,
 )
+from .schema_version import CURRENT_SCHEMA_VERSION
+from .storage_activation import (
+    ActiveDatabasePointer,
+    DatabaseFileLock,
+    resolve_active_database,
+    write_active_pointer,
+)
+from .workspace import WorkspaceRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +42,35 @@ class DatabaseManager:
     def __init__(self, storage_path: str = "./storage", db_name: str = "daem0nmcp.db"):
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
-
-        self.db_path = self.storage_path / db_name
+        if self.storage_path.name == "storage" and self.storage_path.parent.name == ".daem0nmcp":
+            workspace_root = self.storage_path.parent.parent
+        else:
+            workspace_root = self.storage_path.parent
+        self.workspace_id = WorkspaceRegistry(
+            [workspace_root], default_root=workspace_root
+        ).default.workspace_id
+        if db_name != "daem0nmcp.db":
+            raise ValueError("custom database names are incompatible with active-db selection")
+        self._database_lock = DatabaseFileLock(self.storage_path, "shared").acquire()
+        self._fresh_at_construction = not (self.storage_path / db_name).exists() and not (
+            self.storage_path / "active-db.json"
+        ).exists()
+        try:
+            if self._fresh_at_construction:
+                self._active_database = None
+                self.db_path = self.storage_path / db_name
+                self.format_version = 7
+                self.active_generation = 0
+                self.migration_run_id = None
+            else:
+                self._active_database = resolve_active_database(self.storage_path)
+                self.db_path = self._active_database.path
+                self.format_version = self._active_database.format_version
+                self.active_generation = self._active_database.generation
+                self.migration_run_id = self._active_database.migration_run_id
+        except Exception:
+            self._database_lock.release()
+            raise
         self.db_url = f"sqlite+aiosqlite:///{self.db_path}"
         self._migrated = False
         self._initialized = False
@@ -85,20 +123,26 @@ class DatabaseManager:
         self._get_engine()  # Ensure engine is created
         return self._session_factory
 
-    def _run_migrations(self, force: bool = False):
+    def _run_migrations(
+        self,
+        force: bool = False,
+        *,
+        maximum_version: int | None = None,
+    ):
         """Run schema migrations (sync, before async engine starts)."""
         if self._migrated and not force:
             return
 
         if self.db_path.exists():
-            try:
-                from .migrations import run_migrations
+            from .migrations import run_migrations
 
-                count, applied = run_migrations(str(self.db_path))
-                if count > 0:
-                    logger.info(f"Applied {count} migration(s): {applied}")
-            except Exception as e:
-                logger.warning(f"Migration check failed: {e}")
+            count, applied = run_migrations(
+                str(self.db_path),
+                workspace_id=self.workspace_id,
+                maximum_version=maximum_version,
+            )
+            if count > 0:
+                logger.info(f"Applied {count} migration(s): {applied}")
 
         self._migrated = True
 
@@ -108,8 +152,11 @@ class DatabaseManager:
         if self._initialized:
             return
 
-        # Check if this is a fresh database
-        is_new_db = not self.db_path.exists()
+        # Check if this is a fresh database.  This fact is captured before any
+        # engine construction so a failed pointer publication cannot be mistaken
+        # for an ordinary v6 database within this manager lifetime.
+        is_new_db = self._fresh_at_construction and not self.db_path.exists()
+        previous_schema_version = self._schema_version() if self.db_path.exists() else 0
 
         # Run migrations first for existing databases (sync operation)
         # This happens BEFORE we create the async engine to avoid lock conflicts
@@ -124,16 +171,275 @@ class DatabaseManager:
         if is_new_db:
             self._run_migrations(force=True)
 
+        if is_new_db:
+            self._bootstrap_lexical_projection()
+            self._validate_database(format_version=7)
+            pointer = ActiveDatabasePointer(7, 1, "daem0nmcp.db", None, None)
+            write_active_pointer(self.storage_path, pointer)
+            self._active_database = resolve_active_database(self.storage_path)
+            self.format_version = 7
+            self.active_generation = 1
+        elif self._active_database is None:
+            raise RuntimeError("ACTIVE_DATABASE_STATE_MISSING")
+        elif self._active_database.pointer is not None:
+            if self.format_version == 7:
+                self._bootstrap_lexical_projection()
+            self._validate_database(format_version=self.format_version)
+        elif previous_schema_version >= 16 and not self._has_user_rows():
+            # Recovery for a crash between brand-new DB creation and pointer
+            # publication is safe only before any user data exists. A populated
+            # pointerless database remains architecture format 6 even after the
+            # additive SQL migration 16 has been applied.
+            self._bootstrap_lexical_projection()
+            self._validate_database(format_version=7)
+            pointer = ActiveDatabasePointer(7, 1, "daem0nmcp.db", None, None)
+            write_active_pointer(self.storage_path, pointer)
+            self._active_database = resolve_active_database(self.storage_path)
+            self.format_version = 7
+            self.active_generation = 1
+        else:
+            self._validate_database(format_version=6)
+
         self._initialized = True
+        if self.format_version == 7:
+            from .retrieval.runtime import schedule_projection_job_drain
+
+            schedule_projection_job_drain(self.db_path, max_jobs=5)
         logger.info(f"Database initialized at {self.db_path}")
+
+    async def init_legacy_v6(self) -> None:
+        """Initialize a retained format-6 database without publishing v7 schema.
+
+        Deprecated vector-copy commands only need an engine and session over the
+        existing v6 tables.  Running ``init_db`` here would create current model
+        tables and apply v7 migrations before the copy begins.
+        """
+
+        if self.format_version != 6 or self._fresh_at_construction:
+            raise RuntimeError("LEGACY_V6_DATABASE_REQUIRED")
+        if self._initialized:
+            return
+
+        from .migrations.schema import _LAST_V6_SCHEMA_VERSION
+
+        self._run_migrations(maximum_version=_LAST_V6_SCHEMA_VERSION)
+        connection = sqlite3.connect(self.db_path)
+        try:
+            connection.execute("PRAGMA foreign_keys=ON")
+            integrity = [
+                row[0] for row in connection.execute("PRAGMA integrity_check")
+            ]
+            foreign = list(connection.execute("PRAGMA foreign_key_check"))
+        finally:
+            connection.close()
+        if integrity != ["ok"] or foreign:
+            raise RuntimeError("DATABASE_INTEGRITY_FAILED")
+
+        self._initialized = True
+        logger.info("Legacy format-6 database initialized at %s", self.db_path)
+
+    def _bootstrap_lexical_projection(self) -> None:
+        """Make the dependency-free lexical baseline valid before v7 use."""
+
+        from .event_store import deterministic_id
+        from .retrieval.job_queue import enqueue_projection_rebuild
+        from .retrieval.projections import LexicalProjectionBuilder
+
+        connection = sqlite3.connect(self.db_path)
+        connection.row_factory = sqlite3.Row
+        try:
+            connection.execute("PRAGMA foreign_keys=ON")
+            builder = LexicalProjectionBuilder(connection)
+            if not builder.active_is_current(self.workspace_id):
+                builder.rebuild(self.workspace_id)
+            if not builder.active_is_current(self.workspace_id):
+                raise RuntimeError("LEXICAL_BOOTSTRAP_FAILED")
+            lexical = connection.execute(
+                "SELECT source_event_count,source_event_root_hash,"
+                "cursor_recorded_at_us,cursor_event_id "
+                "FROM projection_manifests WHERE workspace_id=? "
+                "AND projection_name='lexical' AND status='active'",
+                (self.workspace_id,),
+            ).fetchone()
+            if lexical is None:
+                raise RuntimeError("LEXICAL_BOOTSTRAP_FAILED")
+            now = time.time_ns() // 1_000
+            for projection_name in (
+                "dense",
+                "graph",
+                "temporal",
+                "procedure",
+                "outcome",
+            ):
+                manifest_id = deterministic_id(
+                    "prj",
+                    "projection",
+                    self.workspace_id,
+                    projection_name,
+                    1,
+                    str(lexical[1]),
+                )
+                connection.execute(
+                    "INSERT INTO projection_manifests ("
+                    "manifest_id,workspace_id,projection_name,generation,"
+                    "projection_version,status,source_event_count,"
+                    "source_event_root_hash,cursor_recorded_at_us,"
+                    "cursor_event_id,row_count,builder_version,details_json,"
+                    "started_at_us) VALUES (?,?,?,1,1,'rebuild_required',"
+                    "?,?,?,?,0,'v7-bootstrap-1','{}',?) "
+                    "ON CONFLICT(workspace_id,projection_name,generation) "
+                    "DO NOTHING",
+                    (
+                        manifest_id,
+                        self.workspace_id,
+                        projection_name,
+                        int(lexical[0]),
+                        str(lexical[1]),
+                        lexical[2],
+                        lexical[3],
+                        now,
+                    ),
+                )
+                enqueue_projection_rebuild(
+                    connection,
+                    workspace_id=self.workspace_id,
+                    projection_name=projection_name,
+                    source_event_id=(
+                        str(lexical[3]) if lexical[3] is not None else None
+                    ),
+                    recorded_at_us=now,
+                    requeue_existing=False,
+                )
+            connection.commit()
+        except Exception as exc:
+            connection.rollback()
+            raise RuntimeError("LEXICAL_BOOTSTRAP_FAILED") from exc
+        finally:
+            connection.close()
+
+    def _schema_version(self) -> int:
+        try:
+            with sqlite3.connect(self.db_path) as connection:
+                exists = connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_version'"
+                ).fetchone()
+                if exists is None:
+                    return 0
+                return int(
+                    connection.execute(
+                        "SELECT COALESCE(MAX(version),0) FROM schema_version"
+                    ).fetchone()[0]
+                )
+        except sqlite3.Error:
+            return 0
+
+    def _has_user_rows(self) -> bool:
+        with sqlite3.connect(self.db_path) as connection:
+            for table in (
+                "memories",
+                "facts",
+                "memory_relationships",
+                "rules",
+                "context_triggers",
+                "active_context",
+            ):
+                exists = connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+                ).fetchone()
+                if exists and connection.execute(f'SELECT 1 FROM "{table}" LIMIT 1').fetchone():
+                    return True
+        return False
+
+    def _validate_database(self, *, format_version: int) -> None:
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute("PRAGMA foreign_keys=ON")
+            integrity = [row[0] for row in connection.execute("PRAGMA integrity_check")]
+            foreign = list(connection.execute("PRAGMA foreign_key_check"))
+            if integrity != ["ok"] or foreign:
+                raise RuntimeError("DATABASE_INTEGRITY_FAILED")
+            if self._schema_version() < CURRENT_SCHEMA_VERSION:
+                raise RuntimeError("SCHEMA_MIGRATION_INCOMPLETE")
+            if format_version == 7:
+                required = {
+                    "memory_events",
+                    "memory_records",
+                    "memory_fact_versions",
+                    "memory_relationship_versions",
+                    "projection_manifests",
+                    "enrichment_decisions",
+                    "background_jobs",
+                    "v7_migration_runs",
+                    "v7_migration_checkpoints",
+                    "legacy_id_map",
+                    "retrieval_documents",
+                    "record_procedures",
+                    "record_outcome_view",
+                    "dense_projection_refs",
+                    "public_object_ids",
+                    "active_context_entries",
+                    "governance_events",
+                    "governance_rules",
+                    "governance_context_triggers",
+                    "session_update_sequence",
+                    "discovery_projection_partitions",
+                    "discovery_entities",
+                    "discovery_entity_records",
+                    "discovery_communities",
+                    "discovery_community_members",
+                    "discovery_code_entities",
+                }
+                present = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if not required <= present:
+                    raise RuntimeError("V7_SCHEMA_INCOMPLETE")
+                if self.migration_run_id is not None:
+                    run = connection.execute(
+                        "SELECT status FROM v7_migration_runs WHERE migration_run_id=?",
+                        (self.migration_run_id,),
+                    ).fetchone()
+                    if run is None or run[0] != "active":
+                        raise RuntimeError("V7_ACTIVATION_INCOMPLETE")
 
     @asynccontextmanager
     async def get_session(self):
         """Provide a transactional scope around a series of operations."""
         session = self.SessionLocal()
+        session.info["daem0nmcp_format_version"] = self.format_version
+        session.info["daem0nmcp_workspace_id"] = self.workspace_id
         try:
             yield session
             await session.commit()
+            if (
+                self.format_version == 7
+                and session.info.pop("daem0nmcp_v7_event_appended", False)
+            ):
+                try:
+                    from .retrieval.runtime import drain_projection_jobs
+
+                    await asyncio.wait_for(
+                        drain_projection_jobs(
+                            self.db_path,
+                            max_jobs=1,
+                            include_optional=False,
+                        ),
+                        timeout=2.0,
+                    )
+                except Exception:
+                    # The canonical event is already committed and the durable
+                    # coalesced job remains queued.  Projection refresh failure
+                    # must never turn a successful write into an apparent
+                    # rollback or duplicate retry.
+                    logger.warning(
+                        "V7 lexical projection refresh remains queued",
+                        exc_info=True,
+                    )
+                from .retrieval.runtime import schedule_projection_job_drain
+
+                schedule_projection_job_drain(self.db_path, max_jobs=5)
         except Exception:
             await session.rollback()
             raise
@@ -222,3 +528,9 @@ class DatabaseManager:
             self._engine = None
             self._session_factory = None
             self._initialized = False
+        self._database_lock.release()
+
+    def __del__(self):
+        lock = getattr(self, "_database_lock", None)
+        if lock is not None:
+            lock.release()

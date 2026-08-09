@@ -1,5 +1,10 @@
 # Changelog
 
+## [7.0.0-dev.0] - In progress
+
+### Added
+- Reproducible v7 core foundation with opt-in dependency profiles and lazy capability reporting.
+
 ## [6.0.0] - 2026-01-29
 
 ### Breaking Changes

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[Daem0n awakens] Commune with me via get_briefing() to receive your memories...'"
+            "command": "echo '[Daem0n v7] Before responding, call mcp__daem0nmcp__session_brief(workspace_id=\"<opaque-workspace-id>\").'"
           }
         ]
       }

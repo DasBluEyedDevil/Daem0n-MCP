@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from daem0nmcp.opencode_install import PLUGIN_TEMPLATE, install_opencode
 
 
@@ -76,6 +78,24 @@ def test_plugin_template_matches_canonical():
     # Must be TypeScript, not Python
     assert "import asyncio" not in PLUGIN_TEMPLATE
     assert "from daem0nmcp" not in PLUGIN_TEMPLATE
+
+
+def test_plugin_template_is_the_exact_v7_repo_plugin_without_forged_metadata():
+    canonical = (
+        Path(__file__).resolve().parents[1]
+        / ".opencode"
+        / "plugins"
+        / "daem0n.ts"
+    ).read_text(encoding="utf-8")
+    assert PLUGIN_TEMPLATE == canonical
+    for retired in (
+        "daem0nmcp_commune",
+        "daem0nmcp_consult",
+        "daem0nmcp_inscribe",
+        "daem0nmcp_reflect",
+        "_client_meta",
+    ):
+        assert retired not in PLUGIN_TEMPLATE
 
 
 def test_install_preserves_existing_opencode_json(tmp_path):

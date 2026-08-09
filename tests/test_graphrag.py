@@ -60,13 +60,14 @@ async def community_manager(db_manager):
 
 
 @pytest.fixture
-async def covenant_compliant_project(temp_storage):
+async def covenant_compliant_project(temp_storage, covenant_workspace_factory):
     """Create a project that passes covenant checks."""
     from daem0nmcp import server
 
     server._project_contexts.clear()
-    await server.get_briefing(project_path=temp_storage)
-    yield temp_storage
+    workspace = covenant_workspace_factory(temp_storage)
+    await workspace.brief()
+    yield workspace
 
 
 # =============================================================================
@@ -559,7 +560,8 @@ class TestMCPGraphRAGTools:
         from daem0nmcp import server
 
         # Use context to get direct access to memory_manager (bypass covenant)
-        ctx = await server.get_project_context(covenant_compliant_project)
+        with covenant_compliant_project.installed():
+            ctx = await server.get_project_context(covenant_compliant_project)
 
         # Create chain directly via memory_manager
         mem1 = await ctx.memory_manager.remember(
@@ -577,7 +579,8 @@ class TestMCPGraphRAGTools:
         await ctx.memory_manager.link_memories(mem1["id"], mem2["id"], "led_to")
 
         # Use MCP tool
-        result = await server.trace_causal_path(
+        result = await covenant_compliant_project.call(
+            server.trace_causal_path,
             start_memory_id=mem1["id"],
             end_memory_id=mem2["id"],
             project_path=covenant_compliant_project,
@@ -591,7 +594,8 @@ class TestMCPGraphRAGTools:
         from daem0nmcp import server
 
         # Use context to get direct access to memory_manager (bypass covenant)
-        ctx = await server.get_project_context(covenant_compliant_project)
+        with covenant_compliant_project.installed():
+            ctx = await server.get_project_context(covenant_compliant_project)
 
         # Create some memories
         await ctx.memory_manager.remember(
@@ -600,7 +604,9 @@ class TestMCPGraphRAGTools:
             project_path=covenant_compliant_project,
         )
 
-        result = await server.get_graph_stats(project_path=covenant_compliant_project)
+        result = await covenant_compliant_project.call(
+            server.get_graph_stats, project_path=covenant_compliant_project
+        )
 
         assert "nodes" in result, "Should return node count"
         assert "edges" in result, "Should return edge count"
@@ -611,7 +617,8 @@ class TestMCPGraphRAGTools:
         from daem0nmcp import server
 
         # Use context to get direct access to memory_manager (bypass covenant)
-        ctx = await server.get_project_context(covenant_compliant_project)
+        with covenant_compliant_project.installed():
+            ctx = await server.get_project_context(covenant_compliant_project)
 
         mem = await ctx.memory_manager.remember(
             category="decision",
@@ -619,7 +626,8 @@ class TestMCPGraphRAGTools:
             project_path=covenant_compliant_project,
         )
 
-        result = await server.get_related_memories(
+        result = await covenant_compliant_project.call(
+            server.get_related_memories,
             memory_id=mem["id"], project_path=covenant_compliant_project
         )
 
@@ -633,7 +641,8 @@ class TestMCPGraphRAGTools:
         from daem0nmcp import server
         from daem0nmcp.communities import CommunityManager
 
-        ctx = await server.get_project_context(covenant_compliant_project)
+        with covenant_compliant_project.installed():
+            ctx = await server.get_project_context(covenant_compliant_project)
 
         # Create related memories with shared entity to ensure graph connectivity
         await ctx.memory_manager.remember(
@@ -649,7 +658,8 @@ class TestMCPGraphRAGTools:
             project_path=covenant_compliant_project,
         )
 
-        result = await server.rebuild_communities(
+        result = await covenant_compliant_project.call(
+            server.rebuild_communities,
             project_path=covenant_compliant_project
         )
 
