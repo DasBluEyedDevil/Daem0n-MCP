@@ -645,7 +645,7 @@ class PinnedAsyncHTTPTransport(_TRANSPORT_BASE):  # type: ignore[misc,valid-type
                     scheme=request.url.raw_scheme,
                     host=request.url.raw_host,
                     port=request.url.port,
-                    target=request.url.raw_path,
+                    target=request.url.target,
                 ),
                 headers=request.headers.raw,
                 content=request.stream,
