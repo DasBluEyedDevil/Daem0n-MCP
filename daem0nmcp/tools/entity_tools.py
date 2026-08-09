@@ -5,6 +5,7 @@ from typing import Any
 
 try:
     from .. import __version__
+    from ..covenant import legacy_entrypoint
     from ..context_manager import (
         _default_project_path,
         _missing_project_path_error,
@@ -15,6 +16,7 @@ try:
     from ..models import Memory
 except ImportError:
     from daem0nmcp import __version__
+    from daem0nmcp.covenant import legacy_entrypoint
     from daem0nmcp.context_manager import (
         _default_project_path,
         _missing_project_path_error,
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 @mcp.tool(version=__version__)
 @with_request_id
+@legacy_entrypoint("list_entities")
 async def list_entities(
     entity_type: str | None = None,
     limit: int = 20,
@@ -65,6 +68,7 @@ async def list_entities(
 
 @mcp.tool(version=__version__)
 @with_request_id
+@legacy_entrypoint("backfill_entities")
 async def backfill_entities(project_path: str | None = None) -> dict[str, Any]:
     """
     Extract entities from all existing memories. Safe to run multiple times.

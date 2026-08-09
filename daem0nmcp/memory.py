@@ -10,9 +10,12 @@ This module handles:
 - GraphRAG integration via KnowledgeGraph
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import re
+import secrets
 import sys
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -21,14 +24,21 @@ if TYPE_CHECKING:
     from .compression import AdaptiveCompressor, HierarchicalContextManager
 from pathlib import Path
 
-from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 from sqlalchemy import desc, func, or_, select
 
 from . import vectors
 from .cache import get_recall_cache, make_cache_key
+from .capabilities import CapabilityRegistry
 from .config import settings
 from .database import DatabaseManager
-from .graph import KnowledgeGraph
+from .event_store import (
+    EventCommand,
+    apply_compatibility_memory_update,
+    append_and_project_async,
+    compatibility_memory_record,
+    deterministic_id,
+    resolve_compatibility_stream_async,
+)
 from .models import Memory, MemoryRelationship, MemoryVersion
 from .recall_planner import RecallPlanner
 from .similarity import (
@@ -189,10 +199,11 @@ class MemoryManager:
         self._index_built_at: datetime | None = None
 
         # GraphRAG: Knowledge graph instance (lazy-loaded)
-        self._knowledge_graph: KnowledgeGraph | None = None
+        self._knowledge_graph: Any | None = None
 
         # Auto-Zoom: Retrieval router (lazy-loaded)
         self._retrieval_router = None
+        self._v7_retrieval_service = None
 
         # Phase 4: Context compression (lazy initialized)
         self._compressor: AdaptiveCompressor | None = None
@@ -201,12 +212,14 @@ class MemoryManager:
 
         # Initialize Qdrant vector store if available
         self._qdrant = None
-        if self._vectors_enabled:
+        local_capability = CapabilityRegistry().get("local")
+        if (
+            self._legacy_vector_writes_enabled()
+            and local_capability["status"] == "ready"
+        ):
             # Prefer database manager's storage path for Qdrant (co-locates with SQLite)
             # This ensures tests with temp storage get their own Qdrant instance
             qdrant_path = str(Path(db_manager.storage_path) / "qdrant")
-            Path(qdrant_path).mkdir(parents=True, exist_ok=True)
-
             # Check if remote mode is configured (overrides local)
             if settings.qdrant_url:
                 # Remote mode placeholder - not implemented yet
@@ -215,6 +228,7 @@ class MemoryManager:
                     "Falling back to TF-IDF only for vector search."
                 )
             else:
+                Path(qdrant_path).mkdir(parents=True, exist_ok=True)
                 try:
                     from .qdrant_store import QdrantVectorStore
 
@@ -235,7 +249,167 @@ class MemoryManager:
                             f"Could not initialize Qdrant (falling back to TF-IDF only): {e}"
                         )
 
-    async def get_knowledge_graph(self) -> KnowledgeGraph:
+    def _legacy_vector_writes_enabled(self) -> bool:
+        """Return whether the retained format-6 vector path may be used."""
+
+        return self.db.format_version != 7 and self._vectors_enabled
+
+    @staticmethod
+    def _datetime_us(value: datetime | None = None) -> int:
+        current = value or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        return int(current.timestamp() * 1_000_000)
+
+    def _new_typed_memory_id(self) -> str:
+        return deterministic_id(
+            "mem",
+            "memory",
+            self.db.workspace_id,
+            "runtime",
+            secrets.token_hex(32),
+        )
+
+    def _new_typed_relationship_id(self) -> str:
+        return deterministic_id(
+            "rel",
+            "relationship",
+            self.db.workspace_id,
+            "runtime",
+            secrets.token_hex(32),
+        )
+
+    async def _resolve_typed_memory_id(self, session, memory_id: int) -> str | None:
+        return await resolve_compatibility_stream_async(
+            session,
+            self.db.workspace_id,
+            "memory",
+            "memories",
+            memory_id,
+        )
+
+    async def _resolve_typed_relationship_id(
+        self, session, relationship_id: int
+    ) -> str | None:
+        return await resolve_compatibility_stream_async(
+            session,
+            self.db.workspace_id,
+            "relationship",
+            "memory_relationships",
+            relationship_id,
+        )
+
+    @staticmethod
+    def _v7_record_state(memory: Memory, *, deleted_at_us: int | None = None) -> dict[str, Any]:
+        return compatibility_memory_record(memory, deleted_at_us=deleted_at_us)
+
+    async def _append_v7_memory_event(
+        self,
+        session,
+        memory: Memory,
+        event_type: str,
+        *,
+        occurred_at: datetime | None = None,
+        recorded_at: datetime | None = None,
+        extra_payload: dict[str, Any] | None = None,
+        deleted_at_us: int | None = None,
+        stream_id: str | None = None,
+        actor_type: str = "system",
+        expected_stream_version: int | None = None,
+        compatibility_legacy_id: Any | None = None,
+    ):
+        if self.db.format_version != 7:
+            return None
+        recorded_at_us = self._datetime_us(recorded_at)
+        payload = {
+            "record": self._v7_record_state(memory, deleted_at_us=deleted_at_us),
+            "compatibility": {
+                "legacy_memory_id": (
+                    memory.id
+                    if compatibility_legacy_id is None
+                    else compatibility_legacy_id
+                )
+            },
+        }
+        if extra_payload:
+            payload.update(extra_payload)
+        resolved_stream_id = stream_id
+        if resolved_stream_id is None:
+            resolved_stream_id = await self._resolve_typed_memory_id(session, memory.id)
+        if resolved_stream_id is None:
+            if event_type != "memory.created":
+                raise RuntimeError("V7_MEMORY_STREAM_MISSING")
+            resolved_stream_id = self._new_typed_memory_id()
+        return await append_and_project_async(
+            session,
+            EventCommand(
+                workspace_id=self.db.workspace_id,
+                stream_id=resolved_stream_id,
+                stream_kind="memory",
+                event_type=event_type,
+                occurred_at_us=self._datetime_us(occurred_at),
+                recorded_at_us=recorded_at_us,
+                actor_type=actor_type,
+                payload=payload,
+                expected_stream_version=expected_stream_version,
+            ),
+        )
+
+    async def _append_v7_relationship_event(
+        self,
+        session,
+        relationship: MemoryRelationship,
+        event_type: str,
+        *,
+        removed_at: datetime | None = None,
+    ):
+        if self.db.format_version != 7:
+            return None
+        occurred = removed_at or relationship.created_at or datetime.now(timezone.utc)
+        valid_from = self._datetime_us(relationship.created_at or occurred)
+        valid_to = self._datetime_us(removed_at) if removed_at is not None else None
+        stream_id = await self._resolve_typed_relationship_id(
+            session, relationship.id
+        )
+        if stream_id is None:
+            if event_type != "relationship.created":
+                raise RuntimeError("V7_RELATIONSHIP_STREAM_MISSING")
+            stream_id = self._new_typed_relationship_id()
+        source_record_id = await self._resolve_typed_memory_id(
+            session, relationship.source_id
+        )
+        target_record_id = await self._resolve_typed_memory_id(
+            session, relationship.target_id
+        )
+        if source_record_id is None or target_record_id is None:
+            raise RuntimeError("V7_RELATIONSHIP_ENDPOINT_STREAM_MISSING")
+        return await append_and_project_async(
+            session,
+            EventCommand(
+                workspace_id=self.db.workspace_id,
+                stream_id=stream_id,
+                stream_kind="relationship",
+                event_type=event_type,
+                occurred_at_us=self._datetime_us(occurred),
+                recorded_at_us=self._datetime_us(),
+                actor_type="system",
+                payload={
+                    "relationship": {
+                        "source_record_id": source_record_id,
+                        "target_record_id": target_record_id,
+                        "relationship_type": relationship.relationship,
+                        "legacy_type": None,
+                        "description": relationship.description,
+                        "confidence": float(relationship.confidence or 1.0),
+                        "metadata": {"legacy_relationship_id": relationship.id},
+                        "valid_from_us": valid_from,
+                        "valid_to_us": valid_to,
+                    }
+                },
+            ),
+        )
+
+    async def get_knowledge_graph(self) -> Any:
         """
         Get or create the knowledge graph for GraphRAG operations.
 
@@ -246,6 +420,9 @@ class MemoryManager:
             KnowledgeGraph instance synchronized with SQLite
         """
         if self._knowledge_graph is None:
+            CapabilityRegistry().require("graph")
+            from .graph import KnowledgeGraph
+
             self._knowledge_graph = KnowledgeGraph(self.db)
 
         await self._knowledge_graph.ensure_loaded()
@@ -355,6 +532,9 @@ class MemoryManager:
         Returns:
             List of (doc_id, score) tuples sorted by score descending
         """
+        from .retrieval.runtime import warn_legacy_hybrid_weight
+
+        warn_legacy_hybrid_weight()
         vector_weight = settings.hybrid_vector_weight
 
         # Get TF-IDF results
@@ -376,11 +556,7 @@ class MemoryManager:
                         qdrant_results = self._qdrant.search(
                             query_vector=query_vector, limit=top_k * 2
                         )
-                    except (
-                        ResponseHandlingException,
-                        UnexpectedResponse,
-                        RuntimeError,
-                    ) as e:
+                    except Exception as e:
                         # Handle Qdrant API errors gracefully
                         logger.debug(
                             f"Qdrant search failed, falling back to TF-IDF: {e}"
@@ -475,7 +651,7 @@ class MemoryManager:
             text_for_embedding += " " + rationale
         vector_embedding = (
             vectors.encode_document(text_for_embedding)
-            if self._vectors_enabled
+            if self._legacy_vector_writes_enabled()
             else None
         )
 
@@ -526,6 +702,13 @@ class MemoryManager:
                 change_type="created",
                 change_description="Initial creation",
                 valid_from=valid_from,
+            )
+
+            await self._append_v7_memory_event(
+                session,
+                memory,
+                "memory.created",
+                occurred_at=valid_from or memory.created_at,
             )
 
             # Add to TF-IDF index
@@ -697,7 +880,7 @@ class MemoryManager:
                         text_for_embedding += " " + rationale
                     vector_embedding = (
                         vectors.encode_document(text_for_embedding)
-                        if self._vectors_enabled
+                        if self._legacy_vector_writes_enabled()
                         else None
                     )
 
@@ -725,6 +908,24 @@ class MemoryManager:
                     session.add(memory)
                     await session.flush()  # Get ID without committing
 
+                    version = MemoryVersion(
+                        memory_id=memory.id,
+                        version_number=1,
+                        content=content,
+                        rationale=rationale,
+                        context=context,
+                        tags=tags,
+                        outcome=None,
+                        worked=None,
+                        change_type="created",
+                        change_description="Initial creation",
+                        valid_from=datetime.now(timezone.utc),
+                    )
+                    session.add(version)
+                    await self._append_v7_memory_event(
+                        session, memory, "memory.created", occurred_at=version.valid_from
+                    )
+
                     # Add to TF-IDF index
                     text = content
                     if rationale:
@@ -751,6 +952,8 @@ class MemoryManager:
                     results["created_count"] += 1
 
                 except Exception as e:
+                    if self.db.format_version == 7:
+                        raise
                     results["errors"].append({"index": i, "error": str(e)})
                     results["error_count"] += 1
 
@@ -1003,6 +1206,262 @@ class MemoryManager:
                 .values(recall_count=Memory.recall_count + 1)
             )
 
+    def _get_v7_retrieval_service(self):
+        if self._v7_retrieval_service is None:
+            from .retrieval.runtime import create_retrieval_service
+
+            self._v7_retrieval_service = create_retrieval_service(
+                self.db.db_path
+            )
+        return self._v7_retrieval_service
+
+    async def _recall_v7(
+        self,
+        *,
+        topic: str,
+        categories: list[str] | None,
+        tags: list[str] | None,
+        file_path: str | None,
+        project_path: str | None,
+        offset: int,
+        limit: int,
+        since: datetime | None,
+        until: datetime | None,
+        include_warnings: bool,
+        include_linked: bool,
+        condensed: bool,
+        as_of_time: datetime | None,
+    ) -> dict[str, Any]:
+        """Compatibility envelope backed exclusively by the v7 facade."""
+
+        from .retrieval.legacy_compat import build_legacy_recall_categories
+        from .retrieval.runtime import (
+            normalize_legacy_category_filter,
+            resolve_legacy_record_filter,
+        )
+        from .retrieval.types import RetrievalQuery
+
+        if offset < 0 or limit < 1:
+            return {"error": "INVALID_RETRIEVAL_BOUNDS"}
+
+        file_paths: tuple[str, ...] = ()
+        if file_path is not None:
+            normalized = [file_path]
+            if project_path:
+                absolute, relative = _normalize_file_path(
+                    file_path, project_path
+                )
+                normalized.extend(
+                    value for value in (absolute, relative) if value
+                )
+            file_paths = tuple(dict.fromkeys(normalized))[:2]
+        normalized_since = since
+        normalized_until = until
+        if normalized_since is not None and normalized_since.tzinfo is None:
+            normalized_since = normalized_since.replace(tzinfo=timezone.utc)
+        if normalized_until is not None and normalized_until.tzinfo is None:
+            normalized_until = normalized_until.replace(tzinfo=timezone.utc)
+        record_ids = None
+        if file_paths or normalized_since is not None or normalized_until is not None:
+            record_ids = await resolve_legacy_record_filter(
+                self.db.db_path,
+                workspace_id=self.db.workspace_id,
+                file_paths=file_paths,
+                since=normalized_since,
+                until=normalized_until,
+            )
+
+        selected_categories = normalize_legacy_category_filter(
+            categories,
+            include_warnings,
+        )
+        requested = min(100, offset + limit * 4)
+        candidate_limit = min(
+            1_000,
+            max(requested, settings.retrieval_candidate_limit),
+        )
+        valid_time = as_of_time
+        if valid_time is not None and valid_time.tzinfo is None:
+            valid_time = valid_time.replace(tzinfo=timezone.utc)
+        query = RetrievalQuery(
+            workspace_id=self.db.workspace_id,
+            text=topic,
+            limit=requested,
+            candidate_limit=candidate_limit,
+            as_of_valid_time=valid_time,
+            categories=selected_categories,
+            tags=frozenset(tags) if tags else None,
+            record_ids=record_ids,
+            token_budget=settings.retrieval_token_budget,
+            rerank=settings.retrieval_rerank_enabled,
+        )
+        service = self._get_v7_retrieval_service()
+        try:
+            retrieval = await service.retrieve(query)
+        except Exception:
+            logger.warning("V7 retrieval facade failed closed", exc_info=True)
+            return {
+                "error": "V7_RETRIEVAL_UNAVAILABLE",
+                "topic": topic,
+            }
+
+        diagnostics = [
+            {
+                "provider": diagnostic.provider,
+                "status": diagnostic.status,
+                "manifest_generation": diagnostic.manifest_generation,
+                "elapsed_ms": diagnostic.elapsed_ms,
+                "reason": diagnostic.reason,
+                "returned_count": diagnostic.returned_count,
+            }
+            for diagnostic in retrieval.providers
+        ]
+        if retrieval.abstained:
+            empty_result = {
+                "topic": topic,
+                "found": 0,
+                "total_count": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False,
+                "summary": None,
+                "decisions": [],
+                "patterns": [],
+                "warnings": [],
+                "learnings": [],
+                "retrieval": {
+                    "abstained": True,
+                    "reason": retrieval.reason,
+                    "providers": diagnostics,
+                    "policy_rejection_counts": list(
+                        retrieval.policy_rejection_counts
+                    ),
+                },
+            }
+            return await self._merge_v7_linked_results(
+                empty_result,
+                topic=topic,
+                categories=categories,
+                tags=tags,
+                file_path=file_path,
+                limit=limit,
+                since=since,
+                until=until,
+                project_path=project_path,
+                include_warnings=include_warnings,
+                include_linked=include_linked,
+                condensed=condensed,
+                as_of_time=as_of_time,
+            )
+
+        selected_items = tuple(retrieval.items[offset : offset + limit * 4])
+        try:
+            by_category = build_legacy_recall_categories(
+                selected_items,
+                per_category_limit=min(limit, 100),
+                condensed=condensed,
+            )
+        except Exception:
+            logger.warning(
+                "V7 legacy metadata hydration failed closed",
+                exc_info=True,
+            )
+            return {
+                "error": "V7_RETRIEVAL_UNAVAILABLE",
+                "topic": topic,
+            }
+
+        total = sum(len(values) for values in by_category.values())
+        result: dict[str, Any] = {
+            "topic": topic,
+            "found": total,
+            "total_count": len(retrieval.items),
+            "offset": offset,
+            "limit": limit,
+            "has_more": offset + total < len(retrieval.items),
+            "summary": None,
+            **by_category,
+            "retrieval": {
+                "abstained": False,
+                "providers": diagnostics,
+                "weights": list(retrieval.weights),
+            },
+        }
+        if as_of_time is not None:
+            result["query_time"] = as_of_time.isoformat()
+            result["temporal_filter"] = "point_in_time"
+        return await self._merge_v7_linked_results(
+            result,
+            topic=topic,
+            categories=categories,
+            tags=tags,
+            file_path=file_path,
+            limit=limit,
+            since=since,
+            until=until,
+            project_path=project_path,
+            include_warnings=include_warnings,
+            include_linked=include_linked,
+            condensed=condensed,
+            as_of_time=as_of_time,
+        )
+
+    async def _merge_v7_linked_results(
+        self,
+        result: dict[str, Any],
+        *,
+        topic: str,
+        categories: list[str] | None,
+        tags: list[str] | None,
+        file_path: str | None,
+        limit: int,
+        since: datetime | None,
+        until: datetime | None,
+        project_path: str | None,
+        include_warnings: bool,
+        include_linked: bool,
+        condensed: bool,
+        as_of_time: datetime | None,
+    ) -> dict[str, Any]:
+        """Expose linked origins without merging unmanifested evidence."""
+
+        if not include_linked or not project_path:
+            return result
+        from .links import LinkManager
+
+        linked_diagnostics: list[dict[str, str]] = []
+        try:
+            linked_managers = await LinkManager(
+                self.db
+            ).get_linked_db_managers(project_path)
+            seen_workspaces: set[str] = set()
+            for _linked_path, linked_db in linked_managers:
+                workspace_id = getattr(linked_db, "workspace_id", None)
+                if (
+                    not isinstance(workspace_id, str)
+                    or re.fullmatch(r"ws_[0-9a-f]{24}", workspace_id) is None
+                    or workspace_id in seen_workspaces
+                ):
+                    continue
+                seen_workspaces.add(workspace_id)
+                linked_diagnostics.append(
+                    {
+                        "workspace_id": workspace_id,
+                        "status": "degraded",
+                        "reason": "LINKED_EVIDENCE_FEDERATION_REQUIRED",
+                    }
+                )
+        except Exception:
+            logger.warning("V7 linked retrieval degraded", exc_info=True)
+            linked_diagnostics.append(
+                {
+                    "status": "degraded",
+                    "reason": "LINKED_WORKSPACE_DISCOVERY_UNAVAILABLE",
+                }
+            )
+        result.setdefault("retrieval", {})["linked"] = linked_diagnostics
+        return result
+
     async def recall(
         self,
         topic: str,
@@ -1061,6 +1520,23 @@ class MemoryManager:
         Returns:
             Dict with categorized memories and relevance scores
         """
+        if self.db.format_version == 7:
+            return await self._recall_v7(
+                topic=topic,
+                categories=categories,
+                tags=tags,
+                file_path=file_path,
+                project_path=project_path,
+                offset=offset,
+                limit=limit,
+                since=since,
+                until=until,
+                include_warnings=include_warnings,
+                include_linked=include_linked,
+                condensed=condensed,
+                as_of_time=as_of_time,
+            )
+
         # Check cache first
         cache = get_recall_cache()
         cache_key = make_cache_key(
@@ -1559,9 +2035,12 @@ class MemoryManager:
             memory_is_permanent = memory.is_permanent
             memory_vector_embedding = memory.vector_embedding
 
-            memory.outcome = outcome
-            memory.worked = worked
-            memory.updated_at = datetime.now(timezone.utc)
+            apply_compatibility_memory_update(
+                memory,
+                outcome=outcome,
+                worked=worked,
+                updated_at=datetime.now(timezone.utc),
+            )
 
             # Get next version number and create outcome version
             result = await session.execute(
@@ -1584,6 +2063,12 @@ class MemoryManager:
                 change_description=f"Outcome: {'worked' if worked else 'failed'}",
             )
             session.add(version)
+            await self._append_v7_memory_event(
+                session,
+                memory,
+                "memory.outcome_recorded",
+                extra_payload={"outcome": {"worked": worked, "text": outcome}},
+            )
 
             # Update Qdrant metadata with worked status
             if self._qdrant and memory_vector_embedding:
@@ -2082,7 +2567,9 @@ class MemoryManager:
             # Create summary memory
             keywords = extract_keywords(summary, summary_tags)
             vector_embedding = (
-                vectors.encode_document(summary) if self._vectors_enabled else None
+                vectors.encode_document(summary)
+                if self._legacy_vector_writes_enabled()
+                else None
             )
 
             summary_memory = Memory(
@@ -2099,6 +2586,23 @@ class MemoryManager:
             await session.flush()  # Get the ID
 
             summary_id = summary_memory.id
+            summary_version = MemoryVersion(
+                memory_id=summary_id,
+                version_number=1,
+                content=summary_memory.content,
+                rationale=summary_memory.rationale,
+                context=summary_memory.context,
+                tags=summary_memory.tags,
+                outcome=None,
+                worked=None,
+                change_type="created",
+                change_description="Compaction summary creation",
+                valid_from=datetime.now(timezone.utc),
+            )
+            session.add(summary_version)
+            await self._append_v7_memory_event(
+                session, summary_memory, "memory.created", occurred_at=summary_version.valid_from
+            )
 
             # Create supersedes relationships and archive originals
             for mem in candidates:
@@ -2109,7 +2613,35 @@ class MemoryManager:
                     description="Session compaction",
                 )
                 session.add(rel)
-                mem.archived = True
+                await session.flush()
+                await self._append_v7_relationship_event(
+                    session, rel, "relationship.created"
+                )
+                apply_compatibility_memory_update(mem, archived=True)
+                result = await session.execute(
+                    select(func.max(MemoryVersion.version_number)).where(
+                        MemoryVersion.memory_id == mem.id
+                    )
+                )
+                archive_version = MemoryVersion(
+                    memory_id=mem.id,
+                    version_number=(result.scalar() or 0) + 1,
+                    content=mem.content,
+                    rationale=mem.rationale,
+                    context=mem.context,
+                    tags=mem.tags,
+                    outcome=mem.outcome,
+                    worked=mem.worked,
+                    change_type="state_changed",
+                    change_description="Archived by compaction",
+                )
+                session.add(archive_version)
+                await self._append_v7_memory_event(
+                    session,
+                    mem,
+                    "memory.archived_set",
+                    extra_payload={"archived": True, "reason": "compaction"},
+                )
                 # Delete from Qdrant since memory is archived
                 if self._qdrant:
                     self._qdrant.delete_memory(mem.id)
@@ -2206,6 +2738,9 @@ class MemoryManager:
             )
             session.add(rel)
             await session.flush()  # Get the ID
+            await self._append_v7_relationship_event(
+                session, rel, "relationship.created"
+            )
 
             # Create versions for both memories to track relationship change
             for mem_id, direction in [(source_id, "outgoing"), (target_id, "incoming")]:
@@ -2284,7 +2819,34 @@ class MemoryManager:
                     "relationship": relationship,
                 }
 
-            # Delete the relationships
+            removed_at = datetime.now(timezone.utc)
+            for edge in existing:
+                await self._append_v7_relationship_event(
+                    session, edge, "relationship.removed", removed_at=removed_at
+                )
+                for mem_id in (edge.source_id, edge.target_id):
+                    mem = await session.get(Memory, mem_id)
+                    result = await session.execute(
+                        select(func.max(MemoryVersion.version_number)).where(
+                            MemoryVersion.memory_id == mem_id
+                        )
+                    )
+                    session.add(
+                        MemoryVersion(
+                            memory_id=mem_id,
+                            version_number=(result.scalar() or 0) + 1,
+                            content=mem.content,
+                            rationale=mem.rationale,
+                            context=mem.context,
+                            tags=mem.tags,
+                            outcome=mem.outcome,
+                            worked=mem.worked,
+                            change_type="relationship_changed",
+                            change_description="Removed relationship",
+                        )
+                    )
+
+            # Delete only the v6 compatibility relationships after event history.
             await session.execute(delete(MemoryRelationship).where(and_(*conditions)))
 
             logger.info(
@@ -2641,6 +3203,7 @@ class MemoryManager:
         Returns:
             Dict with communities and memories sections
         """
+        CapabilityRegistry().require("graph")
         from .communities import CommunityManager
         from .models import MemoryCommunity
 

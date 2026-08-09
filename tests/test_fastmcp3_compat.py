@@ -10,12 +10,11 @@ def test_fastmcp_import():
 
 
 def test_fastmcp_version():
-    """Verify FastMCP version is 3.x."""
+    """Verify the exact framework version reviewed by the v7 adapter."""
     import fastmcp
 
     version = getattr(fastmcp, "__version__", "0.0.0")
-    major = int(version.split(".")[0])
-    assert major >= 3, f"Expected FastMCP 3.x, got {version}"
+    assert version == "3.0.0b2", f"Expected FastMCP 3.0.0b2, got {version}"
 
 
 def test_server_import():

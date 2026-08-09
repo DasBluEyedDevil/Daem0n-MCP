@@ -39,115 +39,107 @@
 
 ---
 
-## The Daem0n's Covenant (Sacred Protocol)
+## The Daem0n's Covenant (v7 Protocol)
 
-This project is bound to Daem0n for persistent AI memory. When daem0nmcp tools are available, follow this protocol. Memory without discipline is noise.
+This project uses Daem0n for persistent AI memory. When the v7 tools are
+available, follow this protocol. Every workspace-scoped call takes the opaque
+`workspace_id`; never substitute a filesystem path.
 
 ### Tool Detection
 
-Look for these 8 workflow tools in your available tools:
-- `daem0nmcp_commune` -- session start & status
-- `daem0nmcp_consult` -- pre-action intelligence
-- `daem0nmcp_inscribe` -- memory writing & linking
-- `daem0nmcp_reflect` -- outcomes & verification
-- `daem0nmcp_understand` -- code comprehension
-- `daem0nmcp_govern` -- rules & triggers
-- `daem0nmcp_explore` -- graph & discovery
-- `daem0nmcp_maintain` -- housekeeping & federation
+The core ritual tools are `session_brief`, `memory_preflight`, `memory_recall`,
+`memory_store`, `memory_record_outcome`, and `system_health`. Hosts may expose
+the same tool in any of these exact forms:
 
-If tools are NOT available: This section does not apply. Proceed normally.
-If tools ARE available: Follow the protocol below. No exceptions.
+- bare: `session_brief`
+- OpenCode-style: `daem0nmcp_session_brief`
+- Claude Code-style: `mcp__daem0nmcp__session_brief`
 
-### 1. SESSION START (Non-Negotiable)
+If none of those forms is available, proceed without Daem0n. Do not guess a
+legacy tool name.
 
-IMMEDIATELY when you have daem0nmcp tools:
+### 1. Start the scoped session
 
-```
-daem0nmcp_commune(action="briefing")
+Immediately call:
+
+```text
+daem0nmcp_session_brief(workspace_id="<workspace_id>")
 ```
 
-DO NOT:
-- Ask the user what they want first
-- Skip briefing because "it's a quick task"
-- Assume you remember from last session
+The server-issued session and authenticated transport identity establish the
+scope. Headers, IP addresses, client information, and `_client_meta` are not
+identity inputs.
 
-The briefing loads past decisions, warnings, failed approaches, patterns, and git changes.
+### 2. Recall and preflight before protected work
 
-### 2. BEFORE ANY CODE CHANGES
+Use bounded recall when you need relevant history:
 
-```
-daem0nmcp_consult(action="preflight", description="what you're about to do")
-```
-
-For specific files:
-```
-daem0nmcp_consult(action="recall_file", file_path="path/to/file")
+```text
+daem0nmcp_memory_recall(workspace_id="<workspace_id>", query="authentication", limit=10)
 ```
 
-If preflight returns:
-- **WARNING**: You MUST acknowledge it to the user
-- **FAILED APPROACH**: Explain how your approach differs
-- **must_not**: These are HARD CONSTRAINTS -- do not violate
+Before a protected tool, request counsel for that exact tool and its exact
+arguments (excluding `workspace_id` and `preflight_token`):
 
-### 3. AFTER MAKING DECISIONS
-
-```
-daem0nmcp_inscribe(
-    action="remember",
-    category="decision",
-    content="What you decided",
-    rationale="Why you decided it",
-    file_path="relevant/file.py",
-    tags=["relevant", "tags"]
+```text
+daem0nmcp_memory_preflight(
+    workspace_id="<workspace_id>",
+    target_tool="memory_store",
+    target_arguments={
+        "record_type": "decision",
+        "content": "Use signed session cookies",
+        "idempotency_key": "decision-auth-cookie-0001"
+    },
+    description="Record the authentication decision"
 )
 ```
 
-Categories: `decision` (decays 30 days), `pattern` (permanent), `warning` (permanent), `learning` (decays 30 days).
+Respect warnings, failed approaches, and `must_not` guidance. Use the returned
+`preflight_token` only with the exact protected request it authorizes.
 
-SAVE THE MEMORY ID -- you need it for the outcome step.
+### 3. Store durable decisions replay-safely
 
-### 4. AFTER IMPLEMENTATION
-
-```
-daem0nmcp_reflect(
-    action="outcome",
-    memory_id=<id from inscribe>,
-    outcome_text="What actually happened",
-    worked=true
+```text
+daem0nmcp_memory_store(
+    workspace_id="<workspace_id>",
+    record_type="decision",
+    content="Use signed session cookies",
+    rationale="Avoid server-side session state",
+    idempotency_key="decision-auth-cookie-0001",
+    preflight_token="<token-from-memory_preflight>"
 )
 ```
 
-FAILURES ARE VALUABLE. Record `worked=false` with explanation. Failed approaches get 1.5x boost in future searches.
+Keep the returned `record_id`. Every write needs a stable idempotency key;
+retries must reuse the same key.
 
-### 5. INVESTIGATING CONTEXT
+### 4. Record the verified outcome
 
-```
-daem0nmcp_explore(action="chain", start_memory_id=..., end_memory_id=...)
-daem0nmcp_explore(action="graph", topic="...", format="mermaid")
-```
-
-### Enforcement
-
-The Sacred Covenant is enforced at the protocol layer:
-- Skip `commune(action="briefing")`: ALL tools return `COMMUNION_REQUIRED`
-- Skip `consult(action="preflight")`: Mutating tools return `COUNSEL_REQUIRED`
-- Each block includes a `remedy` with the exact tool call to fix it
-
-### Workflow Summary
-
-```
-SESSION START
-    +-> daem0nmcp_commune(action="briefing")
-
-BEFORE CHANGES
-    +-> daem0nmcp_consult(action="preflight", description="...")
-    +-> daem0nmcp_consult(action="recall_file", file_path="...")
-
-AFTER DECISIONS
-    +-> daem0nmcp_inscribe(action="remember", category=..., content=..., rationale=...)
-
-AFTER IMPLEMENTATION
-    +-> daem0nmcp_reflect(action="outcome", memory_id=..., outcome_text=..., worked=...)
+```text
+daem0nmcp_memory_record_outcome(
+    workspace_id="<workspace_id>",
+    record_id="<mem_id>",
+    outcome_text="The implementation passed integration tests",
+    worked=true,
+    idempotency_key="outcome-auth-cookie-0001"
+)
 ```
 
-**The Daem0n learns from YOUR outcomes. Record them faithfully.**
+Failures are valuable: use `worked=false` and explain what failed.
+
+### Resources and health
+
+Read-only context is available at these bounded JSON resources:
+
+- `memory://workspaces/{workspace_id}/warnings`
+- `memory://workspaces/{workspace_id}/failures`
+- `memory://workspaces/{workspace_id}/rules`
+- `memory://workspaces/{workspace_id}/active-context`
+
+Use `system_health(workspace_id="<workspace_id>")` for diagnostics. Supported
+transports are stdio and Streamable HTTP at `/mcp`.
+
+The generated v6-to-v7 migration reference is
+[`docs/v6-to-v7-tools.json`](docs/v6-to-v7-tools.json). Treat it as the source
+of truth for renamed or split tools; do not copy an old invocation into new
+instructions.

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import settings
+from .workspace import IndexPathError, resolve_index_file, validate_index_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -781,7 +782,7 @@ class CodeIndexManager:
         return False
 
     def _index_project_sync(
-        self, project: Path, patterns: list[str]
+        self, project: Path, patterns: list[str], workspace_root: Path
     ) -> tuple[list[dict], int, int]:
         """
         Synchronous file indexing - runs in thread pool to avoid blocking event loop.
@@ -806,14 +807,25 @@ class CodeIndexManager:
                 if not file_path.is_file():
                     continue
 
-                for entity in self.indexer.index_file(file_path, project):
+                # Resolve the matched file itself immediately before the read.
+                # Passing the resolved target prevents a symlink swap from making
+                # the indexer open the caller-controlled link path.
+                resolved_file = resolve_index_file(workspace_root, file_path)
+                if not resolved_file.is_file():
+                    continue
+
+                for entity in self.indexer.index_file(resolved_file, workspace_root):
                     entities.append(entity)
                 files_processed += 1
 
         return entities, files_processed, files_skipped
 
     async def index_project(
-        self, project_path: str, patterns: list[str] | None = None
+        self,
+        project_path: str,
+        patterns: list[str] | None = None,
+        *,
+        workspace_root: str | None = None,
     ) -> dict[str, Any]:
         """
         Index all code entities in a project.
@@ -825,6 +837,15 @@ class CodeIndexManager:
         Returns:
             Dict with indexing statistics
         """
+        workspace = Path(workspace_root or project_path).resolve()
+        project = Path(project_path).resolve()
+        try:
+            project.relative_to(workspace)
+        except ValueError as exc:
+            raise IndexPathError("index root must remain inside the workspace") from exc
+
+        validated_patterns = validate_index_patterns(patterns or self.DEFAULT_PATTERNS)
+
         if not self.indexer.available:
             return {
                 "error": "tree-sitter-languages not installed",
@@ -832,17 +853,14 @@ class CodeIndexManager:
                 "project": project_path,
             }
 
-        project = Path(project_path).resolve()
-        patterns = patterns or self.DEFAULT_PATTERNS
-
         # Run CPU-bound tree-sitter parsing in thread pool to avoid blocking event loop
         entities, files_processed, files_skipped = await asyncio.to_thread(
-            self._index_project_sync, project, patterns
+            self._index_project_sync, project, validated_patterns, workspace
         )
 
         # Store in database if available
         if self.db is not None:
-            await self._store_entities(entities, str(project))
+            await self._store_entities(entities, str(workspace))
 
         # Index in Qdrant if available
         if self.qdrant is not None:

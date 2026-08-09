@@ -13,7 +13,21 @@
 
 **AI Memory & Decision System** - Give AI agents persistent memory and consistent decision-making with *actual* semantic understanding.
 
-## What's New in v6.6.6
+## v7 Protocol Cutover
+
+The public v7 MCP surface is strict and workspace-scoped. Begin with
+`session_brief`, use `memory_recall` for bounded context, obtain an exact
+`memory_preflight` capability before protected work, write decisions through
+replay-safe `memory_store`, and finish with `memory_record_outcome`. Use
+`system_health` for diagnostics.
+
+Each scoped call uses an opaque `workspace_id`. The supported transports are
+stdio and Streamable HTTP at `/mcp`. Read-only warnings, failures, rules, and
+active context use the `memory://workspaces/{workspace_id}/...` resources. See
+[`docs/v6-to-v7-tools.json`](docs/v6-to-v7-tools.json) for the generated
+migration mapping.
+
+## Historical v6 Migration Context: v6.6.6
 
 ### ModernBERT Deep Sight (BREAKING)
 The daemon's vision has been fundamentally sharpened. The old `all-MiniLM-L6-v2` embedding model is replaced by **ModernBERT** with asymmetric query/document encoding and optional ONNX acceleration.
@@ -26,9 +40,16 @@ The daemon's vision has been fundamentally sharpened. The old `all-MiniLM-L6-v2`
 | **Backend** | PyTorch only | ONNX quantized (with torch fallback) |
 | **Prefixes** | None | `search_query: ` / `search_document: ` |
 
-**This is a BREAKING CHANGE** — existing embeddings must be re-encoded:
+**This is a BREAKING CHANGE for format 6** — existing format-6 embeddings must be re-encoded with the deprecated legacy command:
 ```bash
 python -m daem0nmcp.migrations.migrate_embedding_model --project-path /path/to/.daem0nmcp
+```
+
+Architecture format 7 does not write canonical `memories.vector_embedding` data.
+Rebuild its dense retrieval projection instead:
+
+```bash
+python -m daem0nmcp.cli rebuild-projection --projection dense --workspace-id <workspace-id>
 ```
 
 ### Background Dreaming
@@ -65,11 +86,11 @@ python -m daem0nmcp.cli uninstall-claude-hooks     # Remove
 
 | Hook | Purpose |
 |------|---------|
-| `session_start` | Auto-briefing at session dawn |
-| `pre_edit` | Preflight enforcement + file memory recall before edits |
+| `session_start` | Suggest scoped `session_brief` at session dawn |
+| `pre_edit` | Fail closed with exact `memory_preflight` guidance |
 | `pre_bash` | Rule enforcement on bash commands |
-| `post_edit` | Suggest remembrance for significant changes |
-| `stop` | Auto-capture decisions from conversation |
+| `post_edit` | Suggest replay-safe memory calls for significant changes |
+| `stop` | Suggest memory and outcome calls without writing directly |
 
 ### Stats
 - **8 workflow tools** + **3 cognitive tools** (11 MCP tools total)
@@ -78,7 +99,7 @@ python -m daem0nmcp.cli uninstall-claude-hooks     # Remove
 
 ---
 
-## What's New in v5.1.0
+## Historical v6 Migration Context: v5.1.0
 
 ### Workflow Consolidation
 v5.1 consolidates **67 individual MCP tools into 8 workflow-oriented tools**, dramatically reducing context overhead for AI agents while preserving all capabilities.
@@ -96,21 +117,12 @@ v5.1 consolidates **67 individual MCP tools into 8 workflow-oriented tools**, dr
 | **`explore`** | Graph & discovery | `related`, `chain`, `graph`, `stats`, `communities`, `community_detail`, `rebuild_communities`, `entities`, `backfill_entities`, `evolution`, `versions`, `at_time` |
 | **`maintain`** | Housekeeping & federation | `prune`, `archive`, `cleanup`, `compact`, `rebuild_index`, `export`, `import_data`, `link_project`, `unlink_project`, `list_projects`, `consolidate` |
 
-#### How It Works
-Each workflow tool accepts an `action` parameter that selects the operation:
-```python
-# Old way (67 separate tools)
-mcp__daem0nmcp__get_briefing(project_path="...")
-mcp__daem0nmcp__recall(topic="auth", project_path="...")
-mcp__daem0nmcp__remember(category="decision", content="...", project_path="...")
-mcp__daem0nmcp__record_outcome(memory_id=42, outcome="...", worked=True, project_path="...")
+#### How It Worked
 
-# New way (8 workflow tools)
-mcp__daem0nmcp__commune(action="briefing", project_path="...")
-mcp__daem0nmcp__consult(action="recall", topic="auth", project_path="...")
-mcp__daem0nmcp__inscribe(action="remember", category="decision", content="...", project_path="...")
-mcp__daem0nmcp__reflect(action="outcome", memory_id=42, outcome_text="...", worked=True, project_path="...")
-```
+Format 6 grouped individual operations behind an `action` discriminator. Those
+calls are not executable v7 guidance. Use the generated
+[`docs/v6-to-v7-tools.json`](docs/v6-to-v7-tools.json) mapping for the exact
+replacement of every old operation.
 
 #### Why Consolidate?
 - **88% fewer tool definitions** in context (8 vs 67)
@@ -120,18 +132,12 @@ mcp__daem0nmcp__reflect(action="outcome", memory_id=42, outcome_text="...", work
 
 ---
 
-## What's New in v5.0.0
+## Historical v6 Migration Context: v5.0.0
 
 ### Visions of the Void (MCP Apps)
-Interactive HTML interfaces via MCP Apps (SEP-1865). Visual mode is now accessed via the `visual=true` parameter on workflow tools:
-
-```python
-commune(action="briefing", visual=true, project_path="...")      # Briefing Dashboard
-consult(action="recall", topic="auth", visual=true, project_path="...")  # Search Results UI
-commune(action="covenant", visual=true, project_path="...")      # Covenant Status
-explore(action="communities", visual=true, project_path="...")   # Community Map
-explore(action="graph", topic="auth", visual=true, project_path="...")  # Memory Graph Viewer
-```
+This v6 release added interactive HTML interfaces via MCP Apps (SEP-1865).
+Those action-dispatch examples are intentionally omitted because they are not
+valid v7 calls; use the generated migration mapping for current tool names.
 
 Features: D3.js v7 bundled (105KB, no CDN), restrictive CSP, canvas-based graph (10,000+ nodes at 60fps), graceful text fallback for non-visual hosts.
 
@@ -177,7 +183,8 @@ Five major capabilities:
 
 - Tools block with `COMMUNION_REQUIRED`/`COUNSEL_REQUIRED` until proper rituals observed
 - Preflight tokens with 5-minute validity
-- MCP Resources for dynamic context injection (`daem0n://warnings/`, `daem0n://failed/`, etc.)
+- MCP Resources for dynamic context injection (the retired URI forms are
+  mapped to v7 in `docs/v6-to-v7-tools.json`)
 </details>
 
 <details>
@@ -254,7 +261,7 @@ AI agents start each session fresh. They don't remember:
 1. Install Daem0n-MCP: `pip install -e ~/Daem0n-MCP`
 2. Run the installer: `python -m daem0nmcp.cli install-opencode`
 3. Launch OpenCode in your project directory
-4. Run `/commune` to begin
+4. Run `/commune <workspace_id>`; this host shortcut calls `session_brief`
 
 For the full ritual walkthrough, see `Summon_Daem0n_OpenCode.md`.
 
@@ -316,16 +323,36 @@ Or use `start_daem0nmcp_server.bat`
 
 | Method | Transport | Default Port | Use Case |
 |--------|-----------|-------------|----------|
-| `python -m daem0nmcp.server` | `stdio` (default) or `sse` | 8765 (sse) | Unix/macOS direct channel |
-| `python start_server.py` | `streamable-http` | 9876 | Windows HTTP, remote access |
+| `python -m daem0nmcp.server` | `stdio` | n/a | Local process channel |
+| `python start_server.py` | Streamable HTTP at `/mcp` | 9876 | Windows HTTP, remote access |
 
 For OpenCode setup, see the [OpenCode Integration](#opencode-integration) section below, or run `python -m daem0nmcp.cli install-opencode` for automated setup.
 
-## Workflow Tools (8 Tools, 59 Actions)
+## v7 MCP API
 
-All capabilities are accessed through 8 workflow tools. Each tool accepts an `action` parameter to select the operation. Legacy individual functions remain importable for internal dispatch, but only the consolidated workflow and cognitive tools are exposed to MCP clients.
+The v7 public API uses strict, workspace-scoped tools rather than action
+dispatch. The core protocol surface is:
 
-### `commune` — Session Start & Status
+| Tool | Purpose |
+|---|---|
+| `session_brief` | Establish the server-issued session scope and return a bounded briefing |
+| `memory_preflight` | Recall guidance and issue a capability for one exact protected request |
+| `memory_recall` | Retrieve bounded, evidence-bearing records |
+| `memory_store` | Append one replay-safe memory record |
+| `memory_record_outcome` | Append a verified success or failure outcome |
+| `system_health` | Return bounded service and projection diagnostics |
+
+The read-only JSON resources are:
+
+- `memory://workspaces/{workspace_id}/warnings`
+- `memory://workspaces/{workspace_id}/failures`
+- `memory://workspaces/{workspace_id}/rules`
+- `memory://workspaces/{workspace_id}/active-context`
+
+See [`docs/v6-to-v7-tools.json`](docs/v6-to-v7-tools.json) for the generated
+mapping of every v6 operation to its v7 replacement.
+
+### Historical v6: session and status workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -336,7 +363,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `covenant` | Sacred Covenant status and phase |
 | `updates` | Poll for knowledge changes (real-time notifications) |
 
-### `consult` — Pre-Action Intelligence
+### Historical v6: pre-action workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -349,7 +376,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `check_rules` | Validate action against decision rules |
 | `compress` | LLMLingua-2 context compression |
 
-### `inscribe` — Memory Writing & Linking
+### Historical v6: memory writing workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -363,7 +390,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `clear_active` | Clear all active context |
 | `ingest` | Import external documentation from URL |
 
-### `reflect` — Outcomes & Verification
+### Historical v6: outcomes workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -371,7 +398,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `verify` | Validate factual claims against stored knowledge |
 | `execute` | Sandboxed Python execution (E2B) |
 
-### `understand` — Code Comprehension
+### Historical v6: code comprehension workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -381,7 +408,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `todos` | Scan for TODO/FIXME/HACK/XXX/BUG comments |
 | `refactor` | Generate refactor suggestions with causal history |
 
-### `govern` — Rules & Triggers
+### Historical v6: rules and triggers workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -392,7 +419,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `list_triggers` | List all context triggers |
 | `remove_trigger` | Remove a context trigger |
 
-### `explore` — Graph & Discovery
+### Historical v6: graph and discovery workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -409,7 +436,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `versions` | Get version history for a memory |
 | `at_time` | Query memory state at a point in time |
 
-### `maintain` — Housekeeping & Federation
+### Historical v6: housekeeping and federation workflow
 
 | Action | Purpose |
 |--------|---------|
@@ -425,7 +452,7 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 | `list_projects` | List all linked projects |
 | `consolidate` | Merge memories from linked projects |
 
-### Cognitive Tools (Standalone)
+### Historical v6: standalone cognitive tools
 
 | Tool | Purpose |
 |------|---------|
@@ -435,146 +462,103 @@ All capabilities are accessed through 8 workflow tools. Each tool accepts an `ac
 
 ### Tool Names by Client
 
-Different MCP clients use different naming conventions for tools. Both formats resolve to the same server-side operations.
+Recognize only the exact canonical name or its host prefix:
 
-**Workflow Tools:**
+| Canonical | Claude Code | OpenCode |
+|---|---|---|
+| `session_brief` | `mcp__daem0nmcp__session_brief` | `daem0nmcp_session_brief` |
+| `memory_preflight` | `mcp__daem0nmcp__memory_preflight` | `daem0nmcp_memory_preflight` |
+| `memory_recall` | `mcp__daem0nmcp__memory_recall` | `daem0nmcp_memory_recall` |
+| `memory_store` | `mcp__daem0nmcp__memory_store` | `daem0nmcp_memory_store` |
+| `memory_record_outcome` | `mcp__daem0nmcp__memory_record_outcome` | `daem0nmcp_memory_record_outcome` |
+| `system_health` | `mcp__daem0nmcp__system_health` | `daem0nmcp_system_health` |
 
-| MCP Tool | Claude Code | OpenCode |
-|----------|-------------|----------|
-| commune | `mcp__daem0nmcp__commune` | `daem0nmcp_commune` |
-| consult | `mcp__daem0nmcp__consult` | `daem0nmcp_consult` |
-| inscribe | `mcp__daem0nmcp__inscribe` | `daem0nmcp_inscribe` |
-| reflect | `mcp__daem0nmcp__reflect` | `daem0nmcp_reflect` |
-| understand | `mcp__daem0nmcp__understand` | `daem0nmcp_understand` |
-| govern | `mcp__daem0nmcp__govern` | `daem0nmcp_govern` |
-| explore | `mcp__daem0nmcp__explore` | `daem0nmcp_explore` |
-| maintain | `mcp__daem0nmcp__maintain` | `daem0nmcp_maintain` |
-
-**Cognitive Tools:**
-
-| MCP Tool | Claude Code | OpenCode |
-|----------|-------------|----------|
-| simulate_decision | `mcp__daem0nmcp__simulate_decision` | `daem0nmcp_simulate_decision` |
-| evolve_rule | `mcp__daem0nmcp__evolve_rule` | `daem0nmcp_evolve_rule` |
-| debate_internal | `mcp__daem0nmcp__debate_internal` | `daem0nmcp_debate_internal` |
-
-**Format pattern:**
-
-| Client | Format | Separator |
-|--------|--------|-----------|
-| Claude Code | `mcp__servername__toolname` | Double underscore (`__`) |
-| OpenCode | `servername_toolname` | Single underscore (`_`) |
+Host metadata is never an identity source. Authentication comes from the
+transport, and every scoped request is resolved through `workspace_id`.
 
 ## Usage Examples
 
-### Store a Memory
-```python
-inscribe(
-    action="remember",
-    category="decision",  # decision, pattern, warning, or learning
-    content="Use JWT tokens instead of sessions",
-    rationale="Need stateless auth for horizontal scaling",
-    tags=["auth", "architecture"],
-    file_path="src/auth/jwt.py"  # optional file association
+### Session Start
+
+```text
+session_brief(
+    workspace_id="<workspace_id>",
+    focus_areas=["authentication", "API"]
 )
 ```
 
 ### Retrieve Memories
-```python
-consult(action="recall", topic="authentication")
-# Returns: decisions, patterns, warnings, learnings about auth
-# Sorted by: semantic relevance x recency x importance
 
-consult(action="recall_file", file_path="src/auth/jwt.py")
-# Returns: all memories linked to this file
-
-consult(action="recall_entity", entity_name="UserService")
-# Returns: all memories mentioning the entity
-
-consult(action="recall", topic="auth", condensed=True)
-# Condensed: 50-75% fewer tokens, content truncated to 150 chars
+```text
+memory_recall(
+    workspace_id="<workspace_id>",
+    query="authentication",
+    limit=10,
+    token_budget=2400
+)
 ```
 
-### Create Rules
-```python
-govern(
-    action="add_rule",
-    trigger="adding new API endpoint",
-    must_do=["Add rate limiting", "Write integration test"],
-    must_not=["Use synchronous database calls"],
-    ask_first=["Is this a breaking change?"]
+### Store a Memory
+
+First request a capability bound to the exact target arguments:
+
+```text
+memory_preflight(
+    workspace_id="<workspace_id>",
+    target_tool="memory_store",
+    target_arguments={
+        "record_type": "decision",
+        "content": "Use signed session cookies",
+        "rationale": "Avoid server-side session state",
+        "tags": ["auth", "architecture"],
+        "relative_file_path": "src/auth/session.py",
+        "idempotency_key": "decision-auth-session-0001"
+    }
+)
+```
+
+Then use the same arguments and returned token:
+
+```text
+memory_store(
+    workspace_id="<workspace_id>",
+    record_type="decision",
+    content="Use signed session cookies",
+    rationale="Avoid server-side session state",
+    tags=["auth", "architecture"],
+    relative_file_path="src/auth/session.py",
+    idempotency_key="decision-auth-session-0001",
+    preflight_token="<token-from-memory_preflight>"
 )
 ```
 
 ### Track Outcomes
-```python
-reflect(action="outcome", memory_id=42, outcome_text="JWT auth works great", worked=True)
-reflect(action="outcome", memory_id=43, outcome_text="Caching caused stale data", worked=False)
-# Failed decisions get 1.5x boost in future recalls
-```
 
-### Session Start
-```python
-commune(action="briefing", focus_areas=["authentication", "API"])
-# Returns: stats, recent decisions, warnings, failed approaches,
-# git changes, plus pre-fetched context for focus areas
-```
-
-### Active Context (Working Memory)
-```python
-inscribe(action="activate", memory_id=42, reason="Working on auth refactor",
-         priority=10, expires_in_hours=8)
-# Memory stays in always-hot context, auto-injected into briefings
-# Max 10 items, auto-expires, duplicate prevention
-
-commune(action="active_context")  # View all hot memories
-inscribe(action="deactivate", memory_id=42)  # Remove
-inscribe(action="clear_active")  # Clear all
-```
-
-### Cognitive Tools
-```python
-# Temporal Scrying: What would I decide differently today?
-simulate_decision(decision_id=42)
-
-# Rule Entropy: Which rules have grown stale?
-evolve_rule(rule_id=5)       # Single rule
-evolve_rule()                 # Batch: all enabled rules
-
-# Adversarial Council: Evidence-grounded debate
-debate_internal(
-    topic="Database choice for sessions",
-    advocate_position="Use Redis",
-    challenger_position="Use PostgreSQL"
+```text
+memory_record_outcome(
+    workspace_id="<workspace_id>",
+    record_id="<mem_id>",
+    outcome_text="The implementation passed integration tests",
+    worked=true,
+    idempotency_key="outcome-auth-session-0001"
 )
-```
-
-### Import External Docs
-```python
-inscribe(action="ingest", url="https://stripe.com/docs/api/charges", topic="stripe")
-# Later: consult(action="recall", topic="stripe") to retrieve
 ```
 
 ## AI Agent Protocol
 
 The recommended workflow for AI agents:
 
-```
-SESSION START
-    +-> commune(action="briefing")
-
-BEFORE CHANGES
-    +-> consult(action="preflight", description="what you're doing")
-    +-> consult(action="recall_file", file_path="path/to/file.py")
-
-AFTER DECISIONS
-    +-> inscribe(action="remember", category=..., content=..., rationale=..., file_path=...)
-
-AFTER IMPLEMENTATION
-    +-> reflect(action="outcome", memory_id=..., outcome_text=..., worked=...)
+```text
+session_brief
+    -> memory_recall (when relevant)
+    -> memory_preflight (exact protected tool + exact arguments)
+    -> protected tool with preflight_token
+    -> memory_store (for durable decisions, replay-safe)
+    -> memory_record_outcome (after verification, replay-safe)
 ```
 
-See `Summon_Daem0n.md` for the complete protocol (with ritual theme for fun).
+Use `system_health` for bounded diagnostics. The complete protocol lives in
+`AGENTS.md` and `.claude/skills/daem0nmcp-protocol/SKILL.md`.
 
 ## Claude Code Integration
 
@@ -588,11 +572,11 @@ This registers 5 hook modules in `~/.claude/settings.json`:
 
 | Event | Hook | Purpose |
 |-------|------|---------|
-| `SessionStart` | `session_start` | Auto-briefing summary |
-| `PreToolUse` (Edit/Write/NotebookEdit) | `pre_edit` | Preflight enforcement + file memory recall |
+| `SessionStart` | `session_start` | Scoped `session_brief` instruction |
+| `PreToolUse` (Edit/Write/NotebookEdit) | `pre_edit` | Fail-closed v7 preflight instruction |
 | `PreToolUse` (Bash) | `pre_bash` | Rule enforcement on commands |
-| `PostToolUse` (Edit/Write) | `post_edit` | Suggest remembrance for significant changes |
-| `Stop`/`SubagentStop` | `stop` | Auto-capture decisions from conversation |
+| `PostToolUse` (Edit/Write) | `post_edit` | Replay-safe memory suggestion |
+| `Stop`/`SubagentStop` | `stop` | Outcome reminder without direct memory writes |
 
 To remove: `python -m daem0nmcp.cli uninstall-claude-hooks`
 
@@ -682,10 +666,11 @@ OpenCode uses a different tool name format than Claude Code:
 
 | Client | Format | Example |
 |--------|--------|---------|
-| Claude Code | `mcp__servername__toolname` | `mcp__daem0nmcp__commune` |
-| OpenCode | `servername_toolname` | `daem0nmcp_commune` |
+| Claude Code | `mcp__servername__toolname` | `mcp__daem0nmcp__session_brief` |
+| OpenCode | `servername_toolname` | `daem0nmcp_session_brief` |
 
-Both formats resolve to the same MCP server tools. Use the format matching your client. See the [Tool Names by Client](#tool-names-by-client) table in the Workflow Tools section for the complete mapping.
+Both formats resolve to the same MCP server tools. Use the exact form matching
+your client. See [Tool Names by Client](#tool-names-by-client).
 
 ## How It Works
 
@@ -803,7 +788,8 @@ See `Summon_Daem0n.md` for the complete configuration reference (~50 settings).
 
 ```
 daem0nmcp/
-├── server.py            # MCP server with 8 workflow + 3 cognitive tools (FastMCP)
+├── api/v7/              # Strict v7 models, handlers, policy, and adapters
+├── server.py            # MCP server composition and transport entry point
 ├── mcp_instance.py      # FastMCP instance creation
 ├── config.py            # Pydantic settings (~50 configurable options)
 ├── memory.py            # Memory storage & semantic retrieval
@@ -829,7 +815,7 @@ daem0nmcp/
 ├── enforcement.py       # Pre-commit enforcement & session tracking
 ├── hooks.py             # Git hook templates & installation
 ├── cli.py               # Command-line interface
-├── workflows/           # 8 consolidated workflow tools
+├── workflows/           # Legacy v6 compatibility implementation (migration only)
 │   ├── commune.py       # Session start & status
 │   ├── consult.py       # Pre-action intelligence
 │   ├── inscribe.py      # Memory writing & linking
@@ -839,7 +825,7 @@ daem0nmcp/
 │   ├── explore.py       # Graph & discovery
 │   └── maintain.py      # Housekeeping & federation
 ├── tools/               # MCP tool registrations
-│   ├── workflows.py     # 8 workflow tool definitions
+│   ├── workflows.py     # Legacy v6 workflow definitions (migration only)
 │   ├── cognitive_tools.py # simulate_decision, evolve_rule, debate_internal
 │   ├── memory.py        # Legacy memory tools (deprecated)
 │   ├── briefing.py      # Legacy briefing tools (deprecated)
@@ -863,11 +849,11 @@ daem0nmcp/
 │   └── persistence.py   # Dream session/result models & persistence
 ├── claude_hooks/        # Claude Code native hooks
 │   ├── install.py       # install/uninstall-claude-hooks CLI
-│   ├── session_start.py # Auto-briefing at session dawn
-│   ├── pre_edit.py      # Preflight enforcement + file recall
+│   ├── session_start.py # Suggest scoped v7 briefing
+│   ├── pre_edit.py      # Fail-closed v7 preflight guidance
 │   ├── pre_bash.py      # Rule enforcement on commands
 │   ├── post_edit.py     # Significance detection
-│   ├── stop.py          # Auto-capture decisions
+│   ├── stop.py          # Read-only outcome/memory suggestions
 │   └── _client.py       # Hook helper utilities
 ├── compression/         # LLMLingua-2 context compression
 ├── graph/               # Knowledge graph (NetworkX + Leiden)
@@ -891,10 +877,10 @@ daem0nmcp/
 
 .opencode/
 ├── commands/
-│   ├── commune.md       # /commune slash command
-│   ├── counsel.md       # /counsel slash command
-│   ├── inscribe.md      # /inscribe slash command
-│   └── recall.md        # /recall slash command
+│   ├── commune.md       # Host shortcut for session_brief
+│   ├── counsel.md       # Host shortcut for memory_preflight
+│   ├── inscribe.md      # Host shortcut for memory_store
+│   └── recall.md        # Host shortcut for memory_recall
 └── plugins/
     └── daem0n.ts        # Covenant enforcement plugin
 
@@ -907,9 +893,6 @@ start_server.py               # HTTP server launcher (streamable-http transport)
 ## CLI Commands
 
 ```bash
-# Session briefing/statistics
-python -m daem0nmcp.cli briefing
-
 # Index code entities
 python -m daem0nmcp.cli index [--path PATH] [--patterns **/*.py **/*.ts ...]
 
@@ -919,8 +902,14 @@ python -m daem0nmcp.cli scan-todos [--auto-remember] [--path PATH]
 # Check a file against memories and rules
 python -m daem0nmcp.cli check <filepath>
 
-# Run database migrations (usually automatic)
+# Run database migrations (usually automatic; vector backfill is format 6 only)
 python -m daem0nmcp.cli migrate [--backfill-vectors]
+
+# Inspect a v7 retrieval projection
+python -m daem0nmcp.cli projection-status --workspace-id <workspace_id>
+
+# Rebuild a v7 retrieval projection from canonical events
+python -m daem0nmcp.cli rebuild-projection --projection dense --workspace-id <workspace_id>
 ```
 
 ### Hook & Enforcement Commands
@@ -943,14 +932,10 @@ python -m daem0nmcp.cli install-hooks [--force]
 # Remove git pre-commit hooks
 python -m daem0nmcp.cli uninstall-hooks
 
-# Show pending decisions and blocking issues
-python -m daem0nmcp.cli status
-
-# Record outcome for a decision
-python -m daem0nmcp.cli record-outcome <id> "<outcome>" --worked|--failed
 ```
 
-All commands support `--json` for machine-readable output and `--project-path` to specify the project root.
+Use MCP `memory_record_outcome` for v7 outcomes. It requires an opaque
+`workspace_id`, a v7 `record_id`, and a stable idempotency key.
 
 ## Upgrading
 
@@ -962,15 +947,32 @@ cd ~/Daem0n-MCP && git pull && pip install -e .
 
 ```
 
-### 2. Re-encode Embeddings (v6.6.6+ — REQUIRED for existing data)
+### 2. Re-encode Embeddings (legacy format 6 only)
 
-The embedding model changed from `all-MiniLM-L6-v2` (384-dim) to `nomic-ai/modernbert-embed-base` (256-dim). Existing embeddings must be re-encoded:
+The embedding model changed from `all-MiniLM-L6-v2` (384-dim) to `nomic-ai/modernbert-embed-base` (256-dim).
+
+> **Deprecated (format 6 only):** These legacy writers update the mutable
+> `memories.vector_embedding` column or legacy Qdrant collections. They refuse
+> an active format-7 database before making changes.
 
 ```bash
+# Re-encode the format-6 SQLite column (and local Qdrant, when present)
 python -m daem0nmcp.migrations.migrate_embedding_model --project-path /path/to/.daem0nmcp
+
+# Copy existing format-6 SQLite vectors to legacy Qdrant
+python -m daem0nmcp.migrations.migrate_vectors --project-path /path/to/project
+
+# Backfill missing format-6 SQLite vectors
+python -m daem0nmcp.cli --project-path /path/to/project migrate --backfill-vectors
 ```
 
-Qdrant collections are auto-recreated with the correct dimension on first startup.
+For architecture format 7, rebuild the dense retrieval projection from canonical
+events. Supply the registered workspace ID reported by the v7 migration/status
+commands:
+
+```bash
+python -m daem0nmcp.cli rebuild-projection --projection dense --workspace-id <workspace-id>
+```
 
 ### 3. Install Claude Code Hooks
 
@@ -1032,16 +1034,19 @@ Supports Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP v
 2. Hooks configured: check `~/.claude/settings.json` or `.claude/settings.json`
 3. Project has `.daem0nmcp/` directory
 
-### Communion/Counsel Errors
+### Covenant Errors
 
-- `COMMUNION_REQUIRED` → Call `commune(action="briefing", project_path="...")` first
-- `COUNSEL_REQUIRED` → Call `consult(action="preflight", description="...", project_path="...")` first
+- `COMMUNION_REQUIRED` → Call `session_brief(workspace_id="<workspace_id>")` first
+- `COUNSEL_REQUIRED` → Follow the returned remedy and call
+  `memory_preflight(workspace_id="<workspace_id>", target_tool="<exact-tool>", target_arguments={<exact-arguments>})`
 
 ### OpenCode: Tools Not Found
 
 **Symptom:** OpenCode reports "tool not found" when using `mcp__daem0nmcp__*` format.
 
-**Fix:** OpenCode uses single-underscore format: `daem0nmcp_commune` (not `mcp__daem0nmcp__commune`). See [Tool Names by Client](#tool-names-by-client) for the full mapping.
+**Fix:** OpenCode uses the exact single-underscore form
+`daem0nmcp_session_brief`; Claude Code uses
+`mcp__daem0nmcp__session_brief`. See [Tool Names by Client](#tool-names-by-client).
 
 ### OpenCode: MCP Connection Timeout
 

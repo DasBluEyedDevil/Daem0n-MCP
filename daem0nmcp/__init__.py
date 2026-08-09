@@ -8,4 +8,4 @@ try:
     __version__ = _get_version("daem0nmcp")
 except Exception:
     # Fallback for development or if package not installed
-    __version__ = "6.6.6"
+    __version__ = "7.0.0.dev0"

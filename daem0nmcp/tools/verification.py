@@ -6,6 +6,7 @@ from typing import Any
 
 try:
     from .. import __version__
+    from ..covenant import legacy_entrypoint
     from ..context_manager import (
         _default_project_path,
         _missing_project_path_error,
@@ -16,6 +17,7 @@ try:
     from ..mcp_instance import mcp
 except ImportError:
     from daem0nmcp import __version__
+    from daem0nmcp.covenant import legacy_entrypoint
     from daem0nmcp.context_manager import (
         _default_project_path,
         _missing_project_path_error,
@@ -64,6 +66,7 @@ def _build_verification_message(summary: dict[str, Any]) -> str:
 # ============================================================================
 @mcp.tool(version=__version__)
 @with_request_id
+@legacy_entrypoint("verify_facts")
 async def verify_facts(
     text: str,
     categories: list[str] | None = None,

@@ -5,13 +5,22 @@ All settings are loaded from environment variables with DAEM0NMCP_ prefix.
 Example: DAEM0NMCP_LOG_LEVEL=DEBUG
 """
 
+import math
+import re
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .workspace import resolve_derived_path
+
 _DEFAULT_EMBEDDING_BACKEND = "onnx"
+_RETRIEVAL_PROVIDERS = frozenset(
+    {"lexical", "dense", "graph", "temporal", "procedure", "outcome"}
+)
+_QDRANT_COLLECTION_PREFIX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$")
 
 
 class Settings(BaseSettings):
@@ -23,10 +32,12 @@ class Settings(BaseSettings):
 
     # Core paths
     project_root: str = "."
+    workspace_roots: list[str] = Field(default_factory=list)
     storage_path: str | None = None  # Auto-detect if not set
 
     # Server
     log_level: str = "INFO"
+    ui_rendering_enabled: bool = True
 
     # Context management
     max_project_contexts: int = 10  # Maximum cached project contexts
@@ -71,6 +82,26 @@ class Settings(BaseSettings):
     )
     qdrant_url: str | None = None  # Optional remote Qdrant URL (overrides local path)
     qdrant_api_key: str | None = None  # API key for remote Qdrant (if using cloud)
+    qdrant_timeout_seconds: float = Field(default=10.0, gt=0.0, le=60.0)
+    qdrant_collection_prefix: str = "daem0nmcp"
+
+    # v7 retrieval orchestration
+    retrieval_candidate_limit: int = Field(default=50, ge=1, le=1000)
+    retrieval_token_budget: int = Field(default=2400, ge=1, le=131_072)
+    retrieval_rrf_weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "lexical": 1.0,
+            "dense": 1.0,
+            "graph": 0.7,
+            "temporal": 0.85,
+            "procedure": 0.8,
+            "outcome": 0.9,
+        }
+    )
+    retrieval_graph_max_depth: int = Field(default=2, ge=1, le=8)
+    retrieval_graph_max_branching: int = Field(default=50, ge=1, le=100)
+    retrieval_rerank_enabled: bool = False
+    retrieval_rerank_candidate_limit: int = Field(default=25, ge=1, le=1000)
 
     # File Watcher (Phase 1: Proactive Layer)
     watcher_enabled: bool = False  # Enable file watcher daemon
@@ -103,7 +134,35 @@ class Settings(BaseSettings):
     bm25_b: float = Field(default=0.75, ge=0.0, le=1.0)  # Document length normalization
 
     # RRF fusion parameter
-    rrf_k: int = Field(default=60, ge=1)  # Dampening constant for RRF
+    rrf_k: int = Field(default=60, ge=1, le=1_000_000)  # Dampening constant
+
+    @field_validator("retrieval_rrf_weights", mode="before")
+    @classmethod
+    def validate_retrieval_rrf_weights(cls, value: object) -> dict[str, float]:
+        if not isinstance(value, Mapping) or set(value) != _RETRIEVAL_PROVIDERS:
+            raise ValueError("retrieval RRF weights must name every provider")
+        validated: dict[str, float] = {}
+        for provider in sorted(_RETRIEVAL_PROVIDERS):
+            weight = value[provider]
+            if isinstance(weight, bool) or not isinstance(weight, (int, float)):
+                raise ValueError("retrieval RRF weights must be finite and positive")
+            try:
+                converted = float(weight)
+            except (OverflowError, ValueError) as exc:
+                raise ValueError(
+                    "retrieval RRF weights must be finite and positive"
+                ) from exc
+            if not math.isfinite(converted) or converted <= 0:
+                raise ValueError("retrieval RRF weights must be finite and positive")
+            validated[provider] = converted
+        return validated
+
+    @field_validator("qdrant_collection_prefix")
+    @classmethod
+    def validate_qdrant_collection_prefix(cls, value: str) -> str:
+        if _QDRANT_COLLECTION_PREFIX.fullmatch(value) is None:
+            raise ValueError("qdrant collection prefix is invalid")
+        return value
 
     # Surprise scoring
     surprise_k_nearest: int = Field(default=5, ge=1)  # Neighbors for surprise calc
@@ -186,7 +245,7 @@ class Settings(BaseSettings):
 
         logger = logging.getLogger(__name__)
 
-        legacy_storage = project_path / ".devilmcp" / "storage"
+        legacy_storage = resolve_derived_path(project_path, ".devilmcp", "storage")
         legacy_db = legacy_storage / "devilmcp.db"
         new_db = new_storage / "daem0nmcp.db"
 
@@ -246,11 +305,11 @@ class Settings(BaseSettings):
 
         # If we're running from the Daem0nMCP server directory itself, use centralized storage
         if project_path == server_path:
-            storage = server_path / "storage" / "centralized"
+            storage = resolve_derived_path(server_path, "storage", "centralized")
             logger.info("Using centralized storage (running from Daem0nMCP directory)")
         else:
             # Use project-specific storage
-            storage = project_path / ".daem0nmcp" / "storage"
+            storage = resolve_derived_path(project_path, ".daem0nmcp", "storage")
 
             # Check for and migrate legacy .devilmcp storage
             self._migrate_legacy_storage(project_path, storage)

@@ -146,7 +146,10 @@ class TestMigrations:
             versions = [row[0] for row in cursor.fetchall()]
 
         assert len(versions) == count
-        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        assert versions == [
+            1, 2, 3, 4, 5, 6, 7, 8, 9,
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ]
 
 
 def test_migration_14_bitemporal_columns():

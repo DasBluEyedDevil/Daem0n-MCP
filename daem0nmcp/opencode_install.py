@@ -50,33 +50,35 @@ import type { Plugin } from "@opencode-ai/plugin";
 // ---------------------------------------------------------------------------
 
 const COVENANT_RULES_FULL = `<daem0n-covenant>
-## The Daem0n's Covenant (Sacred Protocol)
+## The Daem0n v7 Covenant
 
 This project is bound to Daem0n for persistent AI memory. When daem0nmcp tools
-are available, follow this protocol. Memory without discipline is noise.
+are available, use the exact workspace-scoped v7 tools. The core names are
+session_brief, memory_preflight, memory_recall, memory_store,
+memory_record_outcome, and system_health.
 
 ### 1. SESSION START (Non-Negotiable)
-IMMEDIATELY call: daem0nmcp_commune(action="briefing")
-Do NOT skip. Do NOT ask the user first. The briefing loads past decisions,
-warnings, failed approaches, patterns, and git changes.
+IMMEDIATELY call:
+daem0nmcp_session_brief(workspace_id="<workspace_id>")
 
-### 2. BEFORE ANY CODE CHANGES
-Call: daem0nmcp_consult(action="preflight", description="what you plan to do")
-For specific files: daem0nmcp_consult(action="recall_file", file_path="...")
-Respect warnings, failed approaches, and must_not constraints.
+Use daem0nmcp_memory_recall(workspace_id="<workspace_id>", query="...", limit=10)
+for relevant history. Before a protected operation call:
+daem0nmcp_memory_preflight(workspace_id="<workspace_id>", target_tool="<exact-tool>", target_arguments={<exact arguments>})
+Respect warnings, failed approaches, and must_not constraints. A preflight token
+is valid only for the exact workspace, principal, session, tool, and arguments.
 
 ### 3. AFTER MAKING DECISIONS
-Call: daem0nmcp_inscribe(action="remember", category="decision|pattern|warning|learning", content="...", rationale="...", file_path="...", tags=[...])
-Save the memory ID for the outcome step.
+Call daem0nmcp_memory_store with the same target arguments, a stable
+idempotency_key, and the returned preflight_token. Save its record_id.
 
 ### 4. AFTER IMPLEMENTATION
-Call: daem0nmcp_reflect(action="outcome", memory_id=<id>, outcome_text="...", worked=true|false)
-Failures are valuable -- record worked=false with explanation.
+Call: daem0nmcp_memory_record_outcome(workspace_id="<workspace_id>", record_id="<mem_id>", outcome_text="...", worked=true|false, idempotency_key="<stable-key>")
+Failures are valuable. Record worked=false with an explanation.
 
-### Enforcement
-- Skip briefing: ALL tools return COMMUNION_REQUIRED with remedy
-- Skip preflight: Mutating tools return COUNSEL_REQUIRED with remedy
-- Each block includes the exact tool call to fix it
+Use daem0nmcp_system_health(workspace_id="<workspace_id>") for diagnostics.
+Read-only resources use memory://workspaces/{workspace_id}/warnings, /failures,
+/rules, and /active-context. Supported transports are stdio and Streamable HTTP
+at /mcp. Migration mapping: docs/v6-to-v7-tools.json.
 </daem0n-covenant>`;
 
 const COVENANT_RULES_SIMPLIFIED = `<daem0n-covenant mode="simplified">
@@ -84,20 +86,19 @@ const COVENANT_RULES_SIMPLIFIED = `<daem0n-covenant mode="simplified">
 
 This project uses Daem0n for persistent AI memory. Follow these 4 steps:
 
-1. START: Call daem0nmcp_commune(action="briefing") first
-2. BEFORE CHANGES: Call daem0nmcp_consult(action="preflight", description="<plan>")
-3. SAVE DECISIONS: Call daem0nmcp_inscribe(action="remember", category="decision", content="<what>", rationale="<why>", tags=["tag1","tag2"])
-4. RECORD RESULT: Call daem0nmcp_reflect(action="outcome", memory_id=<id>, outcome_text="<result>", worked=true|false)
+1. START: daem0nmcp_session_brief(workspace_id="<workspace_id>")
+2. RECALL: daem0nmcp_memory_recall(workspace_id="<workspace_id>", query="...", limit=10)
+3. PREFLIGHT: daem0nmcp_memory_preflight(workspace_id="<workspace_id>", target_tool="memory_store", target_arguments={<exact arguments>})
+4. STORE: daem0nmcp_memory_store(workspace_id="<workspace_id>", record_type="decision", content="...", idempotency_key="<stable-key>", preflight_token="<token>")
+5. OUTCOME: daem0nmcp_memory_record_outcome(workspace_id="<workspace_id>", record_id="<mem_id>", outcome_text="...", worked=true|false, idempotency_key="<stable-key>")
 
 Rules:
-- Step 1 is required before any other steps
-- Step 2 is required before editing files
-- Step 3 requires: content (what happened), rationale (why it matters), tags (at least one)
-- Step 4 requires the memory_id returned from step 3
+- Never use paths as workspace selectors.
+- Reuse an idempotency key when retrying the same write.
+- Use daem0nmcp_system_health for diagnostics.
+- Exact host-prefixed names are accepted; lookalike substrings are not.
+- Migration mapping: docs/v6-to-v7-tools.json.
 </daem0n-covenant>`;
-
-// Module-level state tracking current LLM model (safe: one model per plugin session)
-let currentModel: { providerID: string; modelID: string } | null = null;
 
 // ---------------------------------------------------------------------------
 // Shell-out helper
@@ -172,8 +173,6 @@ export const Daem0nPlugin: Plugin = async ({ $, directory }) => {
 
       output.system.push(isClaude ? COVENANT_RULES_FULL : COVENANT_RULES_SIMPLIFIED);
 
-      // Track model for _client_meta injection in tool calls
-      currentModel = { providerID: provider, modelID: modelId };
     },
 
     // -----------------------------------------------------------------------
@@ -182,18 +181,6 @@ export const Daem0nPlugin: Plugin = async ({ $, directory }) => {
     // Blocks bash commands matching must_not rules (exit 2 from Python).
     // -----------------------------------------------------------------------
     "tool.execute.before": async (input, output) => {
-      // Inject client metadata for daem0nmcp tools (server-side provenance tracking)
-      const toolLower = input.tool?.toLowerCase() ?? "";
-      if (toolLower.startsWith("daem0nmcp_") || toolLower.includes("mcp__daem0nmcp__")) {
-        if (currentModel && output.args) {
-          output.args._client_meta = JSON.stringify({
-            client: "opencode",
-            providerID: currentModel.providerID,
-            modelID: currentModel.modelID,
-          });
-        }
-      }
-
       if (isEditTool(input.tool)) {
         const result = await runHook($, directory, "pre_edit", {
           TOOL_INPUT: JSON.stringify(output.args ?? {}),
@@ -219,7 +206,7 @@ export const Daem0nPlugin: Plugin = async ({ $, directory }) => {
 
     // -----------------------------------------------------------------------
     // HOOK 3: Post-edit suggestions (informational, never blocks)
-    // Suggests remembering significant changes via inscribe().
+    // Suggests replay-safe v7 memory calls for significant changes.
     // -----------------------------------------------------------------------
     "tool.execute.after": async (input, output) => {
       try {
@@ -243,12 +230,11 @@ export const Daem0nPlugin: Plugin = async ({ $, directory }) => {
     // -----------------------------------------------------------------------
     // HOOK 4: Session lifecycle events (best-effort, never blocks)
     // session.created  -> session_start hook (auto-briefing)
-    // session.idle     -> stop hook (auto-capture decisions)
+    // session.idle     -> stop hook (fail-closed memory suggestions)
     // -----------------------------------------------------------------------
     event: async ({ event }) => {
       try {
         if (event.type === "session.created") {
-          currentModel = null;
           await runHook($, directory, "session_start", {}, 5000);
         } else if (event.type === "session.idle") {
           await runHook(

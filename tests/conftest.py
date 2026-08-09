@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.covenant_test_support import CovenantTestWorkspace
+
 # Register pytest-asyncio plugin
 pytest_plugins = ("pytest_asyncio",)
 
@@ -89,23 +91,10 @@ def tmp_path(tmp_path_factory):
     shutil.rmtree(path, ignore_errors=True)
 
 
-async def ensure_covenant_compliance(project_path: str):
-    """
-    Helper to ensure covenant compliance for tests.
-
-    Calls get_briefing() and context_check() to satisfy the Sacred Covenant
-    requirements for tools that need communion and/or counsel.
-    """
-    from daem0nmcp import server
-
-    # Ensure communion (get_briefing)
-    await server.get_briefing(project_path=project_path)
-
-    # Ensure counsel (context_check)
-    await server.context_check(
-        description="Test operation",
-        project_path=project_path,
-    )
+@pytest.fixture
+def covenant_workspace_factory():
+    """Create explicit isolated Covenant scopes for test workspaces."""
+    return CovenantTestWorkspace
 
 
 @pytest.fixture
@@ -129,10 +118,10 @@ async def covenant_compliant_project(tmp_path):
     # Clear any cached contexts
     server._project_contexts.clear()
 
-    # Ensure covenant compliance
-    await ensure_covenant_compliance(project_path)
+    workspace = CovenantTestWorkspace(project_path)
+    await workspace.brief()
 
-    yield project_path
+    yield workspace
 
     # Cleanup
     await db_manager.close()

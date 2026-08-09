@@ -1,12 +1,14 @@
 ---
-description: Retrieve memories from Daem0n about a topic
+description: Retrieve bounded memories from a Daem0n v7 workspace
 ---
 
-Call `daem0nmcp_consult(action="recall", topic="$ARGUMENTS")` immediately.
+Call `daem0nmcp_memory_recall(workspace_id="<workspace_id>", query="$ARGUMENTS", limit=10)` immediately.
 
 Present the retrieved memories in a clear format:
-- Show each memory's content, category, and when it was created
+- Show each record's content, type, and creation time
 - Highlight any warnings or failed approaches
-- Note any related memories that might be relevant
+- Preserve evidence references and truncation indicators
 
-Do NOT ask what to search for. The user provided the topic after /recall.
+For service diagnostics use
+`daem0nmcp_system_health(workspace_id="<workspace_id>")`. Do not replace the
+opaque workspace ID with a project path.
